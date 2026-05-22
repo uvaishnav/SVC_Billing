@@ -6,6 +6,22 @@
 
 ***
 
+## [2026-05-22] — Phase 1: Project Scaffolding & Styling
+
+### Implemented
+- Set up the initial project structure using Vite with the React + TypeScript template.
+- Installed the initial npm dependencies.
+- Installed and configured Tailwind CSS for styling.
+- Removed boilerplate code and created the application folder structure as per `architecture.md`.
+
+### Changed
+- (nothing yet)
+
+### Observations / Surprises
+- The `npx` command failed repeatedly, requiring a manual workaround to create the Tailwind CSS configuration files.
+
+***
+
 ## [YYYY-MM-DD] — Initial Setup
 
 ### Implemented
