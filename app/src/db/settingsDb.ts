@@ -13,13 +13,27 @@ export async function getSettings(): Promise<Settings | null> {
   return data
 }
 
+// Use this when saving the full business profile for the first time (INSERT or full UPSERT)
 export async function upsertSettings(values: Partial<Settings>): Promise<Settings | null> {
   const { data, error } = await supabase
     .from('settings')
-    .upsert({ ...values, id: 1 })
+    .upsert({ ...values, id: 1 }, { onConflict: 'id' })
     .select()
     .single()
   if (error) { console.error('upsertSettings:', error); return null }
+  return data
+}
+
+// Use this for partial updates (e.g. setting a default bank account or SAC code)
+// Safe to call even when settings row already exists — never risks NOT NULL violations
+export async function patchSettings(values: Partial<Settings>): Promise<Settings | null> {
+  const { data, error } = await supabase
+    .from('settings')
+    .update(values)
+    .eq('id', 1)
+    .select()
+    .single()
+  if (error) { console.error('patchSettings:', error); return null }
   return data
 }
 
