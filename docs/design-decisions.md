@@ -35,3 +35,17 @@ Introduced two separate functions for writing to `settings`:
 - `patchSettings(values)` — used for partial updates (e.g. set default bank, set default SAC); pure `UPDATE WHERE id = 1`
 
 This separation prevents `NOT NULL` constraint violations when only a single field needs updating.
+
+## [2026-05-23] Clients Module — Separate `client_gstins` table
+
+Chose a **separate `client_gstins` table** (one row per GSTIN) over a JSONB array on the `clients` row because:
+- Invoice generation needs to look up "which GSTIN for this client in state X" — a relational join is cleaner and indexable
+- Each GSTIN has metadata (state, state_code, is_primary) that is awkward to manage inside a JSONB blob
+- Soft-insert/delete per GSTIN without touching the parent client row keeps audit trails clean
+
+## [2026-05-23] Navigation Shell — Built alongside Clients module
+
+Chose to introduce a **bottom-tab nav shell (`AppShell`)** at the same time as the Clients module, rather than continuing to hardcode a single page in `App.tsx`, because:
+- Two navigable modules now exist (Settings + Clients); hardcoding one page is no longer viable
+- Vehicles Master is the very next feature — building the shell now avoids a disruptive refactor
+- The shell is intentionally minimal (2 tabs) and new tabs are a one-line addition per feature going forward

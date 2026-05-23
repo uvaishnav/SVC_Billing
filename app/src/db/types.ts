@@ -49,6 +49,32 @@ export interface Settings {
   default_bank_account_id: number | null
 }
 
+export interface Client {
+  id: number
+  name: string
+  address: string
+  state: string
+  state_code: string
+  phone: string | null
+  email: string | null
+  is_active: boolean
+  created_at: string
+}
+
+export interface ClientGstin {
+  id: number
+  client_id: number
+  state: string
+  state_code: string
+  gstin: string
+  is_primary: boolean
+  created_at: string
+}
+
+export interface ClientWithGstins extends Client {
+  gstins: ClientGstin[]
+}
+
 // For Supabase createClient generic
 export interface Database {
   public: {
@@ -56,6 +82,8 @@ export interface Database {
       settings: { Row: Settings; Insert: Partial<Settings>; Update: Partial<Settings> }
       bank_accounts: { Row: BankAccount; Insert: Omit<BankAccount, 'id' | 'created_at'>; Update: Partial<BankAccount> }
       sac_codes: { Row: SacCode; Insert: Omit<SacCode, 'id'>; Update: Partial<SacCode> }
+      clients: { Row: Client; Insert: Omit<Client, 'id' | 'created_at'>; Update: Partial<Client> }
+      client_gstins: { Row: ClientGstin; Insert: Omit<ClientGstin, 'id' | 'created_at'>; Update: Partial<ClientGstin> }
     }
   }
 }

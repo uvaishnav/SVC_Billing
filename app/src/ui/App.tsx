@@ -2,19 +2,17 @@ import React, { useEffect, useState } from 'react'
 import { supabase } from '../db/supabaseClient'
 import type { Session } from '@supabase/supabase-js'
 import LoginScreen from './auth/LoginScreen'
-import SettingsPage from './settings/SettingsPage'
+import AppShell from './AppShell'
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Get current session on mount
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setLoading(false)
     })
-    // Listen for login/logout events
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
     })
@@ -31,6 +29,5 @@ export default function App() {
 
   if (!session) return <LoginScreen />
 
-  // Temporary: show Settings directly until nav shell is built
-  return <SettingsPage />
+  return <AppShell />
 }
