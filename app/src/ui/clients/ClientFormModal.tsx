@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import type { ClientWithGstins, ClientGstin } from '../../db/types'
-import { upsertClient, upsertClientGstin, deleteClientGstin, setPrimaryGstin } from '../../db/clientsDb'
+import { upsertClient, upsertClientGstin, deleteClientGstin } from '../../db/clientsDb'
+import { Field, PrimaryButton, cardStyle, sectionTitleStyle, inputStyle, labelStyle } from '../settings/_components'
 
-const AP_STATES = [
+const STATES = [
   { name: 'Andhra Pradesh', code: '37' },
   { name: 'Telangana', code: '36' },
   { name: 'Tamil Nadu', code: '33' },
@@ -25,52 +26,63 @@ interface Props {
 export default function ClientFormModal({ client, onClose, onSaved }: Props) {
   const isEdit = !!client
 
-  const [name, setName] = useState(client?.name ?? '')
+  const [name, setName]       = useState(client?.name ?? '')
   const [address, setAddress] = useState(client?.address ?? '')
-  const [state, setState] = useState(client?.state ?? 'Andhra Pradesh')
+  const [state, setState]     = useState(client?.state ?? 'Andhra Pradesh')
   const [stateCode, setStateCode] = useState(client?.state_code ?? '37')
-  const [phone, setPhone] = useState(client?.phone ?? '')
-  const [email, setEmail] = useState(client?.email ?? '')
-  const [gstins, setGstins] = useState<Partial<ClientGstin>[]>(
-    client?.gstins ?? []
-  )
-  const [newGstin, setNewGstin] = useState('')
+  const [phone, setPhone]     = useState(client?.phone ?? '')
+  const [email, setEmail]     = useState(client?.email ?? '')
+  const [gstins, setGstins]   = useState<Partial<ClientGstin>[]>(client?.gstins ?? [])
+  const [newGstin, setNewGstin]           = useState('')
   const [newGstinState, setNewGstinState] = useState('Andhra Pradesh')
-  const [newGstinCode, setNewGstinCode] = useState('37')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [newGstinCode, setNewGstinCode]   = useState('37')
+  const [saving, setSaving]   = useState(false)
+  const [error, setError]     = useState<string | null>(null)
 
   function handleStateChange(stateName: string) {
     setState(stateName)
-    const found = AP_STATES.find(s => s.name === stateName)
-    setStateCode(found?.code ?? '99')
+    setStateCode(STATES.find(s => s.name === stateName)?.code ?? '99')
   }
 
   function handleGstinStateChange(stateName: string) {
     setNewGstinState(stateName)
-    const found = AP_STATES.find(s => s.name === stateName)
-    setNewGstinCode(found?.code ?? '99')
+    setNewGstinCode(STATES.find(s => s.name === stateName)?.code ?? '99')
+  }
+
+  function addGstin() {
+    const val = newGstin.trim().toUpperCase()
+    if (!val) return
+    setGstins(prev => [...prev, {
+      gstin: val,
+      state: newGstinState,
+      state_code: newGstinCode,
+      is_primary: prev.length === 0,
+    }])
+    setNewGstin('')
+  }
+
+  async function removeGstin(index: number) {
+    const g = gstins[index]
+    if (g.id) await deleteClientGstin(g.id)
+    setGstins(prev => prev.filter((_, i) => i !== index))
   }
 
   async function handleSave() {
-    if (!name.trim()) { setError('Client name is required'); return }
+    if (!name.trim())    { setError('Client name is required'); return }
     if (!address.trim()) { setError('Address is required'); return }
-    setSaving(true)
-    setError(null)
+    setSaving(true); setError(null)
 
     const saved = await upsertClient({
       id: client?.id,
       name: name.trim(),
       address: address.trim(),
-      state,
-      state_code: stateCode,
+      state, state_code: stateCode,
       phone: phone.trim() || null,
       email: email.trim() || null,
       is_active: true,
     })
-    if (!saved) { setError('Failed to save client. Please try again.'); setSaving(false); return }
+    if (!saved) { setError('Failed to save. Please try again.'); setSaving(false); return }
 
-    // Handle GSTIN additions that are new (no id yet)
     for (const g of gstins) {
       if (!g.id && g.gstin) {
         await upsertClientGstin({
@@ -82,164 +94,188 @@ export default function ClientFormModal({ client, onClose, onSaved }: Props) {
         })
       }
     }
-
     setSaving(false)
     onSaved()
   }
 
-  function addGstin() {
-    if (!newGstin.trim()) return
-    const isPrimary = gstins.length === 0
-    setGstins(prev => [...prev, {
-      gstin: newGstin.trim().toUpperCase(),
-      state: newGstinState,
-      state_code: newGstinCode,
-      is_primary: isPrimary,
-    }])
-    setNewGstin('')
-  }
-
-  async function removeGstin(index: number) {
-    const g = gstins[index]
-    if (g.id) await deleteClientGstin(g.id)
-    setGstins(prev => prev.filter((_, i) => i !== index))
-  }
-
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
-      <div className="bg-[#F5F1E8] rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-xl">
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-[#C8A96A]/30">
-          <h2 className="text-lg font-semibold text-[#3B2A1F] font-[Playfair_Display]"
-          >{isEdit ? 'Edit Client' : 'New Client'}</h2>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#C8A96A]/20 text-[#7A6A58]">
-            ✕
-          </button>
+    // Overlay
+    <div style={{
+      position: 'fixed', inset: 0,
+      background: 'rgba(30,20,10,0.55)',
+      display: 'flex', alignItems: 'flex-end',
+      justifyContent: 'center',
+      zIndex: 200,
+      padding: '0',
+    }}>
+      {/* Sheet */}
+      <div style={{
+        background: 'var(--color-bg)',
+        borderRadius: '20px 20px 0 0',
+        width: '100%',
+        maxWidth: '640px',
+        maxHeight: '92svh',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}>
+
+        {/* Handle + Header */}
+        <div style={{
+          background: 'var(--color-primary)',
+          padding: '12px 20px 16px',
+          borderRadius: '20px 20px 0 0',
+          flexShrink: 0,
+        }}>
+          {/* Drag handle */}
+          <div style={{ width: '36px', height: '4px', background: 'rgba(255,255,255,0.25)', borderRadius: '2px', margin: '0 auto 14px' }} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h2 style={{ color: 'var(--color-bg)', fontSize: '20px', fontFamily: 'Playfair Display, serif' }}>
+              {isEdit ? 'Edit Client' : 'New Client'}
+            </h2>
+            <button
+              onClick={onClose}
+              style={{
+                width: '32px', height: '32px', borderRadius: '50%',
+                background: 'rgba(255,255,255,0.15)',
+                color: 'var(--color-bg)',
+                fontSize: '18px', border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >✕</button>
+          </div>
         </div>
 
-        <div className="p-5 space-y-4">
+        {/* Scrollable body */}
+        <div style={{ overflowY: 'auto', flex: 1, padding: '24px 20px' }}>
+
           {error && (
-            <p className="text-sm text-[#8B2E2E] bg-[#8B2E2E]/10 rounded-lg px-3 py-2">{error}</p>
+            <div style={{
+              background: 'rgba(139,46,46,0.08)',
+              border: '1px solid var(--color-error)',
+              color: 'var(--color-error)',
+              borderRadius: '10px',
+              padding: '10px 14px',
+              fontSize: '14px',
+              marginBottom: '16px',
+            }}>{error}</div>
           )}
 
-          {/* Name */}
-          <div>
-            <label className="block text-xs font-medium text-[#7A6A58] mb-1">Client Name *</label>
-            <input
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="e.g. RSV Constructions Pvt Ltd"
-              className="w-full rounded-xl border border-[#C8A96A]/40 bg-white px-3 py-2.5 text-sm text-[#3B2A1F] focus:outline-none focus:ring-2 focus:ring-[#C8A96A]"
-            />
-          </div>
-
-          {/* Address */}
-          <div>
-            <label className="block text-xs font-medium text-[#7A6A58] mb-1">Address *</label>
-            <textarea
-              value={address}
-              onChange={e => setAddress(e.target.value)}
-              rows={2}
-              placeholder="Street, City, PIN"
-              className="w-full rounded-xl border border-[#C8A96A]/40 bg-white px-3 py-2.5 text-sm text-[#3B2A1F] focus:outline-none focus:ring-2 focus:ring-[#C8A96A] resize-none"
-            />
-          </div>
+          <Field label="Client Name" value={name} onChange={setName} placeholder="e.g. RSV Constructions Pvt Ltd" required />
+          <Field label="Address" value={address} onChange={setAddress} placeholder="Street, City, PIN" required rows={2} />
 
           {/* State */}
-          <div>
-            <label className="block text-xs font-medium text-[#7A6A58] mb-1">Primary State</label>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={labelStyle}>Primary State</label>
             <select
               value={state}
               onChange={e => handleStateChange(e.target.value)}
-              className="w-full rounded-xl border border-[#C8A96A]/40 bg-white px-3 py-2.5 text-sm text-[#3B2A1F] focus:outline-none focus:ring-2 focus:ring-[#C8A96A]"
+              style={{ ...inputStyle, appearance: 'none' }}
             >
-              {AP_STATES.map(s => (
+              {STATES.map(s => (
                 <option key={s.code} value={s.name}>{s.name} ({s.code})</option>
               ))}
             </select>
           </div>
 
-          {/* Phone & Email */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-[#7A6A58] mb-1">Phone</label>
-              <input
-                value={phone}
-                onChange={e => setPhone(e.target.value)}
-                placeholder="+91 99999 00000"
-                className="w-full rounded-xl border border-[#C8A96A]/40 bg-white px-3 py-2.5 text-sm text-[#3B2A1F] focus:outline-none focus:ring-2 focus:ring-[#C8A96A]"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-[#7A6A58] mb-1">Email</label>
-              <input
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="billing@client.com"
-                className="w-full rounded-xl border border-[#C8A96A]/40 bg-white px-3 py-2.5 text-sm text-[#3B2A1F] focus:outline-none focus:ring-2 focus:ring-[#C8A96A]"
-              />
-            </div>
+          {/* Phone + Email */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <Field label="Phone" value={phone} onChange={setPhone} placeholder="+91 98765 43210" />
+            <Field label="Email" value={email} onChange={setEmail} placeholder="billing@client.com" type="email" />
           </div>
 
           {/* GSTINs */}
-          <div>
-            <label className="block text-xs font-medium text-[#7A6A58] mb-2">GSTINs</label>
+          <div style={{ marginBottom: '16px' }}>
+            <p style={sectionTitleStyle}>GSTINs</p>
+
             {gstins.length > 0 && (
-              <div className="space-y-2 mb-3">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
                 {gstins.map((g, i) => (
-                  <div key={i} className="flex items-center gap-2 bg-white rounded-xl px-3 py-2 border border-[#C8A96A]/30">
-                    <span className="flex-1 text-sm font-mono text-[#3B2A1F]">{g.gstin}</span>
-                    <span className="text-xs text-[#7A6A58]">{g.state}</span>
+                  <div key={i} style={{
+                    ...cardStyle,
+                    display: 'flex', alignItems: 'center', gap: '10px',
+                    padding: '10px 14px',
+                  }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: '14px', fontVariantNumeric: 'tabular-nums', color: 'var(--color-text)', marginBottom: '2px' }}>{g.gstin}</p>
+                      <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{g.state}</p>
+                    </div>
                     {g.is_primary && (
-                      <span className="text-xs bg-[#C8A96A]/20 text-[#A05C1A] px-2 py-0.5 rounded-full">Primary</span>
+                      <span style={{
+                        fontSize: '11px', fontWeight: 600,
+                        color: '#fff',
+                        background: 'var(--color-success)',
+                        padding: '2px 8px', borderRadius: '20px',
+                      }}>PRIMARY</span>
                     )}
                     <button
                       onClick={() => removeGstin(i)}
-                      className="text-[#8B2E2E] text-xs hover:underline min-w-[44px] min-h-[44px] flex items-center justify-center"
+                      style={{ padding: '4px 10px', background: '#FDF0F0', color: 'var(--color-error)', fontSize: '13px', fontWeight: 500, borderRadius: '6px', border: 'none', cursor: 'pointer', minHeight: '32px' }}
                     >Remove</button>
                   </div>
                 ))}
               </div>
             )}
-            {/* Add new GSTIN row */}
-            <div className="flex gap-2">
-              <div className="flex-1">
+
+            {/* Add GSTIN row */}
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+              <div style={{ flex: 1 }}>
+                <label style={labelStyle}>GSTIN</label>
                 <input
                   value={newGstin}
                   onChange={e => setNewGstin(e.target.value.toUpperCase())}
                   placeholder="29ABCDE1234F1Z5"
                   maxLength={15}
-                  className="w-full rounded-xl border border-[#C8A96A]/40 bg-white px-3 py-2.5 text-sm font-mono text-[#3B2A1F] focus:outline-none focus:ring-2 focus:ring-[#C8A96A]"
+                  style={{ ...inputStyle }}
                 />
               </div>
-              <select
-                value={newGstinState}
-                onChange={e => handleGstinStateChange(e.target.value)}
-                className="rounded-xl border border-[#C8A96A]/40 bg-white px-2 py-2.5 text-xs text-[#3B2A1F] focus:outline-none focus:ring-2 focus:ring-[#C8A96A]"
-              >
-                {AP_STATES.map(s => (
-                  <option key={s.code} value={s.name}>{s.name}</option>
-                ))}
-              </select>
+              <div style={{ flexShrink: 0, minWidth: '130px' }}>
+                <label style={labelStyle}>State</label>
+                <select
+                  value={newGstinState}
+                  onChange={e => handleGstinStateChange(e.target.value)}
+                  style={{ ...inputStyle, appearance: 'none' }}
+                >
+                  {STATES.map(s => <option key={s.code} value={s.name}>{s.name}</option>)}
+                </select>
+              </div>
               <button
                 onClick={addGstin}
-                className="min-w-[44px] min-h-[44px] rounded-xl bg-[#C8A96A] text-white text-lg font-bold hover:bg-[#A07840] transition-colors"
+                style={{
+                  height: '50px', minWidth: '50px',
+                  background: 'var(--color-accent)',
+                  color: 'var(--color-primary)',
+                  fontSize: '22px', fontWeight: 700,
+                  borderRadius: '12px', border: 'none', cursor: 'pointer',
+                  flexShrink: 0, alignSelf: 'flex-end',
+                }}
               >+</button>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex gap-3 p-5 border-t border-[#C8A96A]/30">
+        <div style={{
+          padding: '16px 20px',
+          borderTop: '1px solid var(--color-border)',
+          background: 'var(--color-surface)',
+          flexShrink: 0,
+          display: 'flex', gap: '12px',
+        }}>
           <button
             onClick={onClose}
-            className="flex-1 py-3 rounded-xl border border-[#C8A96A]/40 text-[#7A6A58] text-sm font-medium hover:bg-[#C8A96A]/10 transition-colors"
+            style={{
+              flex: 1, padding: '16px',
+              background: 'var(--color-surface-offset)',
+              color: 'var(--color-text-muted)',
+              fontWeight: 600, fontSize: '16px',
+              borderRadius: '12px', border: 'none', cursor: 'pointer',
+              fontFamily: 'Work Sans, sans-serif',
+            }}
           >Cancel</button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex-1 py-3 rounded-xl bg-[#3B2A1F] text-[#F5F1E8] text-sm font-medium hover:bg-[#2A1D13] disabled:opacity-50 transition-colors"
-          >{saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Client'}</button>
+          <PrimaryButton onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Client'}
+          </PrimaryButton>
         </div>
       </div>
     </div>

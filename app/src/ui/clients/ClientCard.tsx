@@ -1,5 +1,6 @@
 import React from 'react'
 import type { ClientWithGstins } from '../../db/types'
+import { cardStyle } from '../settings/_components'
 
 interface Props {
   client: ClientWithGstins
@@ -11,42 +12,64 @@ export default function ClientCard({ client, onEdit, onDeactivate }: Props) {
   const primaryGstin = client.gstins.find(g => g.is_primary) ?? client.gstins[0]
 
   return (
-    <div className="bg-white rounded-2xl border border-[#C8A96A]/30 p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        {/* Avatar initial */}
-        <div className="w-10 h-10 rounded-full bg-[#C8A96A]/20 flex items-center justify-center shrink-0">
-          <span className="text-[#A07840] font-semibold text-sm">
-            {client.name.charAt(0).toUpperCase()}
-          </span>
+    <div style={{ ...cardStyle }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+
+        {/* Avatar */}
+        <div style={{
+          width: '42px', height: '42px', borderRadius: '50%',
+          background: 'var(--color-surface-offset)',
+          border: '1.5px solid var(--color-border)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+          fontSize: '16px', fontWeight: 700,
+          color: 'var(--color-primary)',
+          fontFamily: 'Playfair Display, serif',
+        }}>
+          {client.name.charAt(0).toUpperCase()}
         </div>
 
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-[#3B2A1F] text-sm truncate">{client.name}</p>
-          <p className="text-xs text-[#7A6A58] mt-0.5 truncate">{client.address}</p>
+        {/* Details */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontWeight: 600, fontSize: '16px', color: 'var(--color-primary)', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {client.name}
+          </p>
+          <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {client.address}
+          </p>
           {primaryGstin && (
-            <p className="text-xs font-mono text-[#5A4A38] mt-1">{primaryGstin.gstin}</p>
+            <p style={{ fontSize: '13px', fontVariantNumeric: 'tabular-nums', color: 'var(--color-text)', letterSpacing: '0.3px', marginBottom: '6px' }}>
+              {primaryGstin.gstin}
+            </p>
           )}
-          <div className="flex flex-wrap gap-1 mt-2">
-            <span className="text-xs bg-[#F5F1E8] text-[#7A6A58] px-2 py-0.5 rounded-full border border-[#C8A96A]/20">
-              {client.state}
-            </span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            <span style={{
+              fontSize: '12px', fontWeight: 500,
+              color: 'var(--color-text-muted)',
+              background: 'var(--color-surface-offset)',
+              border: '1px solid var(--color-border)',
+              padding: '2px 10px', borderRadius: '20px',
+            }}>{client.state}</span>
             {client.gstins.length > 1 && (
-              <span className="text-xs bg-[#C8A96A]/15 text-[#A05C1A] px-2 py-0.5 rounded-full">
-                +{client.gstins.length - 1} more GSTIN{client.gstins.length > 2 ? 's' : ''}
-              </span>
+              <span style={{
+                fontSize: '12px', fontWeight: 500,
+                color: 'var(--color-warning)',
+                background: 'rgba(160,92,26,0.08)',
+                padding: '2px 10px', borderRadius: '20px',
+              }}>+{client.gstins.length - 1} more GSTIN{client.gstins.length > 2 ? 's' : ''}</span>
             )}
           </div>
         </div>
 
         {/* Actions */}
-        <div className="flex flex-col gap-1 shrink-0">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flexShrink: 0 }}>
           <button
             onClick={() => onEdit(client)}
-            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl bg-[#C8A96A]/15 text-[#A07840] text-xs font-medium hover:bg-[#C8A96A]/30 transition-colors"
+            style={{ padding: '6px 14px', background: 'var(--color-surface-offset)', color: 'var(--color-info)', fontSize: '13px', fontWeight: 500, borderRadius: '8px', border: 'none', cursor: 'pointer', minHeight: '36px' }}
           >Edit</button>
           <button
             onClick={() => onDeactivate(client.id)}
-            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl bg-[#8B2E2E]/10 text-[#8B2E2E] text-xs font-medium hover:bg-[#8B2E2E]/20 transition-colors"
+            style={{ padding: '6px 14px', background: '#FDF0F0', color: 'var(--color-error)', fontSize: '13px', fontWeight: 500, borderRadius: '8px', border: 'none', cursor: 'pointer', minHeight: '36px' }}
           >Remove</button>
         </div>
       </div>

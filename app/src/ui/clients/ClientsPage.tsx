@@ -3,6 +3,7 @@ import type { ClientWithGstins } from '../../db/types'
 import { getClients, deactivateClient } from '../../db/clientsDb'
 import ClientCard from './ClientCard'
 import ClientFormModal from './ClientFormModal'
+import { sectionTitleStyle } from '../settings/_components'
 
 export default function ClientsPage() {
   const [clients, setClients] = useState<ClientWithGstins[]>([])
@@ -26,7 +27,7 @@ export default function ClientsPage() {
   )
 
   async function handleDeactivate(id: number) {
-    if (!confirm('Remove this client? This cannot be undone.')) return
+    if (!confirm('Remove this client? This action cannot be undone.')) return
     await deactivateClient(id)
     load()
   }
@@ -41,74 +42,108 @@ export default function ClientsPage() {
     setModalOpen(true)
   }
 
-  function handleModalClose() {
+  function handleSaved() {
     setModalOpen(false)
     setEditingClient(null)
-  }
-
-  function handleSaved() {
-    handleModalClose()
     load()
   }
 
   return (
-    <div className="min-h-screen bg-[#F5F1E8]">
-      {/* Header */}
-      <div className="bg-[#3B2A1F] px-5 pt-12 pb-5 safe-area-top">
-        <div className="flex items-center justify-between">
+    <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
+
+      {/* Sticky header */}
+      <div style={{
+        background: 'var(--color-primary)',
+        padding: '20px 20px 16px',
+        position: 'sticky', top: 0, zIndex: 10,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
           <div>
-            <h1 className="text-xl font-bold text-[#F5F1E8] font-[Playfair_Display]">Clients</h1>
-            <p className="text-xs text-[#C8A96A] mt-0.5">{clients.length} active client{clients.length !== 1 ? 's' : ''}</p>
+            <h1 style={{ color: 'var(--color-bg)', fontSize: '22px', fontFamily: 'Playfair Display, serif', marginBottom: '2px' }}>Clients</h1>
+            <p style={{ color: 'var(--color-accent)', fontSize: '13px', opacity: 0.85 }}>
+              {clients.length} active client{clients.length !== 1 ? 's' : ''}
+            </p>
           </div>
           <button
             onClick={handleAdd}
-            className="w-11 h-11 rounded-full bg-[#C8A96A] text-[#3B2A1F] text-2xl font-bold flex items-center justify-center hover:bg-[#A07840] transition-colors shadow-lg"
+            style={{
+              width: '44px', height: '44px',
+              borderRadius: '50%',
+              background: 'var(--color-accent)',
+              color: 'var(--color-primary)',
+              fontSize: '24px', fontWeight: 700,
+              border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+              flexShrink: 0,
+            }}
           >+</button>
         </div>
 
-        {/* Search */}
-        <div className="mt-4">
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search by name or GSTIN…"
-            className="w-full rounded-xl bg-white/10 text-[#F5F1E8] placeholder-[#C8A96A]/60 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#C8A96A]"
-          />
-        </div>
+        {/* Search bar */}
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search by name or GSTIN…"
+          style={{
+            width: '100%',
+            padding: '11px 16px',
+            borderRadius: '10px',
+            border: 'none',
+            background: 'rgba(255,255,255,0.12)',
+            color: 'var(--color-bg)',
+            fontSize: '15px',
+            outline: 'none',
+            fontFamily: 'Work Sans, sans-serif',
+            boxSizing: 'border-box',
+          }}
+        />
       </div>
 
       {/* Content */}
-      <div className="px-4 py-4 space-y-3 pb-24">
+      <div style={{ maxWidth: '640px', margin: '0 auto', padding: '20px 16px 32px' }}>
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <p className="text-[#7A6A58] text-sm">Loading clients…</p>
+          <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--color-text-muted)', fontSize: '15px' }}>
+            Loading clients…
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <div className="w-16 h-16 rounded-full bg-[#C8A96A]/20 flex items-center justify-center">
-              <span className="text-3xl">👤</span>
-            </div>
-            <p className="text-[#7A6A58] text-sm text-center">
-              {search ? `No clients matching "${search}"` : 'No clients yet. Tap + to add one.'}
+          <div style={{ textAlign: 'center', padding: '60px 0' }}>
+            <div style={{
+              width: '64px', height: '64px', borderRadius: '50%',
+              background: 'var(--color-surface-offset)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 16px', fontSize: '28px',
+            }}>👤</div>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '15px' }}>
+              {search ? `No clients matching "${search}"` : 'No clients yet.'}
             </p>
+            {!search && (
+              <p style={{ color: 'var(--color-text-faint)', fontSize: '13px', marginTop: '6px' }}>Tap + to add your first client.</p>
+            )}
           </div>
         ) : (
-          filtered.map(c => (
-            <ClientCard
-              key={c.id}
-              client={c}
-              onEdit={handleEdit}
-              onDeactivate={handleDeactivate}
-            />
-          ))
+          <>
+            <p style={{ ...sectionTitleStyle, marginBottom: '14px' }}>
+              {search ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''}` : 'All Clients'}
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {filtered.map(c => (
+                <ClientCard
+                  key={c.id}
+                  client={c}
+                  onEdit={handleEdit}
+                  onDeactivate={handleDeactivate}
+                />
+              ))}
+            </div>
+          </>
         )}
       </div>
 
-      {/* Modal */}
       {modalOpen && (
         <ClientFormModal
           client={editingClient}
-          onClose={handleModalClose}
+          onClose={() => { setModalOpen(false); setEditingClient(null) }}
           onSaved={handleSaved}
         />
       )}

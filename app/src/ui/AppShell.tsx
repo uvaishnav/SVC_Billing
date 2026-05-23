@@ -5,43 +5,72 @@ import ClientsPage from './clients/ClientsPage'
 type Tab = 'clients' | 'settings'
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'clients', label: 'Clients', icon: '👤' },
+  { id: 'clients',  label: 'Clients',  icon: '👤' },
   { id: 'settings', label: 'Settings', icon: '⚙️' },
 ]
+
+const NAV_HEIGHT = 64 // px — keeps content from hiding behind the nav bar
 
 export default function AppShell() {
   const [activeTab, setActiveTab] = useState<Tab>('clients')
 
   return (
-    <div className="min-h-screen bg-[#F5F1E8] flex flex-col">
-      {/* Page content */}
-      <div className="flex-1 overflow-y-auto">
-        {activeTab === 'clients' && <ClientsPage />}
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100svh', background: 'var(--color-bg)' }}>
+
+      {/* Scrollable page area — stops at nav bar */}
+      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: NAV_HEIGHT }}>
+        {activeTab === 'clients'  && <ClientsPage />}
         {activeTab === 'settings' && <SettingsPage />}
       </div>
 
-      {/* Bottom tab bar */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-[#3B2A1F] border-t border-[#C8A96A]/20 pb-safe">
-        <div className="flex">
-          {TABS.map(tab => (
+      {/* Bottom tab bar — always on top */}
+      <nav style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0,
+        height: NAV_HEIGHT,
+        background: 'var(--color-primary)',
+        borderTop: '1px solid rgba(200,169,106,0.2)',
+        display: 'flex',
+        zIndex: 100,
+      }}>
+        {TABS.map(tab => {
+          const isActive = activeTab === tab.id
+          return (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={[
-                'flex-1 flex flex-col items-center justify-center py-3 gap-0.5 min-h-[56px] transition-colors',
-                activeTab === tab.id
-                  ? 'text-[#C8A96A]'
-                  : 'text-[#7A6A58] hover:text-[#C8A96A]/70',
-              ].join(' ')}
+              style={{
+                flex: 1,
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center',
+                gap: '4px',
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                padding: '8px 0',
+                position: 'relative',
+              }}
             >
-              <span className="text-xl leading-none">{tab.icon}</span>
-              <span className="text-[10px] font-medium tracking-wide">{tab.label}</span>
-              {activeTab === tab.id && (
-                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-[#C8A96A] rounded-full" />
+              {/* Active indicator line at top */}
+              {isActive && (
+                <span style={{
+                  position: 'absolute', top: 0, left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: '32px', height: '2px',
+                  background: 'var(--color-accent)',
+                  borderRadius: '0 0 2px 2px',
+                }} />
               )}
+              <span style={{ fontSize: '20px', lineHeight: 1 }}>{tab.icon}</span>
+              <span style={{
+                fontSize: '11px',
+                fontWeight: isActive ? 600 : 400,
+                color: isActive ? 'var(--color-accent)' : 'var(--color-text-faint)',
+                fontFamily: 'Work Sans, sans-serif',
+                letterSpacing: '0.3px',
+              }}>{tab.label}</span>
             </button>
-          ))}
-        </div>
+          )
+        })}
       </nav>
     </div>
   )
