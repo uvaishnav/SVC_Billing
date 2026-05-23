@@ -1,13 +1,17 @@
 -- Migration 002: Clients Master
--- Creates clients table and client_gstins table
+-- Creates clients and client_gstins tables
 -- Run this in Supabase SQL Editor
+--
+-- Schema design:
+--   clients        → identity only (name, phone, email)
+--   client_gstins  → one row per GST registration;
+--                    each registration has its own address, state, and GSTIN
+--                    because a client can be registered in multiple states
+--                    with different addresses per registration.
 
 CREATE TABLE IF NOT EXISTS clients (
   id          BIGSERIAL PRIMARY KEY,
   name        TEXT NOT NULL,
-  address     TEXT NOT NULL,
-  state       TEXT NOT NULL,
-  state_code  TEXT NOT NULL,
   phone       TEXT,
   email       TEXT,
   is_active   BOOLEAN NOT NULL DEFAULT TRUE,
@@ -17,9 +21,10 @@ CREATE TABLE IF NOT EXISTS clients (
 CREATE TABLE IF NOT EXISTS client_gstins (
   id          BIGSERIAL PRIMARY KEY,
   client_id   BIGINT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  gstin       TEXT NOT NULL,
   state       TEXT NOT NULL,
   state_code  TEXT NOT NULL,
-  gstin       TEXT NOT NULL,
+  address     TEXT NOT NULL,
   is_primary  BOOLEAN NOT NULL DEFAULT FALSE,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (client_id, gstin)
@@ -39,11 +44,9 @@ CREATE POLICY "Authenticated users can manage client_gstins"
   USING (auth.role() = 'authenticated')
   WITH CHECK (auth.role() = 'authenticated');
 
--- Grant table privileges to authenticated role
--- (RLS alone is not sufficient — explicit GRANTs are also required)
+-- Grants (RLS alone is not sufficient — explicit GRANTs are required)
 GRANT SELECT, INSERT, UPDATE ON public.clients TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.client_gstins TO authenticated;
 
--- Grant sequence access so BIGSERIAL auto-increment IDs work
 GRANT USAGE, SELECT ON SEQUENCE clients_id_seq TO authenticated;
 GRANT USAGE, SELECT ON SEQUENCE client_gstins_id_seq TO authenticated;

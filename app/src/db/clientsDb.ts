@@ -46,11 +46,11 @@ export async function deactivateClient(id: number): Promise<void> {
 // ── Client GSTINs ─────────────────────────────────────────
 
 export async function upsertClientGstin(
-  gstin: Partial<ClientGstin> & { client_id: number }
+  gstin: Partial<ClientGstin> & { client_id: number; gstin: string }
 ): Promise<ClientGstin | null> {
   const { data, error } = await supabase
     .from('client_gstins')
-    .upsert(gstin)
+    .upsert(gstin, { onConflict: 'client_id,gstin' })
     .select()
     .single()
   if (error) { console.error('upsertClientGstin:', error); return null }
@@ -66,7 +66,6 @@ export async function deleteClientGstin(id: number): Promise<void> {
 }
 
 export async function setPrimaryGstin(clientId: number, gstinId: number): Promise<void> {
-  // Unset all primaries for this client first, then set the chosen one
   await supabase
     .from('client_gstins')
     .update({ is_primary: false })

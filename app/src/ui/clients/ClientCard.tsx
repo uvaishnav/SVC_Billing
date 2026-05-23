@@ -34,22 +34,31 @@ export default function ClientCard({ client, onEdit, onDeactivate }: Props) {
           <p style={{ fontWeight: 600, fontSize: '16px', color: 'var(--color-primary)', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {client.name}
           </p>
-          <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {client.address}
-          </p>
-          {primaryGstin && (
-            <p style={{ fontSize: '13px', fontVariantNumeric: 'tabular-nums', color: 'var(--color-text)', letterSpacing: '0.3px', marginBottom: '6px' }}>
-              {primaryGstin.gstin}
-            </p>
+
+          {/* Primary GSTIN details */}
+          {primaryGstin ? (
+            <>
+              <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {primaryGstin.address}
+              </p>
+              <p style={{ fontSize: '13px', fontVariantNumeric: 'tabular-nums', color: 'var(--color-text)', letterSpacing: '0.3px', marginBottom: '6px' }}>
+                {primaryGstin.gstin}
+              </p>
+            </>
+          ) : (
+            <p style={{ fontSize: '13px', color: 'var(--color-text-faint)', marginBottom: '6px' }}>No GSTIN added</p>
           )}
+
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-            <span style={{
-              fontSize: '12px', fontWeight: 500,
-              color: 'var(--color-text-muted)',
-              background: 'var(--color-surface-offset)',
-              border: '1px solid var(--color-border)',
-              padding: '2px 10px', borderRadius: '20px',
-            }}>{client.state}</span>
+            {primaryGstin && (
+              <span style={{
+                fontSize: '12px', fontWeight: 500,
+                color: 'var(--color-text-muted)',
+                background: 'var(--color-surface-offset)',
+                border: '1px solid var(--color-border)',
+                padding: '2px 10px', borderRadius: '20px',
+              }}>{primaryGstin.state}</span>
+            )}
             {client.gstins.length > 1 && (
               <span style={{
                 fontSize: '12px', fontWeight: 500,
@@ -57,6 +66,14 @@ export default function ClientCard({ client, onEdit, onDeactivate }: Props) {
                 background: 'rgba(160,92,26,0.08)',
                 padding: '2px 10px', borderRadius: '20px',
               }}>+{client.gstins.length - 1} more GSTIN{client.gstins.length > 2 ? 's' : ''}</span>
+            )}
+            {client.phone && (
+              <span style={{
+                fontSize: '12px', color: 'var(--color-text-faint)',
+                padding: '2px 10px', borderRadius: '20px',
+                background: 'var(--color-surface-offset)',
+                border: '1px solid var(--color-border)',
+              }}>{client.phone}</span>
             )}
           </div>
         </div>
