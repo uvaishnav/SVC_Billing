@@ -38,3 +38,12 @@ CREATE POLICY "Authenticated users can manage client_gstins"
   ON client_gstins FOR ALL
   USING (auth.role() = 'authenticated')
   WITH CHECK (auth.role() = 'authenticated');
+
+-- Grant table privileges to authenticated role
+-- (RLS alone is not sufficient — explicit GRANTs are also required)
+GRANT SELECT, INSERT, UPDATE ON public.clients TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.client_gstins TO authenticated;
+
+-- Grant sequence access so BIGSERIAL auto-increment IDs work
+GRANT USAGE, SELECT ON SEQUENCE clients_id_seq TO authenticated;
+GRANT USAGE, SELECT ON SEQUENCE client_gstins_id_seq TO authenticated;
