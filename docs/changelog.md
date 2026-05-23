@@ -4,6 +4,28 @@
 
 ***
 
+## [2026-05-23] — Clients Master Module + Nav Shell
+
+### Added
+- `app/supabase/migrations/002_clients.sql` — `clients` and `client_gstins` tables with RLS policies (run in Supabase SQL Editor)
+- `app/src/db/types.ts` — Added `Client`, `ClientGstin`, `ClientWithGstins` interfaces; updated `Database` type map
+- `app/src/db/clientsDb.ts` — DB helpers: `getClients`, `getClientById`, `upsertClient`, `deactivateClient`, `upsertClientGstin`, `deleteClientGstin`, `setPrimaryGstin`
+- `app/src/ui/clients/ClientsPage.tsx` — List screen with search (name + GSTIN), empty state, add/edit/remove
+- `app/src/ui/clients/ClientCard.tsx` — Card showing name, address, primary GSTIN, state badge, multi-GSTIN count
+- `app/src/ui/clients/ClientFormModal.tsx` — Add/Edit modal with full client fields and per-state GSTIN management
+- `app/src/ui/AppShell.tsx` — Bottom-tab nav shell with Clients and Settings tabs; new tabs are a one-line addition per feature
+
+### Changed
+- `app/src/ui/App.tsx` — Replaced hardcoded `<SettingsPage />` with `<AppShell />` so the app is now navigable
+- `docs/design-decisions.md` — Added decisions for `client_gstins` separate table and nav shell timing
+
+### Observations
+- Supabase nested select (`select('*, gstins:client_gstins(*)')`) works cleanly for one-to-many relationships without a manual join
+- First GSTIN added in the modal is automatically marked `is_primary = true`; subsequent ones are non-primary
+- `setPrimaryGstin` uses a two-step update (unset all → set chosen) since Supabase JS doesn't support conditional UPDATE in one call
+
+***
+
 ## [2026-05-23] — Settings Module
 
 ### Added

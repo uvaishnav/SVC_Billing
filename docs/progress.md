@@ -20,18 +20,18 @@
 - [x] Clean up boilerplate and set up initial folder structure (`core`, `db`, `ui`, etc.).
 - [x] Set up Gemini workflow system (docs + scripts)
 - [x] **Settings Module** — Business profile, bank accounts, SAC codes, billing defaults, login screen, Supabase DB setup.
+- [x] **Clients Master** — `clients` + `client_gstins` tables, DB helpers, ClientsPage, ClientCard, ClientFormModal, bottom-tab nav shell (AppShell).
 
 ***
 
 ## Currently In Progress
 
-- [ ] Implement the Clients Master module.
+- [ ] Implement the Vehicles Master module.
 
 ***
 
 ## Backlog
 
-- [ ] Vehicles Master
 - [ ] Projects / Work References
 - [ ] Invoice Numbering (Edge Function)
 - [ ] PDF Invoice Generation
@@ -46,3 +46,4 @@
 |------|---------------|
 | 2026-05-22 | Scaffolding, dependency installation, Tailwind CSS setup, and project restructuring. |
 | 2026-05-23 | Settings module — Supabase setup, DB client, types, helpers, Login screen, Settings UI (Business Profile, Bank Accounts, SAC Codes, Billing Defaults). PR #1 merged. |
+| 2026-05-23 | Clients Master — `clients` + `client_gstins` tables (migration 002), DB helpers, ClientsPage, ClientCard, ClientFormModal, AppShell nav shell. PR #2 open. |
