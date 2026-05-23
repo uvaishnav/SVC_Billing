@@ -17,48 +17,54 @@ export default function LoginScreen() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F5F1E8] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-lg p-8">
-        {/* Logo / Brand */}
-        <div className="text-center mb-8">
-          <h1 className="font-['Playfair_Display'] text-2xl font-bold text-[#3B2A1F]">
-            Sri Vaishnav Constructions
-          </h1>
-          <p className="text-sm text-[#7A6A58] mt-1">GST Billing App</p>
+    <div style={{ minHeight: '100svh', background: 'var(--color-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+      <div style={{ width: '100%', maxWidth: '400px', background: 'var(--color-surface-2)', borderRadius: '20px', boxShadow: '0 4px 32px rgba(59,42,31,0.12)', padding: '40px 32px' }}>
+
+        {/* Brand header */}
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <div style={{ width: '56px', height: '56px', background: 'var(--color-primary)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+            <span style={{ color: 'var(--color-accent)', fontSize: '24px', fontWeight: 700, fontFamily: 'Playfair Display, serif' }}>S</span>
+          </div>
+          <h1 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--color-primary)', fontFamily: 'Playfair Display, serif', lineHeight: 1.2 }}>Sri Vaishnav<br />Constructions</h1>
+          <p style={{ color: 'var(--color-text-muted)', fontSize: '14px', marginTop: '6px' }}>GST Billing App</p>
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-[#3B2A1F] mb-1">Email</label>
+        <form onSubmit={handleLogin}>
+          {/* Email */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Email</label>
             <input
-              type="email"
-              required
-              value={email}
+              type="email" required value={email}
               onChange={e => setEmail(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-[#D9D3C5] bg-[#FAF8F3] text-[#2A1F15] focus:outline-none focus:ring-2 focus:ring-[#C8A96A] text-base"
-              placeholder="Enter your email"
+              placeholder="your@email.com"
+              style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: '1.5px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', fontSize: '16px', outline: 'none', transition: 'border-color 0.15s' }}
+              onFocus={e => e.target.style.borderColor = 'var(--color-accent)'}
+              onBlur={e => e.target.style.borderColor = 'var(--color-border)'}
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-[#3B2A1F] mb-1">Password</label>
+
+          {/* Password */}
+          <div style={{ marginBottom: '24px' }}>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Password</label>
             <input
-              type="password"
-              required
-              value={password}
+              type="password" required value={password}
               onChange={e => setPassword(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-[#D9D3C5] bg-[#FAF8F3] text-[#2A1F15] focus:outline-none focus:ring-2 focus:ring-[#C8A96A] text-base"
-              placeholder="Enter your password"
+              placeholder="••••••••"
+              style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: '1.5px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', fontSize: '16px', outline: 'none', transition: 'border-color 0.15s' }}
+              onFocus={e => e.target.style.borderColor = 'var(--color-accent)'}
+              onBlur={e => e.target.style.borderColor = 'var(--color-border)'}
             />
           </div>
 
           {error && (
-            <p className="text-sm text-[#8B2E2E] bg-[#FDF0F0] px-4 py-2 rounded-lg">{error}</p>
+            <div style={{ background: '#FDF0F0', border: '1px solid #E8C0C0', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px', color: 'var(--color-error)', fontSize: '14px' }}>
+              {error}
+            </div>
           )}
 
           <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 bg-[#3B2A1F] text-[#F5F1E8] font-semibold rounded-xl text-base active:opacity-80 disabled:opacity-50 transition-opacity"
+            type="submit" disabled={loading}
+            style={{ width: '100%', padding: '16px', background: loading ? 'var(--color-text-muted)' : 'var(--color-primary)', color: 'var(--color-bg)', fontWeight: 600, fontSize: '16px', borderRadius: '12px', border: 'none', cursor: loading ? 'not-allowed' : 'pointer', transition: 'opacity 0.15s' }}
           >
             {loading ? 'Signing in…' : 'Sign In'}
           </button>
