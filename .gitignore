@@ -2,5 +2,6 @@ scripts
 GEMINI.md
 .agents
 skills-lock.json
+.env
 
 
