@@ -5,6 +5,23 @@
 
 ***
 
+## [2026-05-23] Supabase Migrations — Standing Rule: Always include GRANTs
+
+**Every migration that creates a new table MUST include:**
+```sql
+-- Table privileges
+GRANT SELECT, INSERT, UPDATE ON public.<table_name> TO authenticated;
+
+-- Sequence privileges (required for BIGSERIAL / SERIAL auto-increment)
+GRANT USAGE, SELECT ON SEQUENCE <table_name>_id_seq TO authenticated;
+```
+
+Reason: RLS policies alone are not sufficient in Supabase. Without explicit `GRANT` statements, authenticated users get permission-denied errors even when RLS allows the operation. Discovered during Settings module setup (Session 2026-05-23).
+
+> ⚠️ This applies to ALL future migrations — Vehicles, Projects, Work Orders, Invoices, etc.
+
+***
+
 ## [2026-05-23] Settings Module — Single-row typed table
 
 Chose a **single-row typed table** (`settings`, always `id = 1`) over a key-value store (`key TEXT, value TEXT`) because:
