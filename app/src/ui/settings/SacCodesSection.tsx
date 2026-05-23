@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { getSacCodes, upsertSacCode, deactivateSacCode, upsertSettings } from '../../db/settingsDb'
+import { getSacCodes, upsertSacCode, deactivateSacCode, patchSettings } from '../../db/settingsDb'
 import type { SacCode, Settings } from '../../db/types'
 import { Field, PrimaryButton, cardStyle, sectionTitleStyle } from './_components'
 
@@ -31,13 +31,13 @@ export default function SacCodesSection({ settings, onSettingsUpdate }: Props) {
     await deactivateSacCode(id)
     setCodes(prev => prev.filter(c => c.id !== id))
     if (settings?.default_sac_id === id) {
-      const updated = await upsertSettings({ default_sac_id: null })
+      const updated = await patchSettings({ default_sac_id: null })
       if (updated) onSettingsUpdate(updated)
     }
   }
 
   async function setDefault(id: number) {
-    const updated = await upsertSettings({ default_sac_id: id })
+    const updated = await patchSettings({ default_sac_id: id })
     if (updated) onSettingsUpdate(updated)
   }
 

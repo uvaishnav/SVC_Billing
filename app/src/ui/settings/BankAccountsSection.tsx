@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import { getBankAccounts, upsertBankAccount, deactivateBankAccount, upsertSettings } from '../../db/settingsDb'
+import { getBankAccounts, upsertBankAccount, deactivateBankAccount, patchSettings } from '../../db/settingsDb'
 import type { BankAccount, Settings } from '../../db/types'
-import { Field, PrimaryButton, inputStyle, labelStyle, cardStyle, sectionTitleStyle } from './_components'
+import { Field, PrimaryButton, cardStyle, sectionTitleStyle } from './_components'
 
 interface Props { settings: Settings | null; onSettingsUpdate: (s: Settings) => void }
 
@@ -33,13 +33,13 @@ export default function BankAccountsSection({ settings, onSettingsUpdate }: Prop
     await deactivateBankAccount(id)
     setAccounts(prev => prev.filter(a => a.id !== id))
     if (settings?.default_bank_account_id === id) {
-      const updated = await upsertSettings({ default_bank_account_id: null })
+      const updated = await patchSettings({ default_bank_account_id: null })
       if (updated) onSettingsUpdate(updated)
     }
   }
 
   async function setDefault(id: number) {
-    const updated = await upsertSettings({ default_bank_account_id: id })
+    const updated = await patchSettings({ default_bank_account_id: id })
     if (updated) onSettingsUpdate(updated)
   }
 
