@@ -18,19 +18,25 @@
 - [x] Install initial npm dependencies.
 - [x] Configure Tailwind CSS for styling.
 - [x] Clean up boilerplate and set up initial folder structure (`core`, `db`, `ui`, etc.).
-- Set up Gemini workflow system (docs + scripts)
+- [x] Set up Gemini workflow system (docs + scripts)
+- [x] **Settings Module** — Business profile, bank accounts, SAC codes, billing defaults, login screen, Supabase DB setup.
 
 ***
 
 ## Currently In Progress
 
-- [ ] Implement the Settings module.
+- [ ] Implement the Clients Master module.
 
 ***
 
 ## Backlog
 
-- [ ] [Future feature]
+- [ ] Vehicles Master
+- [ ] Projects / Work References
+- [ ] Invoice Numbering (Edge Function)
+- [ ] PDF Invoice Generation
+- [ ] Invoice History
+- [ ] Edit-and-replace PDF
 
 ***
 
@@ -39,4 +45,4 @@
 | Date | What happened |
 |------|---------------|
 | 2026-05-22 | Scaffolding, dependency installation, Tailwind CSS setup, and project restructuring. |
-| | Initial setup |
+| 2026-05-23 | Settings module — Supabase setup, DB client, types, helpers, Login screen, Settings UI (Business Profile, Bank Accounts, SAC Codes, Billing Defaults). PR #1 merged. |
