@@ -19,46 +19,56 @@ Mobile-first PWA (React + Vite) — Supabase backend (Postgres + Auth + Storage 
 ## Folder Structure
 
 ```
-app/
-  src/
-    db/
-      supabaseClient.ts   — typed Supabase client singleton
-      types.ts            — all table row types + Database interface
-      settingsDb.ts       — Settings, BankAccounts, SacCodes DB helpers
-      clientsDb.ts        — Clients, ClientGstins DB helpers
-      vehiclesDb.ts       — Vehicles DB helpers
-    ui/
-      LoginScreen.tsx
-      AppShell.tsx        — tab bar + page router (Clients | Vehicles | Settings)
-      settings/
-        _components.tsx   — shared UI primitives (REUSE IN ALL MODULES)
-        SettingsPage.tsx
-        BusinessProfileForm.tsx
-        BankAccountsSection.tsx
-        SacCodesSection.tsx
-        BillingDefaultsForm.tsx
-      clients/
-        ClientsPage.tsx
-        ClientCard.tsx
-        ClientFormModal.tsx
-        ClientDetailSheet.tsx
-      vehicles/
-        VehiclesPage.tsx
-        VehicleCard.tsx
-        VehicleFormModal.tsx
-        VehicleDetailSheet.tsx
-  supabase/
-    migrations/
+(repo root)/
+  supabase/                     ← ALL Supabase config lives HERE (repo root)
+    migrations/                 ← Run manually in Supabase SQL Editor, in order
       001_settings.sql
       002_clients.sql
       003_vehicles.sql
-docs/
-  progress.md
-  architecture.md
-  design-decisions.md
-  changelog.md
-PRD.md
+      004_invoice_numbering.sql
+    functions/                  ← Edge Functions deployed via Supabase CLI from repo root
+      generate-invoice-number/
+        index.ts
+  app/                          ← React frontend ONLY — no supabase config here
+    src/
+      db/
+        supabaseClient.ts   — typed Supabase client singleton
+        types.ts            — all table row types + Database interface
+        settingsDb.ts       — Settings, BankAccounts, SacCodes DB helpers
+        clientsDb.ts        — Clients, ClientGstins DB helpers
+        vehiclesDb.ts       — Vehicles DB helpers
+        invoiceNumberingDb.ts — generateInvoiceNumber() — calls Edge Function
+      ui/
+        LoginScreen.tsx
+        AppShell.tsx        — tab bar + page router (Clients | Vehicles | Settings)
+        settings/
+          _components.tsx   — shared UI primitives (REUSE IN ALL MODULES)
+          SettingsPage.tsx
+          BusinessProfileForm.tsx
+          BankAccountsSection.tsx
+          SacCodesSection.tsx
+          BillingDefaultsForm.tsx
+        clients/
+          ClientsPage.tsx
+          ClientCard.tsx
+          ClientFormModal.tsx
+          ClientDetailSheet.tsx
+        vehicles/
+          VehiclesPage.tsx
+          VehicleCard.tsx
+          VehicleFormModal.tsx
+          VehicleDetailSheet.tsx
+  docs/
+    progress.md
+    architecture.md
+    design-decisions.md
+    changelog.md
+  PRD.md
 ```
+
+> ⚠️ **IMPORTANT — Supabase CLI rule:** Always `cd` to the **repo root** before running any
+> `supabase` CLI commands (`supabase link`, `supabase functions deploy`, etc.).
+> Never run them from inside `app/`. The CLI reads `supabase/` relative to your working directory.
 
 ***
 
@@ -81,7 +91,8 @@ PRD.md
 | invoice_prefix | TEXT NOT NULL | default SVC |
 | current_sequence | INTEGER NOT NULL | resets April 1 |
 | sequence_padding | INTEGER NOT NULL | default 3 |
-| last_invoice_number | TEXT | |
+| last_invoice_number | TEXT | last generated invoice number |
+| last_fy | TEXT | e.g. "25-26" — used to detect FY change for sequence reset |
 | default_sac_id | BIGINT FK → sac_codes | |
 | default_tds_rate | NUMERIC NOT NULL | default 2 |
 | tds_applicable | BOOLEAN NOT NULL | |
@@ -230,3 +241,5 @@ Do NOT use separate state variables per field — causes race conditions and sta
 3. **Upsert + composite unique** — always pass `{ onConflict: 'col1,col2' }` when upserting into tables with non-PK unique constraints, or the upsert silently no-ops
 4. **Single-row tables** — use `upsert` with a fixed `id` (e.g. `id: 1`) and `{ onConflict: 'id' }`
 5. **Soft delete** — use `is_active = false` rather than hard DELETE for any master data referenced by invoices (clients, bank accounts, SAC codes, vehicles). Hard delete would break invoice history FK references.
+6. **Supabase CLI must run from repo root** — always `cd` to repo root before `supabase link`, `supabase functions deploy`, etc. Never run from inside `app/`.
+7. **Edge Functions location** — `supabase/functions/<function-name>/index.ts` at repo root. Never inside `app/`.
