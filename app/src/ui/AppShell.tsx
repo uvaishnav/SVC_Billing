@@ -1,15 +1,17 @@
 import React, { useState } from 'react'
 import SettingsPage from './settings/SettingsPage'
 import ClientsPage from './clients/ClientsPage'
+import VehiclesPage from './vehicles/VehiclesPage'
 
-type Tab = 'clients' | 'settings'
+type Tab = 'clients' | 'vehicles' | 'settings'
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'clients',  label: 'Clients',  icon: '👤' },
+  { id: 'vehicles', label: 'Vehicles', icon: '🚛' },
   { id: 'settings', label: 'Settings', icon: '⚙️' },
 ]
 
-const NAV_HEIGHT = 64 // px — keeps content from hiding behind the nav bar
+const NAV_HEIGHT = 64
 
 export default function AppShell() {
   const [activeTab, setActiveTab] = useState<Tab>('clients')
@@ -17,13 +19,12 @@ export default function AppShell() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100svh', background: 'var(--color-bg)' }}>
 
-      {/* Scrollable page area — stops at nav bar */}
       <div style={{ flex: 1, overflowY: 'auto', paddingBottom: NAV_HEIGHT }}>
         {activeTab === 'clients'  && <ClientsPage />}
+        {activeTab === 'vehicles' && <VehiclesPage />}
         {activeTab === 'settings' && <SettingsPage />}
       </div>
 
-      {/* Bottom tab bar — always on top */}
       <nav style={{
         position: 'fixed', bottom: 0, left: 0, right: 0,
         height: NAV_HEIGHT,
@@ -50,7 +51,6 @@ export default function AppShell() {
                 position: 'relative',
               }}
             >
-              {/* Active indicator line at top */}
               {isActive && (
                 <span style={{
                   position: 'absolute', top: 0, left: '50%',

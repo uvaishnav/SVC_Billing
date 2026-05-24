@@ -61,7 +61,7 @@ Chose a **single `GstinDraft` object** (with `commitDraft()` + `setGstins()` lis
 When the primary GSTIN is removed from the list (either in the form or via delete), the system automatically promotes the first remaining GSTIN to primary:
 - Prevents invoices from having no primary GSTIN to bill to
 - Persisted immediately via `setPrimaryGstin()` if the promoted entry already has a DB `id`
-- If it’s a new (unsaved) entry, `is_primary: true` is written on the next `handleSave()` call
+- If it's a new (unsaved) entry, `is_primary: true` is written on the next `handleSave()` call
 
 ## [2026-05-23] Clients Module — UI design language: inline CSS + CSS variables only
 
@@ -85,3 +85,15 @@ Fixed bottom tab bar covering page content by:
 ## [2026-05-23] Clients Module — `upsertClientGstin` requires `onConflict`
 
 Supabase `.upsert()` on a table with a composite unique constraint (`client_id, gstin`) silently fails without `{ onConflict: 'client_id,gstin' }`. Always pass `onConflict` explicitly when upserting into any table that has a non-PK unique constraint. This applies to all future tables with composite unique keys.
+
+***
+
+## [2026-05-24] Vehicles Module — Lean identity-focused schema
+
+Chose a **flat `vehicles` table with no unit/rate fields** (except `default_monthly_rent`) because:
+- The business bills in two modes: unit-based (material transport) and monthly rental
+- **Unit-based:** rate per CUM/TON is negotiated in the work order, not inherent to the vehicle. Storing it on the vehicle would be incorrect or stale.
+- **Monthly rental:** the monthly rent amount is relatively stable per vehicle — worth storing as a nullable pre-fill hint for the invoice wizard
+- `capacity` + `capacity_unit` describe the vehicle’s physical spec (useful in AI-generated descriptions: "6 CUM Tipper No. AP39TC1234"), NOT billing figures
+- All fields except `reg_number` are nullable — user fills incrementally; no capacity data required at creation time
+- Soft-delete via `is_active = false` preserves future `invoice_vehicles` junction table FK references

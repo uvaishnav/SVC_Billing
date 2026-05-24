@@ -26,9 +26,10 @@ app/
       types.ts            — all table row types + Database interface
       settingsDb.ts       — Settings, BankAccounts, SacCodes DB helpers
       clientsDb.ts        — Clients, ClientGstins DB helpers
+      vehiclesDb.ts       — Vehicles DB helpers
     ui/
       LoginScreen.tsx
-      AppShell.tsx        — tab bar + page router
+      AppShell.tsx        — tab bar + page router (Clients | Vehicles | Settings)
       settings/
         _components.tsx   — shared UI primitives (REUSE IN ALL MODULES)
         SettingsPage.tsx
@@ -41,10 +42,16 @@ app/
         ClientCard.tsx
         ClientFormModal.tsx
         ClientDetailSheet.tsx
+      vehicles/
+        VehiclesPage.tsx
+        VehicleCard.tsx
+        VehicleFormModal.tsx
+        VehicleDetailSheet.tsx
   supabase/
     migrations/
       001_settings.sql
       002_clients.sql
+      003_vehicles.sql
 docs/
   progress.md
   architecture.md
@@ -131,6 +138,22 @@ PRD.md
 
 > ⚠️ For invoice generation: read recipient address + GSTIN from the **selected `client_gstins` row**, never from `clients`.
 
+### `vehicles`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | BIGSERIAL PK | |
+| reg_number | TEXT NOT NULL UNIQUE | auto-uppercased in UI |
+| vehicle_type | TEXT | nullable — e.g. Tipper, Dumper |
+| capacity | NUMERIC | nullable — physical spec only |
+| capacity_unit | TEXT | nullable — e.g. CUM, TON |
+| default_monthly_rent | NUMERIC | nullable — pre-fill hint for rental invoices |
+| is_active | BOOLEAN NOT NULL | soft-delete |
+| notes | TEXT | |
+| created_at | TIMESTAMPTZ | |
+
+> ⚠️ No unit-rate fields on vehicles. Unit-based billing rates are work-order-driven.
+> ⚠️ `default_monthly_rent` is a nullable hint, not a contract. User overrides per invoice.
+
 ***
 
 ## UI Patterns (mandatory for all modules)
@@ -188,17 +211,19 @@ Do NOT use separate state variables per field — causes race conditions and sta
 │  paddingBottom: 64px           │  ← reserves space for nav
 │                                │
 │  <ClientsPage /> or            │
+│  <VehiclesPage /> or           │
 │  <SettingsPage />              │
 └──────────────────────────────┘
 ┌──────────────────────────────┐
 │  Bottom Tab Bar (fixed)        │  ← position: fixed, bottom: 0
 │  height: 64px, zIndex: 100     │
+│  Clients | Vehicles | Settings │
 └──────────────────────────────┘
 ```
 
 ***
 
-## Supabase Rules (learned from Settings + Clients builds)
+## Supabase Rules (learned from Settings + Clients + Vehicles builds)
 
 1. **RLS alone is not enough** — always add explicit `GRANT SELECT, INSERT, UPDATE ON table TO authenticated`
 2. **Sequence GRANTs required** — `GRANT USAGE, SELECT ON SEQUENCE table_id_seq TO authenticated` — or inserts fail
