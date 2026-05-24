@@ -23,7 +23,6 @@ export interface BankAccount {
 
 export interface Settings {
   id: number
-  // Business Profile
   business_name: string
   address: string
   gstin: string
@@ -34,28 +33,55 @@ export interface Settings {
   email: string | null
   authorized_signatory: string
   logo_url: string | null
-  // Invoice Numbering
   invoice_prefix: string
   current_sequence: number
   sequence_padding: number
   last_invoice_number: string | null
-  // GST & Billing Defaults
   default_sac_id: number | null
   default_tds_rate: number
   tds_applicable: boolean
   reverse_charge_applicable: boolean
   default_billing_period: string
-  // Bank Default
   default_bank_account_id: number | null
 }
 
-// For Supabase createClient generic
+// clients — identity only (name, contact)
+// address/state live on client_gstins (one per GST registration)
+export interface Client {
+  id: number
+  name: string
+  phone: string | null
+  email: string | null
+  is_active: boolean
+  created_at: string
+}
+
+// One row per GST registration.
+// A client registered in multiple states has one row per state,
+// each with its own address, state, state_code, and GSTIN.
+export interface ClientGstin {
+  id: number
+  client_id: number
+  gstin: string
+  state: string
+  state_code: string
+  address: string
+  is_primary: boolean
+  created_at: string
+}
+
+export interface ClientWithGstins extends Client {
+  gstins: ClientGstin[]
+}
+
 export interface Database {
   public: {
     Tables: {
-      settings: { Row: Settings; Insert: Partial<Settings>; Update: Partial<Settings> }
+      settings:      { Row: Settings;    Insert: Partial<Settings>;                        Update: Partial<Settings> }
       bank_accounts: { Row: BankAccount; Insert: Omit<BankAccount, 'id' | 'created_at'>; Update: Partial<BankAccount> }
-      sac_codes: { Row: SacCode; Insert: Omit<SacCode, 'id'>; Update: Partial<SacCode> }
+      sac_codes:     { Row: SacCode;     Insert: Omit<SacCode, 'id'>;                     Update: Partial<SacCode> }
+      clients:       { Row: Client;      Insert: Omit<Client, 'id' | 'created_at'>;       Update: Partial<Client> }
+      client_gstins: { Row: ClientGstin; Insert: Omit<ClientGstin, 'id' | 'created_at'>; Update: Partial<ClientGstin> }
     }
   }
 }
