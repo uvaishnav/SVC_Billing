@@ -29,7 +29,7 @@ Mobile-first PWA (React + Vite) — Supabase backend (Postgres + Auth + Storage 
     functions/                  ← Edge Functions deployed via Supabase CLI from repo root
       generate-invoice-number/
         index.ts
-  app/                          ← React frontend ONLY — no supabase config here
+  app/                          ← React frontend ONLY — no supabase folder here
     src/
       db/
         supabaseClient.ts   — typed Supabase client singleton
@@ -234,7 +234,7 @@ Do NOT use separate state variables per field — causes race conditions and sta
 
 ***
 
-## Supabase Rules (learned from Settings + Clients + Vehicles builds)
+## Supabase Rules (learned from Settings + Clients + Vehicles + Invoice Numbering builds)
 
 1. **RLS alone is not enough** — always add explicit `GRANT SELECT, INSERT, UPDATE ON table TO authenticated`
 2. **Sequence GRANTs required** — `GRANT USAGE, SELECT ON SEQUENCE table_id_seq TO authenticated` — or inserts fail
@@ -243,3 +243,4 @@ Do NOT use separate state variables per field — causes race conditions and sta
 5. **Soft delete** — use `is_active = false` rather than hard DELETE for any master data referenced by invoices (clients, bank accounts, SAC codes, vehicles). Hard delete would break invoice history FK references.
 6. **Supabase CLI must run from repo root** — always `cd` to repo root before `supabase link`, `supabase functions deploy`, etc. Never run from inside `app/`.
 7. **Edge Functions location** — `supabase/functions/<function-name>/index.ts` at repo root. Never inside `app/`.
+8. **Edge Function env vars** — `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are **automatically injected** by Supabase at runtime into every Edge Function. Do NOT set these manually. Only use `supabase secrets set` for custom third-party keys (e.g. Razorpay, SendGrid).
