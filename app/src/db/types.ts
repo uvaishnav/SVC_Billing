@@ -37,6 +37,7 @@ export interface Settings {
   current_sequence: number
   sequence_padding: number
   last_invoice_number: string | null
+  last_fy: string | null           // NEW: tracks current FY for sequence reset detection
   default_sac_id: number | null
   default_tds_rate: number
   tds_applicable: boolean
@@ -95,7 +96,7 @@ export interface Database {
       settings:      { Row: Settings;    Insert: Partial<Settings>;                        Update: Partial<Settings> }
       bank_accounts: { Row: BankAccount; Insert: Omit<BankAccount, 'id' | 'created_at'>; Update: Partial<BankAccount> }
       sac_codes:     { Row: SacCode;     Insert: Omit<SacCode, 'id'>;                     Update: Partial<SacCode> }
-      clients:       { Row: Client;      Insert: Omit<Client, 'id' | 'created_at'>;       Update: Partial<Client> }
+      clients:       { Row: Client;      Insert: Omit<Client, 'id' | 'created_at'>; Update: Partial<Client> }
       client_gstins: { Row: ClientGstin; Insert: Omit<ClientGstin, 'id' | 'created_at'>; Update: Partial<ClientGstin> }
       vehicles:      { Row: Vehicle;     Insert: Omit<Vehicle, 'id' | 'created_at'>;      Update: Partial<Vehicle> }
     }
