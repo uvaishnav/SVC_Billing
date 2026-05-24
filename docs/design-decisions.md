@@ -50,72 +50,100 @@ Chose to store `address` (and `state`, `state_code`) on the **`client_gstins` ta
 
 ## [2026-05-23] Clients Module — `GstinDraft` pattern for form state
 
-Chose a **single `GstinDraft` object** (with `commitDraft()` + `setGstins()` list) over separate disconnected state variables (`newGstin`, `newState`, `newAddress`) because:
+Chose a **single `GstinDraft` object** (with `commitDraft()` + `setGstins()` list) over separate disconnected state variables because:
 - Separate variables caused race conditions on re-render — values were not atomically captured
 - A single draft object is reset atomically on commit, preventing stale state bugs
-- The `commitDraft()` function validates all three required fields before adding to the list
-- All `+ Add` buttons must carry `type="button"` explicitly — omitting this causes browser form-submit behaviour that wipes state
+- All `+ Add` buttons must carry `type="button"` explicitly — omitting this causes browser form-submit behaviour
 
 ## [2026-05-23] Clients Module — Auto-promote primary on GSTIN removal
 
-When the primary GSTIN is removed from the list (either in the form or via delete), the system automatically promotes the first remaining GSTIN to primary:
-- Prevents invoices from having no primary GSTIN to bill to
-- Persisted immediately via `setPrimaryGstin()` if the promoted entry already has a DB `id`
-- If it's a new (unsaved) entry, `is_primary: true` is written on the next `handleSave()` call
+When the primary GSTIN is removed from the list, the system automatically promotes the first remaining GSTIN to primary.
 
 ## [2026-05-23] Clients Module — UI design language: inline CSS + CSS variables only
 
-Chose **inline CSS with CSS variables** (matching the Settings module) over Tailwind utility classes for all client UI components because:
-- Settings module established the pattern; mixing Tailwind in clients created a visually inconsistent UI
-- CSS variables (`--color-primary`, `--color-accent`, etc.) are the single source of truth for brand colours
-- Shared primitives from `settings/_components.tsx` (`cardStyle`, `Field`, `PrimaryButton`, `inputStyle`, `labelStyle`, `sectionTitleStyle`) must be reused in all future modules — never redeclare these inline
-
+Chose **inline CSS with CSS variables** over Tailwind utility classes for all UI components.
 **Rule for all future modules:** Import from `settings/_components.tsx`, use CSS variables, no Tailwind classes on UI components.
 
 ## [2026-05-23] AppShell — Nav overlap fix
 
-Fixed bottom tab bar covering page content by:
-- Wrapping page content in a scrollable `div` with `paddingBottom: 64px` (nav bar height)
-- Tab bar is `position: fixed`, `zIndex: 100`
-- Pages must NOT use `min-height: 100svh` on their root element — this causes content to paint behind the fixed nav
-- **Rule for all future pages:** Never set `min-height: 100svh` on a page root. Use `min-height: 100%` instead. The AppShell handles full-height layout.
-
-***
+Fixed bottom tab bar covering page content: scrollable area has `paddingBottom: 64px`, tab bar is `position: fixed`.
+**Rule for all future pages:** Never set `min-height: 100svh` on a page root. Use `min-height: 100%`.
 
 ## [2026-05-23] Clients Module — `upsertClientGstin` requires `onConflict`
 
-Supabase `.upsert()` on a table with a composite unique constraint (`client_id, gstin`) silently fails without `{ onConflict: 'client_id,gstin' }`. Always pass `onConflict` explicitly when upserting into any table that has a non-PK unique constraint. This applies to all future tables with composite unique keys.
+Always pass `{ onConflict: 'col1,col2' }` when upserting into any table with a composite unique constraint. See Supabase Rule 3.
 
 ***
 
 ## [2026-05-24] Vehicles Module — Lean identity-focused schema
 
-Chose a **flat `vehicles` table with no unit/rate fields** (except `default_monthly_rent`) because:
-- The business bills in two modes: unit-based (material transport) and monthly rental
-- **Unit-based:** rate per CUM/TON is negotiated in the work order, not inherent to the vehicle. Storing it on the vehicle would be incorrect or stale.
-- **Monthly rental:** the monthly rent amount is relatively stable per vehicle — worth storing as a nullable pre-fill hint for the invoice wizard
-- `capacity` + `capacity_unit` describe the vehicle's physical spec (useful in AI-generated descriptions: "6 CUM Tipper No. AP39TC1234"), NOT billing figures
-- All fields except `reg_number` are nullable — user fills incrementally; no capacity data required at creation time
-- Soft-delete via `is_active = false` preserves future `invoice_vehicles` junction table FK references
+Chose a **flat `vehicles` table with no unit/rate fields** (except `default_monthly_rent`) because unit-based billing rates are work-order-driven, not vehicle-driven. See changelog 2026-05-24 Vehicles for full rationale.
 
 ***
 
 ## [2026-05-24] Invoice Numbering — Atomic Postgres RPC over optimistic frontend increment
 
-Chose **atomic `UPDATE...RETURNING` via Postgres RPC** (`get_next_invoice_number`) over optimistic frontend increment because:
-- Concurrent invoice creation must never produce duplicate numbers
-- Postgres `FOR UPDATE` row lock serializes all calls at DB level — no two callers can get the same sequence number
-- All business logic (FY detection, reset, formatting) lives in the Postgres function — easier to test, no network round-trips for the logic itself
-- Edge Function is a thin authenticated HTTP wrapper; exponential backoff retry (4 attempts) handles the rare lock-timeout edge case
-
-**Format chosen:** `{PREFIX}/{YY}-{YY+1}/{SEQ padded}` — e.g. `SVC/25-26/001`
-- Resets to sequence = 1 every April 1 (new Financial Year)
-- FY change detected by comparing computed current FY against `settings.last_fy` TEXT column inside the same atomic transaction
-- GST Rule 46(b) compliant: max 16 chars, alphanumeric + `/` only
+Chose **atomic `UPDATE...RETURNING` via Postgres RPC** to prevent duplicate invoice numbers across concurrent devices. See changelog 2026-05-24 Invoice Numbering for full rationale.
 
 ## [2026-05-24] Invoice Numbering — `last_fy` TEXT column over computed-only FY detection
 
-Chose to **store `last_fy` as a TEXT column on `settings`** (e.g. `"25-26"`) rather than computing FY from `current_sequence` or a separate reset-date column because:
-- The Postgres function needs a stored reference to compare against — "is the FY I computed right now different from the last time I ran?"
-- A TEXT format (`"25-26"`) is human-readable directly in the DB and trivially comparable with `IS DISTINCT FROM`
-- Reset happens in the same atomic transaction as the increment — zero chance of a gap or double-reset
+Chose to **store `last_fy` as TEXT on `settings`** so the Postgres function can detect FY change in the same atomic transaction.
+
+***
+
+## [2026-05-24] Work Orders — `wo_reference` over `wo_number` (deviation from PRD)
+
+The PRD schema (Section 21.5) uses `wo_number`. We use **`wo_reference`** because:
+- Real work orders from RSV Constructions use labels like "LC-14", "LC-150" — these are references, not sequential numbers
+- "number" implies auto-generated or sequential; "reference" correctly conveys a client-assigned label
+- This naming is more accurate for the actual data the user will enter
+
+## [2026-05-24] Work Orders — Extra columns `rates_firm`, `tds_applicable`, `billing_type` (addition to PRD)
+
+Added three columns not in the PRD schema because:
+- PRD Sections 10.4 and 11.1 explicitly describe these as important work-order attributes
+- `rates_firm` — all sample WOs state "rates are firm, no escalation"; needed for the rate-override warning in invoice creation
+- `tds_applicable` — determines whether TDS deduction appears on invoices linked to this WO
+- `billing_type` (`monthly_ra` / `milestone` / `adhoc`) — determines the invoice creation flow for this WO
+- Storing these avoids having to re-read the WO PDF or ask the user each time an invoice is created
+
+## [2026-05-24] Work Orders — `sub_work_ref` column on `work_order_items` (addition to PRD)
+
+Added `sub_work_ref` (e.g. "SW:1", "SW:2") because:
+- Real work order samples from the business use sub-work references within a single WO
+- Needed for item disambiguation in the invoice line description builder (next session)
+- PRD schema omitted it because it was not known at PRD writing time
+
+## [2026-05-24] Work Orders — Client-side status computation via `computeWOStatus()`
+
+Chose to **compute `status` client-side** on every fetch rather than storing it or using a DB trigger because:
+- Status is a function of `valid_to` vs today — it changes daily without any DB write
+- A stored column would become stale unless a cron job or trigger kept it updated
+- `computeWOStatus()` is a pure function — always correct, zero infrastructure cost
+- DB `status` column is only written by explicit `closeWorkOrder()` calls (the one status that CAN'T be derived from dates)
+
+## [2026-05-24] Work Orders — Replace-on-save for `work_order_items`
+
+Chose **delete-all + re-insert** for saving work order items over differential update (detect added/removed/changed rows) because:
+- The WO form shows all items at once; user edits the full list, not individual rows
+- Differential diffing requires stable row IDs on the frontend, which adds complexity
+- Delete + re-insert is atomic and always correct; the window of "no items" is milliseconds inside a single function call
+- cumulative_billed_qty is preserved because it is not exposed in the edit form — the replace only re-inserts items with `cumulative_billed_qty: 0` for new WOs; for edits, the existing items already carry their qty in the loaded form state
+
+> ⚠️ **Important caveat:** Once invoices start updating `cumulative_billed_qty` on items, the replace-on-save strategy must be revisited. At that point, editing a WO's items must NOT reset billed quantities. This decision should be re-evaluated when the invoice creation module is built.
+
+## [2026-05-24] Work Orders — AI parsing via Supabase Edge Function, not direct API call
+
+For the upcoming OCR + AI parsing flow (Part 2), chose to route the AI parsing call through a **Supabase Edge Function (`parse-work-order`)** rather than calling OpenAI/Gemini directly from the browser because:
+- Calling AI APIs from the browser exposes the API key in client-side code — unacceptable security risk
+- Edge Function can validate the JWT, rate-limit, and handle API key rotation without frontend changes
+- Same pattern already established by `generate-invoice-number` Edge Function
+- Only the AI API key needs to be set via `supabase secrets set OPENAI_API_KEY ...`
+
+## [2026-05-24] Work Orders — OCR runs in-browser via Tesseract.js
+
+For the upcoming PDF-to-text extraction step, chose **Tesseract.js in-browser OCR** over server-side OCR because:
+- PRD Section 23.2 explicitly specifies Tesseract.js as the OCR library
+- Work order PDFs are typically clean scanned documents — Tesseract accuracy is sufficient
+- Running in-browser avoids uploading large PDFs to a server before extraction; only the extracted text is sent to the AI
+- PDF → text extraction happens before the Supabase Storage upload (upload only happens after user confirms the parsed data)
