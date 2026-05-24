@@ -2,13 +2,17 @@ import React, { useState } from 'react'
 import SettingsPage from './settings/SettingsPage'
 import ClientsPage from './clients/ClientsPage'
 import VehiclesPage from './vehicles/VehiclesPage'
+import WorkOrdersPage from './workorders/WorkOrdersPage'
+import ProjectsPage from './projects/ProjectsPage'
 
-type Tab = 'clients' | 'vehicles' | 'settings'
+type Tab = 'clients' | 'vehicles' | 'workorders' | 'projects' | 'settings'
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'clients',  label: 'Clients',  icon: '👤' },
-  { id: 'vehicles', label: 'Vehicles', icon: '🚛' },
-  { id: 'settings', label: 'Settings', icon: '⚙️' },
+  { id: 'clients',    label: 'Clients',    icon: '👤' },
+  { id: 'vehicles',   label: 'Vehicles',   icon: '🚛' },
+  { id: 'workorders', label: 'Work Orders', icon: '📋' },
+  { id: 'projects',   label: 'Projects',   icon: '📁' },
+  { id: 'settings',   label: 'Settings',   icon: '⚙️' },
 ]
 
 const NAV_HEIGHT = 64
@@ -20,9 +24,11 @@ export default function AppShell() {
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100svh', background: 'var(--color-bg)' }}>
 
       <div style={{ flex: 1, overflowY: 'auto', paddingBottom: NAV_HEIGHT }}>
-        {activeTab === 'clients'  && <ClientsPage />}
-        {activeTab === 'vehicles' && <VehiclesPage />}
-        {activeTab === 'settings' && <SettingsPage />}
+        {activeTab === 'clients'    && <ClientsPage />}
+        {activeTab === 'vehicles'   && <VehiclesPage />}
+        {activeTab === 'workorders' && <WorkOrdersPage />}
+        {activeTab === 'projects'   && <ProjectsPage />}
+        {activeTab === 'settings'   && <SettingsPage />}
       </div>
 
       <nav style={{
@@ -43,7 +49,7 @@ export default function AppShell() {
                 flex: 1,
                 display: 'flex', flexDirection: 'column',
                 alignItems: 'center', justifyContent: 'center',
-                gap: '4px',
+                gap: '2px',
                 border: 'none',
                 background: 'transparent',
                 cursor: 'pointer',
@@ -60,13 +66,13 @@ export default function AppShell() {
                   borderRadius: '0 0 2px 2px',
                 }} />
               )}
-              <span style={{ fontSize: '20px', lineHeight: 1 }}>{tab.icon}</span>
+              <span style={{ fontSize: '18px', lineHeight: 1 }}>{tab.icon}</span>
               <span style={{
-                fontSize: '11px',
+                fontSize: '10px',
                 fontWeight: isActive ? 600 : 400,
                 color: isActive ? 'var(--color-accent)' : 'var(--color-text-faint)',
                 fontFamily: 'Work Sans, sans-serif',
-                letterSpacing: '0.3px',
+                letterSpacing: '0.2px',
               }}>{tab.label}</span>
             </button>
           )

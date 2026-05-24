@@ -37,7 +37,7 @@ export interface Settings {
   current_sequence: number
   sequence_padding: number
   last_invoice_number: string | null
-  last_fy: string | null           // NEW: tracks current FY for sequence reset detection
+  last_fy: string | null
   default_sac_id: number | null
   default_tds_rate: number
   tds_applicable: boolean
@@ -46,8 +46,6 @@ export interface Settings {
   default_bank_account_id: number | null
 }
 
-// clients — identity only (name, contact)
-// address/state live on client_gstins (one per GST registration)
 export interface Client {
   id: number
   name: string
@@ -57,9 +55,6 @@ export interface Client {
   created_at: string
 }
 
-// One row per GST registration.
-// A client registered in multiple states has one row per state,
-// each with its own address, state, state_code, and GSTIN.
 export interface ClientGstin {
   id: number
   client_id: number
@@ -75,9 +70,6 @@ export interface ClientWithGstins extends Client {
   gstins: ClientGstin[]
 }
 
-// Vehicle — physical identity of a fleet vehicle.
-// Unit-based rates are work-order-driven, not stored here.
-// default_monthly_rent is nullable — used as a pre-fill hint for rental invoices.
 export interface Vehicle {
   id: number
   reg_number: string
@@ -90,15 +82,81 @@ export interface Vehicle {
   created_at: string
 }
 
+// ─── Projects ────────────────────────────────────────────────
+export interface Project {
+  id: number
+  name: string
+  full_subject: string | null
+  site_location: string | null
+  client_id: number | null
+  place_of_supply: string
+  state_code: string
+  is_active: boolean
+  notes: string | null
+  created_at: string
+}
+
+export interface ProjectWithClient extends Project {
+  client_name: string | null
+}
+
+// ─── Work Orders ─────────────────────────────────────────────
+export type WorkOrderStatus = 'active' | 'expiring_soon' | 'expired' | 'closed'
+export type BillingType = 'monthly_ra' | 'milestone' | 'adhoc'
+
+export interface WorkOrder {
+  id: number
+  wo_reference: string | null
+  client_id: number | null
+  project_id: number | null
+  subject: string
+  issue_date: string
+  duration_months: number | null
+  valid_from: string | null
+  valid_to: string | null
+  total_value: number | null
+  rates_firm: boolean
+  tds_applicable: boolean
+  billing_type: BillingType
+  original_pdf_url: string | null
+  extracted_text: string | null
+  status: WorkOrderStatus
+  notes: string | null
+  created_at: string
+}
+
+export interface WorkOrderWithClient extends WorkOrder {
+  client_name: string | null
+  project_name: string | null
+}
+
+// ─── Work Order Items ─────────────────────────────────────────
+export interface WorkOrderItem {
+  id: number
+  work_order_id: number
+  sl_no: number | null
+  description: string
+  sub_work_ref: string | null
+  unit: string | null
+  contracted_qty: number | null
+  rate: number
+  amount: number | null
+  cumulative_billed_qty: number
+  created_at: string
+}
+
 export interface Database {
   public: {
     Tables: {
-      settings:      { Row: Settings;    Insert: Partial<Settings>;                        Update: Partial<Settings> }
-      bank_accounts: { Row: BankAccount; Insert: Omit<BankAccount, 'id' | 'created_at'>; Update: Partial<BankAccount> }
-      sac_codes:     { Row: SacCode;     Insert: Omit<SacCode, 'id'>;                     Update: Partial<SacCode> }
-      clients:       { Row: Client;      Insert: Omit<Client, 'id' | 'created_at'>; Update: Partial<Client> }
-      client_gstins: { Row: ClientGstin; Insert: Omit<ClientGstin, 'id' | 'created_at'>; Update: Partial<ClientGstin> }
-      vehicles:      { Row: Vehicle;     Insert: Omit<Vehicle, 'id' | 'created_at'>;      Update: Partial<Vehicle> }
+      settings:         { Row: Settings;    Insert: Partial<Settings>;                           Update: Partial<Settings> }
+      bank_accounts:    { Row: BankAccount; Insert: Omit<BankAccount, 'id' | 'created_at'>;    Update: Partial<BankAccount> }
+      sac_codes:        { Row: SacCode;     Insert: Omit<SacCode, 'id'>;                        Update: Partial<SacCode> }
+      clients:          { Row: Client;      Insert: Omit<Client, 'id' | 'created_at'>;          Update: Partial<Client> }
+      client_gstins:    { Row: ClientGstin; Insert: Omit<ClientGstin, 'id' | 'created_at'>;    Update: Partial<ClientGstin> }
+      vehicles:         { Row: Vehicle;     Insert: Omit<Vehicle, 'id' | 'created_at'>;         Update: Partial<Vehicle> }
+      projects:         { Row: Project;     Insert: Omit<Project, 'id' | 'created_at'>;         Update: Partial<Project> }
+      work_orders:      { Row: WorkOrder;   Insert: Omit<WorkOrder, 'id' | 'created_at'>;       Update: Partial<WorkOrder> }
+      work_order_items: { Row: WorkOrderItem; Insert: Omit<WorkOrderItem, 'id' | 'created_at'>; Update: Partial<WorkOrderItem> }
     }
   }
 }
