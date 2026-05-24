@@ -94,6 +94,28 @@ Chose a **flat `vehicles` table with no unit/rate fields** (except `default_mont
 - The business bills in two modes: unit-based (material transport) and monthly rental
 - **Unit-based:** rate per CUM/TON is negotiated in the work order, not inherent to the vehicle. Storing it on the vehicle would be incorrect or stale.
 - **Monthly rental:** the monthly rent amount is relatively stable per vehicle — worth storing as a nullable pre-fill hint for the invoice wizard
-- `capacity` + `capacity_unit` describe the vehicle’s physical spec (useful in AI-generated descriptions: "6 CUM Tipper No. AP39TC1234"), NOT billing figures
+- `capacity` + `capacity_unit` describe the vehicle's physical spec (useful in AI-generated descriptions: "6 CUM Tipper No. AP39TC1234"), NOT billing figures
 - All fields except `reg_number` are nullable — user fills incrementally; no capacity data required at creation time
 - Soft-delete via `is_active = false` preserves future `invoice_vehicles` junction table FK references
+
+***
+
+## [2026-05-24] Invoice Numbering — Atomic Postgres RPC over optimistic frontend increment
+
+Chose **atomic `UPDATE...RETURNING` via Postgres RPC** (`get_next_invoice_number`) over optimistic frontend increment because:
+- Concurrent invoice creation must never produce duplicate numbers
+- Postgres `FOR UPDATE` row lock serializes all calls at DB level — no two callers can get the same sequence number
+- All business logic (FY detection, reset, formatting) lives in the Postgres function — easier to test, no network round-trips for the logic itself
+- Edge Function is a thin authenticated HTTP wrapper; exponential backoff retry (4 attempts) handles the rare lock-timeout edge case
+
+**Format chosen:** `{PREFIX}/{YY}-{YY+1}/{SEQ padded}` — e.g. `SVC/25-26/001`
+- Resets to sequence = 1 every April 1 (new Financial Year)
+- FY change detected by comparing computed current FY against `settings.last_fy` TEXT column inside the same atomic transaction
+- GST Rule 46(b) compliant: max 16 chars, alphanumeric + `/` only
+
+## [2026-05-24] Invoice Numbering — `last_fy` TEXT column over computed-only FY detection
+
+Chose to **store `last_fy` as a TEXT column on `settings`** (e.g. `"25-26"`) rather than computing FY from `current_sequence` or a separate reset-date column because:
+- The Postgres function needs a stored reference to compare against — "is the FY I computed right now different from the last time I ran?"
+- A TEXT format (`"25-26"`) is human-readable directly in the DB and trivially comparable with `IS DISTINCT FROM`
+- Reset happens in the same atomic transaction as the increment — zero chance of a gap or double-reset
