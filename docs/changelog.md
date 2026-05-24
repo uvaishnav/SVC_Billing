@@ -1,63 +1,45 @@
 # Changelog
 
-> Most recent entries at the top. Each entry covers one session or feature.
+> Most recent entries at the top. Format per entry below.
 
 ***
 
-## [2026-05-23] — Clients Master Module + Nav Shell
+## [2026-05-23/24] — Clients Master Module
 
 ### Added
-- `app/supabase/migrations/002_clients.sql` — `clients` and `client_gstins` tables with RLS policies (run in Supabase SQL Editor)
-- `app/src/db/types.ts` — Added `Client`, `ClientGstin`, `ClientWithGstins` interfaces; updated `Database` type map
-- `app/src/db/clientsDb.ts` — DB helpers: `getClients`, `getClientById`, `upsertClient`, `deactivateClient`, `upsertClientGstin`, `deleteClientGstin`, `setPrimaryGstin`
-- `app/src/ui/clients/ClientsPage.tsx` — List screen with search (name + GSTIN), empty state, add/edit/remove
-- `app/src/ui/clients/ClientCard.tsx` — Card showing name, address, primary GSTIN, state badge, multi-GSTIN count
-- `app/src/ui/clients/ClientFormModal.tsx` — Add/Edit modal with full client fields and per-state GSTIN management
-- `app/src/ui/AppShell.tsx` — Bottom-tab nav shell with Clients and Settings tabs; new tabs are a one-line addition per feature
+- `app/supabase/migrations/002_clients.sql` — `clients` and `client_gstins` tables with RLS policies and GRANTS
+- `app/src/db/clientsDb.ts` — `getClients`, `getClientById`, `upsertClient`, `deactivateClient`, `upsertClientGstin`, `deleteClientGstin`, `setPrimaryGstin`
+- `app/src/ui/clients/ClientsPage.tsx` — list view with sticky dark header, search bar, empty state
+- `app/src/ui/clients/ClientCard.tsx` — card with avatar, state pills, GSTIN count; tap-to-open detail sheet
+- `app/src/ui/clients/ClientFormModal.tsx` — bottom-sheet modal; add + edit client; per-GSTIN address/state/GSTIN entry via `GstinDraft` pattern; Set Primary; auto-promote on remove
+- `app/src/ui/clients/ClientDetailSheet.tsx` — read-only bottom sheet showing all GSTINs with full addresses; Edit button opens form modal
 
 ### Changed
-- `app/src/ui/App.tsx` — Replaced hardcoded `<SettingsPage />` with `<AppShell />` so the app is now navigable
-- `docs/design-decisions.md` — Added decisions for `client_gstins` separate table and nav shell timing
+- `app/src/db/types.ts` — `Client` type: removed `address`, `state`, `state_code`; `ClientGstin` type: added `address`
+- `app/src/ui/AppShell.tsx` — nav overlap fix: page content now scrolls in a container with `paddingBottom: 64px`; tab bar is `position: fixed`
 
-### Observations
-- Supabase nested select (`select('*, gstins:client_gstins(*)')`) works cleanly for one-to-many relationships without a manual join
-- First GSTIN added in the modal is automatically marked `is_primary = true`; subsequent ones are non-primary
-- `setPrimaryGstin` uses a two-step update (unset all → set chosen) since Supabase JS doesn't support conditional UPDATE in one call
+### Observations (problems hit and fixed — read before building similar features)
+1. **GSTIN not saving to DB** — Root cause: Supabase `.upsert()` without `onConflict` silently no-ops on composite unique constraints. Fix: always pass `{ onConflict: 'client_id,gstin' }` (or the relevant columns) when upserting into tables with non-PK unique keys.
+2. **`+` button wiping form state** — Root cause: button inside a component without `type="button"` triggers browser form submit, which resets state. Fix: every button that is NOT a final submit must have `type="button"` explicitly.
+3. **Race condition on GSTIN draft** — Root cause: three separate state variables (`newGstin`, `newState`, `newAddress`) don’t update atomically; reading them in a click handler captured stale values. Fix: use a single `GstinDraft` object updated via `setDraft(d => ({ ...d, field: value }))`.
+4. **Nav bar covering Settings page** — Root cause: `SettingsPage` root had `min-height: 100svh` which painted behind the fixed nav. Fix: page roots use `min-height: 100%`; `AppShell` wraps content in a scrollable div with `paddingBottom` equal to nav height.
+5. **Schema: address on wrong table** — Originally `address` was on `clients`. Moved to `client_gstins` because a client’s registered address is per-state GST registration, not per-client identity. Future modules reading client address for invoice generation must read from the selected `client_gstins` row, not from `clients`.
 
 ***
 
 ## [2026-05-23] — Settings Module
 
 ### Added
-- `app/src/db/supabaseClient.ts` — Supabase JS client with env var validation
-- `app/src/db/types.ts` — TypeScript types for `Settings`, `BankAccount`, `SacCode` and `Database` generic
-- `app/src/db/settingsDb.ts` — DB helpers: `getSettings`, `upsertSettings`, `patchSettings`, CRUD for bank accounts and SAC codes
-- `app/src/db/index.ts` — central re-export for all DB helpers
-- `app/src/ui/auth/LoginScreen.tsx` — branded login screen using Supabase Auth
-- `app/src/ui/settings/SettingsPage.tsx` — 4-tab settings shell (Business / Banks / SAC Codes / Defaults)
-- `app/src/ui/settings/BusinessProfileForm.tsx` — business name, address, GSTIN, PAN, state, signatory
-- `app/src/ui/settings/BankAccountsSection.tsx` — add/edit/remove/set-default bank accounts
-- `app/src/ui/settings/SacCodesSection.tsx` — add/edit/remove/set-default SAC codes
-- `app/src/ui/settings/BillingDefaultsForm.tsx` — TDS rate, GST defaults, invoice prefix, sequence padding, default selections
-- `app/src/ui/settings/_components.tsx` — shared styled primitives (Field, PrimaryButton, SavedBadge, cardStyle, etc.)
-- `app/src/ui/App.tsx` — root app with auth gate (LoginScreen if not logged in, SettingsPage if logged in)
-- Supabase tables created: `settings`, `bank_accounts`, `sac_codes` with RLS + policies + grants
-- `sac_codes` pre-seeded with Equipment Rental (997319) and Construction Work (9954)
-
-### Changed
-- `app/src/index.css` — replaced Vite boilerplate with full brand token system (CSS variables, correct fonts, fixed `#root` layout)
+- Supabase project setup (DB, Auth, Storage, RLS)
+- `app/src/db/supabaseClient.ts` — typed Supabase client
+- `app/src/db/types.ts` — initial types: `Settings`, `BankAccount`, `SacCode`
+- `app/src/db/settingsDb.ts` — `getSettings`, `upsertSettings`, `patchSettings`, `getBankAccounts`, `upsertBankAccount`, `deactivateBankAccount`, `getSacCodes`, `upsertSacCode`, `deactivateSacCode`
+- `app/supabase/migrations/001_settings.sql` — `settings`, `bank_accounts`, `sac_codes` tables
+- `app/src/ui/LoginScreen.tsx` — email/password login
+- `app/src/ui/settings/SettingsPage.tsx` — full settings UI (business profile, bank accounts, SAC codes, billing defaults)
+- `app/src/ui/settings/_components.tsx` — shared primitives: `Field`, `PrimaryButton`, `cardStyle`, `sectionTitleStyle`, `inputStyle`, `labelStyle`
+- `app/src/ui/AppShell.tsx` — bottom tab bar shell
 
 ### Observations
-- Supabase tables created via raw SQL require explicit `GRANT` statements in addition to RLS policies — RLS alone is not sufficient
-- `upsert` with partial fields fails on `NOT NULL` columns; introduced `patchSettings` (pure UPDATE) for partial setting changes like setting defaults
-- Vite 8 required a clean `node_modules` wipe after installing `@supabase/supabase-js` due to `tslib` pre-bundling issue
-
-***
-
-## [2026-05-22] — Project Scaffolding
-
-### Added
-- Initial Vite + React + TypeScript project setup
-- Tailwind CSS configuration
-- Initial folder structure (`core`, `db`, `ui`, `pdf`, `integrations`, `offline`)
-- Gemini workflow documentation system
+1. Supabase RLS alone is not sufficient — explicit `GRANT SELECT, INSERT, UPDATE` to `authenticated` role is required or all queries return empty/403.
+2. Sequence GRANTs (`GRANT USAGE, SELECT ON SEQUENCE`) are required for `BIGSERIAL` columns or inserts fail with permission denied.

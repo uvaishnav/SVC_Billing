@@ -8,25 +8,22 @@
 
 **Phase:** Phase 1 — Core MVP
 **Started:** 2026-05-22
-**Goal:** Build the core foundational elements of the application, including project setup, basic masters (Clients, Vehicles), and the ability to generate a branded PDF invoice.
+**Goal:** Build the core foundational elements — project setup, Settings, Clients Master, Vehicles Master, and PDF invoice generation.
 
 ***
 
-## Recently Completed
+## Completed
 
-- [x] Set up the initial project structure using Vite.
-- [x] Install initial npm dependencies.
-- [x] Configure Tailwind CSS for styling.
-- [x] Clean up boilerplate and set up initial folder structure (`core`, `db`, `ui`, etc.).
-- [x] Set up Gemini workflow system (docs + scripts)
-- [x] **Settings Module** — Business profile, bank accounts, SAC codes, billing defaults, login screen, Supabase DB setup.
-- [x] **Clients Master** — `clients` + `client_gstins` tables, DB helpers, ClientsPage, ClientCard, ClientFormModal, bottom-tab nav shell (AppShell).
+- [x] Project scaffolding (Vite, Tailwind, folder structure)
+- [x] Supabase client, types, DB setup
+- [x] **Settings Module** — Business profile, bank accounts, SAC codes, billing defaults, login screen (PR #1 merged)
+- [x] **Clients Master Module** — Full CRUD, multi-GSTIN per client, per-GSTIN address, primary toggle, detail sheet, nav overlap fix (PR #2 — ready to merge)
 
 ***
 
 ## Currently In Progress
 
-- [ ] Implement the Vehicles Master module.
+- [ ] **Vehicles Master** — Next module
 
 ***
 
@@ -37,6 +34,8 @@
 - [ ] PDF Invoice Generation
 - [ ] Invoice History
 - [ ] Edit-and-replace PDF
+- [ ] Dashboard
+- [ ] Work Orders
 
 ***
 
@@ -44,6 +43,6 @@
 
 | Date | What happened |
 |------|---------------|
-| 2026-05-22 | Scaffolding, dependency installation, Tailwind CSS setup, and project restructuring. |
-| 2026-05-23 | Settings module — Supabase setup, DB client, types, helpers, Login screen, Settings UI (Business Profile, Bank Accounts, SAC Codes, Billing Defaults). PR #1 merged. |
-| 2026-05-23 | Clients Master — `clients` + `client_gstins` tables (migration 002), DB helpers, ClientsPage, ClientCard, ClientFormModal, AppShell nav shell. PR #2 open. |
+| 2026-05-22 | Scaffolding, dependency installation, Tailwind CSS setup, project restructuring. |
+| 2026-05-23 | Settings module — Supabase setup, DB client, types, helpers, Login screen, Settings UI. PR #1 merged. |
+| 2026-05-23–24 | Clients Master — schema design (normalized), UI redesign, nav overlap fix, GSTIN save bug fix, detail sheet. PR #2 in branch `feature/clients-master-20260523`. |
