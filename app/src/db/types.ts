@@ -74,6 +74,21 @@ export interface ClientWithGstins extends Client {
   gstins: ClientGstin[]
 }
 
+// Vehicle — physical identity of a fleet vehicle.
+// Unit-based rates are work-order-driven, not stored here.
+// default_monthly_rent is nullable — used as a pre-fill hint for rental invoices.
+export interface Vehicle {
+  id: number
+  reg_number: string
+  vehicle_type: string | null
+  capacity: number | null
+  capacity_unit: string | null
+  default_monthly_rent: number | null
+  is_active: boolean
+  notes: string | null
+  created_at: string
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -82,6 +97,7 @@ export interface Database {
       sac_codes:     { Row: SacCode;     Insert: Omit<SacCode, 'id'>;                     Update: Partial<SacCode> }
       clients:       { Row: Client;      Insert: Omit<Client, 'id' | 'created_at'>;       Update: Partial<Client> }
       client_gstins: { Row: ClientGstin; Insert: Omit<ClientGstin, 'id' | 'created_at'>; Update: Partial<ClientGstin> }
+      vehicles:      { Row: Vehicle;     Insert: Omit<Vehicle, 'id' | 'created_at'>;      Update: Partial<Vehicle> }
     }
   }
 }
