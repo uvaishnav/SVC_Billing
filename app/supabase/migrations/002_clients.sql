@@ -1,4 +1,0 @@
--- ⚠️ THIS FILE IS STALE — DO NOT USE
--- The canonical version has been moved to: /supabase/migrations/002_clients.sql (repo root)
--- All migrations and Edge Functions live under /supabase/ at the repo root.
--- The Supabase CLI must be run from the repo root, not from inside /app/.
