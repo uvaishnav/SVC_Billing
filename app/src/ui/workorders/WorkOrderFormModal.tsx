@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import type { WorkOrderWithClient, WorkOrderItem, Client, Project } from '../../db/types'
+import type { WorkOrderWithClient, Client, Project } from '../../db/types'
 import type { ParsedWorkOrder } from '../../utils/parseWorkOrder'
 import { upsertWorkOrder, upsertWorkOrderItems, getWorkOrderItems } from '../../db/workOrdersDb'
 import { supabase } from '../../db/supabaseClient'
@@ -8,8 +8,8 @@ import { Field, PrimaryButton, sectionTitleStyle } from '../settings/_components
 
 interface Props {
   workOrder?: WorkOrderWithClient | null
-  prefill?:   ParsedWorkOrder | null  // AI-parsed data from PDF upload flow
-  pdfFile?:   File | null             // The PDF file to upload after save
+  prefill?:   ParsedWorkOrder | null
+  pdfFile?:   File | null
   onClose:  () => void
   onSaved:  () => void
 }
@@ -29,7 +29,6 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile, onClos
   const [clients,  setClients]  = useState<Client[]>([])
   const [projects, setProjects] = useState<Project[]>([])
 
-  // Header fields — prefer prefill > existing workOrder > defaults
   const p = prefill
   const [woRef,          setWoRef]          = useState(p?.wo_reference    ?? workOrder?.wo_reference    ?? '')
   const [clientId,       setClientId]       = useState<string>(workOrder?.client_id?.toString() ?? '')
@@ -47,27 +46,32 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile, onClos
   const [billingType,    setBillingType]    = useState(p?.billing_type    ?? workOrder?.billing_type    ?? 'monthly_ra')
   const [notes,          setNotes]          = useState(workOrder?.notes ?? '')
 
-  // Line items
-  const [items,     setItems]     = useState<DraftItem[]>(() => {
+  // Committed items list
+  const [items, setItems] = useState<DraftItem[]>(() => {
     if (p?.items?.length) {
       return p.items.map((it, i) => ({
-        description:   it.description,
-        sub_work_ref:  it.sub_work_ref  ?? '',
-        unit:          it.unit          ?? '',
+        description:    it.description,
+        sub_work_ref:   it.sub_work_ref   ?? '',
+        unit:           it.unit           ?? '',
         contracted_qty: it.contracted_qty != null ? String(it.contracted_qty) : '',
-        rate:          String(it.rate),
-        sl_no:         i + 1,
+        rate:           String(it.rate),
+        sl_no:          i + 1,
       }))
     }
     return []
   })
+
+  // Inline edit state — which index is being edited, and its draft values
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [editDraft,    setEditDraft]    = useState<DraftItem>({ ...EMPTY_ITEM })
+
+  // New-item draft (Add Item form at bottom)
   const [draftItem, setDraftItem] = useState<DraftItem>({ ...EMPTY_ITEM })
 
   const [saving,       setSaving]       = useState(false)
   const [uploadingPdf, setUploadingPdf] = useState(false)
   const [error,        setError]        = useState<string | null>(null)
 
-  // Banner shown when prefill data is present
   const hasPrefill = !!p
 
   useEffect(() => {
@@ -79,8 +83,8 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile, onClos
       getWorkOrderItems(workOrder.id).then(rows => {
         setItems(rows.map(r => ({
           description:    r.description,
-          sub_work_ref:   r.sub_work_ref  ?? '',
-          unit:           r.unit          ?? '',
+          sub_work_ref:   r.sub_work_ref   ?? '',
+          unit:           r.unit           ?? '',
           contracted_qty: r.contracted_qty?.toString() ?? '',
           rate:           r.rate.toString(),
           sl_no:          r.sl_no ?? 0,
@@ -89,6 +93,28 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile, onClos
     }
   }, [])
 
+  // ── Inline edit helpers ──────────────────────────────────────
+  function startEditItem(index: number) {
+    setEditingIndex(index)
+    setEditDraft({ ...items[index] })
+  }
+
+  function cancelEditItem() {
+    setEditingIndex(null)
+    setEditDraft({ ...EMPTY_ITEM })
+  }
+
+  function confirmEditItem() {
+    if (!editDraft.description.trim()) return
+    if (!editDraft.rate.trim() || isNaN(parseFloat(editDraft.rate))) return
+    setItems(prev => prev.map((it, i) =>
+      i === editingIndex ? { ...editDraft, sl_no: i + 1 } : it
+    ))
+    setEditingIndex(null)
+    setEditDraft({ ...EMPTY_ITEM })
+  }
+
+  // ── Add / remove helpers ─────────────────────────────────────
   function addItem() {
     if (!draftItem.description.trim()) return
     if (!draftItem.rate.trim() || isNaN(parseFloat(draftItem.rate))) return
@@ -97,12 +123,15 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile, onClos
   }
 
   function removeItem(index: number) {
+    if (editingIndex === index) cancelEditItem()
     setItems(prev => prev.filter((_, i) => i !== index).map((it, i) => ({ ...it, sl_no: i + 1 })))
   }
 
   async function handleSave() {
     if (!subject.trim())   { setError('Subject is required'); return }
     if (!issueDate.trim()) { setError('Issue date is required'); return }
+    // Auto-confirm any open inline edit before saving
+    if (editingIndex !== null) confirmEditItem()
     setSaving(true); setError(null)
 
     const duration  = durationMonths.trim() ? parseInt(durationMonths) : null
@@ -112,7 +141,7 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile, onClos
     const saved = await upsertWorkOrder({
       id:              workOrder?.id,
       wo_reference:    woRef.trim() || null,
-      client_id:       clientId ? parseInt(clientId) : null,
+      client_id:       clientId  ? parseInt(clientId)  : null,
       project_id:      projectId ? parseInt(projectId) : null,
       subject:         subject.trim(),
       issue_date:      issueDate,
@@ -129,34 +158,25 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile, onClos
 
     if (!saved) { setError('Failed to save work order. Please try again.'); setSaving(false); return }
 
-    if (items.length > 0) {
-      const itemPayloads = items.map((it, i) => ({
-        sl_no:                 i + 1,
-        description:           it.description.trim(),
-        sub_work_ref:          it.sub_work_ref.trim() || null,
-        unit:                  it.unit.trim() || null,
-        contracted_qty:        it.contracted_qty.trim() ? parseFloat(it.contracted_qty) : null,
-        rate:                  parseFloat(it.rate),
-        amount:                null,
-        cumulative_billed_qty: 0,
-      }))
-      await upsertWorkOrderItems(saved.id, itemPayloads)
-    } else {
-      await upsertWorkOrderItems(saved.id, [])
-    }
+    const itemPayloads = items.map((it, i) => ({
+      sl_no:                 i + 1,
+      description:           it.description.trim(),
+      sub_work_ref:          it.sub_work_ref.trim()     || null,
+      unit:                  it.unit.trim()             || null,
+      contracted_qty:        it.contracted_qty.trim()   ? parseFloat(it.contracted_qty) : null,
+      rate:                  parseFloat(it.rate),
+      amount:                null,
+      cumulative_billed_qty: 0,
+    }))
+    await upsertWorkOrderItems(saved.id, itemPayloads)
 
-    // Upload PDF and patch original_pdf_url if a PDF file was provided
     if (pdfFile) {
       setUploadingPdf(true)
       try {
-        const pdfUrl = await uploadWorkOrderPdf(pdfFile, saved.id)
-        await supabase
-          .from('work_orders')
-          .update({ original_pdf_url: pdfUrl })
-          .eq('id', saved.id)
-      } catch (uploadErr) {
-        console.error('PDF upload failed (WO saved successfully):', uploadErr)
-        // Non-fatal: WO is saved, PDF upload is best-effort
+        const pdfPath = await uploadWorkOrderPdf(pdfFile, saved.id)
+        await supabase.from('work_orders').update({ original_pdf_url: pdfPath }).eq('id', saved.id)
+      } catch (err) {
+        console.error('PDF upload failed (WO saved):', err)
       }
       setUploadingPdf(false)
     }
@@ -165,6 +185,7 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile, onClos
     onSaved()
   }
 
+  // ── Styles ───────────────────────────────────────────────────
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '11px 14px', borderRadius: '10px',
     border: '1.5px solid var(--color-border)',
@@ -172,6 +193,7 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile, onClos
     fontSize: '15px', fontFamily: 'Work Sans, sans-serif',
     boxSizing: 'border-box', outline: 'none',
   }
+  const smallInputStyle: React.CSSProperties = { ...inputStyle, fontSize: '13px', padding: '9px 12px' }
 
   const checkRow = (label: string, checked: boolean, onChange: (v: boolean) => void) => (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid var(--color-border)' }}>
@@ -186,7 +208,7 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile, onClos
     </div>
   )
 
-  const isBusy = saving || uploadingPdf
+  const isBusy    = saving || uploadingPdf
   const saveLabel = uploadingPdf ? 'Uploading PDF…' : saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Work Order'
 
   return (
@@ -207,10 +229,9 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile, onClos
         {/* Body */}
         <div style={{ overflowY: 'auto', flex: 1, padding: '24px 20px' }}>
 
-          {/* AI prefill banner */}
           {hasPrefill && (
-            <div style={{ background: 'rgba(var(--color-accent-rgb, 212,167,90), 0.12)', border: '1px solid var(--color-accent)', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '16px', lineHeight: 1.5 }}>
-              ✨ <strong>Fields pre-filled by AI</strong> — review each field carefully before saving. Client and Project must be selected manually.
+            <div style={{ background: 'rgba(212,167,90,0.1)', border: '1px solid var(--color-accent)', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '16px', lineHeight: 1.5 }}>
+              ✨ <strong>Fields pre-filled by AI</strong> — review each field carefully. Tap ✏️ on any item to edit it. Client and Project must be selected manually.
             </div>
           )}
 
@@ -218,13 +239,12 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile, onClos
             <div style={{ background: 'rgba(139,46,46,0.08)', border: '1px solid var(--color-error)', color: 'var(--color-error)', borderRadius: '10px', padding: '10px 14px', fontSize: '14px', marginBottom: '16px' }}>{error}</div>
           )}
 
-          {/* Basic Info */}
           <p style={sectionTitleStyle}>Work Order Details</p>
           <Field label="WO Reference" value={woRef} onChange={setWoRef} placeholder="e.g. LC-14, LC-150" />
 
           <div style={{ marginBottom: '16px' }}>
             <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)', fontFamily: 'Work Sans, sans-serif', display: 'block', marginBottom: '6px' }}>Client</label>
-            <select value={clientId} onChange={e => setClientId(e.target.value)} style={{ ...inputStyle }}>
+            <select value={clientId} onChange={e => setClientId(e.target.value)} style={inputStyle}>
               <option value="">— Select client —</option>
               {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
@@ -232,20 +252,18 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile, onClos
 
           <div style={{ marginBottom: '16px' }}>
             <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)', fontFamily: 'Work Sans, sans-serif', display: 'block', marginBottom: '6px' }}>Project (optional)</label>
-            <select value={projectId} onChange={e => setProjectId(e.target.value)} style={{ ...inputStyle }}>
+            <select value={projectId} onChange={e => setProjectId(e.target.value)} style={inputStyle}>
               <option value="">— No project —</option>
-              {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {projects.map(proj => <option key={proj.id} value={proj.id}>{proj.name}</option>)}
             </select>
           </div>
 
           <div style={{ marginBottom: '16px' }}>
             <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)', fontFamily: 'Work Sans, sans-serif', display: 'block', marginBottom: '6px' }}>Subject *</label>
             <textarea
-              value={subject}
-              onChange={e => setSubject(e.target.value)}
+              value={subject} onChange={e => setSubject(e.target.value)}
               placeholder="Full subject / description from the work order document…"
-              rows={3}
-              style={{ ...inputStyle, resize: 'none', lineHeight: 1.5 }}
+              rows={3} style={{ ...inputStyle, resize: 'none', lineHeight: 1.5 }}
             />
           </div>
 
@@ -253,56 +271,101 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile, onClos
             <Field label="Issue Date *" value={issueDate} onChange={setIssueDate} type="date" />
             <Field label="Duration (months)" value={durationMonths} onChange={setDurationMonths} placeholder="e.g. 15" type="number" />
           </div>
-
           <Field label="Total Contract Value (₹)" value={totalValue} onChange={setTotalValue} placeholder="e.g. 17425000" type="number" />
 
           <div style={{ marginBottom: '16px' }}>
             <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)', fontFamily: 'Work Sans, sans-serif', display: 'block', marginBottom: '6px' }}>Billing Type</label>
-            <select value={billingType} onChange={e => setBillingType(e.target.value)} style={{ ...inputStyle }}>
+            <select value={billingType} onChange={e => setBillingType(e.target.value)} style={inputStyle}>
               <option value="monthly_ra">Monthly RA Bills</option>
               <option value="milestone">Milestone</option>
               <option value="adhoc">Ad-hoc</option>
             </select>
           </div>
 
-          {/* Terms toggles */}
           <p style={{ ...sectionTitleStyle, marginTop: '8px' }}>Terms & Conditions</p>
           {checkRow('Rates are firm (no escalation)', ratesFirm, setRatesFirm)}
           {checkRow('TDS applicable', tdsApplicable, setTdsApplicable)}
 
-          {/* Work Order Items */}
+          {/* ── Work Order Items ── */}
           <p style={{ ...sectionTitleStyle, marginTop: '20px' }}>Work Order Items</p>
           <p style={{ fontSize: '13px', color: 'var(--color-text-faint)', marginBottom: '14px', lineHeight: 1.5 }}>
             {hasPrefill && items.length > 0
-              ? `${items.length} item${items.length !== 1 ? 's' : ''} extracted by AI — review and add/remove as needed.`
+              ? `${items.length} item${items.length !== 1 ? 's' : ''} extracted by AI — tap ✏️ to edit any item.`
               : 'Add each line item from the work order table.'}
           </p>
 
-          {/* Existing items list */}
           {items.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
               {items.map((item, i) => (
-                <div key={i} style={{ background: 'var(--color-surface)', borderRadius: '10px', padding: '12px 14px', border: '1px solid var(--color-border)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                    <div style={{ flex: 1 }}>
-                      <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', margin: '0 0 4px' }}>
-                        {i + 1}. {item.description}
-                        {item.sub_work_ref && <span style={{ fontSize: '12px', color: 'var(--color-accent)', marginLeft: '6px' }}>[{item.sub_work_ref}]</span>}
-                      </p>
-                      <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>
-                        {item.unit && `${item.unit} · `}
-                        {item.contracted_qty && `Qty: ${item.contracted_qty} · `}
-                        Rate: ₹{parseFloat(item.rate).toLocaleString('en-IN')}
-                      </p>
+                <div key={i} style={{
+                  background: 'var(--color-surface)', borderRadius: '10px',
+                  border: editingIndex === i ? '1.5px solid var(--color-accent)' : '1px solid var(--color-border)',
+                  overflow: 'hidden',
+                }}>
+                  {editingIndex === i ? (
+                    // ── Inline edit form ──
+                    <div style={{ padding: '14px' }}>
+                      <p style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-accent)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Editing Item {i + 1}</p>
+                      <div style={{ marginBottom: '8px' }}>
+                        <textarea
+                          value={editDraft.description}
+                          onChange={e => setEditDraft(d => ({ ...d, description: e.target.value }))}
+                          placeholder="Description *"
+                          rows={2}
+                          style={{ ...inputStyle, resize: 'none', fontSize: '14px', lineHeight: 1.4 }}
+                        />
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                        <input value={editDraft.sub_work_ref} onChange={e => setEditDraft(d => ({ ...d, sub_work_ref: e.target.value }))} placeholder="Sub-work ref" style={smallInputStyle} />
+                        <input value={editDraft.unit}         onChange={e => setEditDraft(d => ({ ...d, unit: e.target.value }))}         placeholder="Unit"          style={smallInputStyle} />
+                        <input value={editDraft.contracted_qty} onChange={e => setEditDraft(d => ({ ...d, contracted_qty: e.target.value }))} placeholder="Contracted Qty" type="number" style={smallInputStyle} />
+                        <input value={editDraft.rate}         onChange={e => setEditDraft(d => ({ ...d, rate: e.target.value }))}         placeholder="Rate (₹) *"   type="number" style={smallInputStyle} />
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          type="button" onClick={confirmEditItem}
+                          style={{ flex: 1, padding: '10px', borderRadius: '8px', background: 'var(--color-accent)', color: 'var(--color-primary)', fontSize: '14px', fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'Work Sans, sans-serif' }}
+                        >✔ Confirm</button>
+                        <button
+                          type="button" onClick={cancelEditItem}
+                          style={{ flex: 1, padding: '10px', borderRadius: '8px', background: 'var(--color-surface-offset)', color: 'var(--color-text-muted)', fontSize: '14px', fontWeight: 600, border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'Work Sans, sans-serif' }}
+                        >✕ Cancel</button>
+                      </div>
                     </div>
-                    <button type="button" onClick={() => removeItem(i)} style={{ color: 'var(--color-error)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', padding: '0', lineHeight: 1, flexShrink: 0 }}>✕</button>
-                  </div>
+                  ) : (
+                    // ── Read-only display with Edit + Delete buttons ──
+                    <div style={{ padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', margin: '0 0 4px' }}>
+                          {i + 1}. {item.description}
+                          {item.sub_work_ref && <span style={{ fontSize: '12px', color: 'var(--color-accent)', marginLeft: '6px' }}>[{item.sub_work_ref}]</span>}
+                        </p>
+                        <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>
+                          {item.unit          && `${item.unit} · `}
+                          {item.contracted_qty && `Qty: ${item.contracted_qty} · `}
+                          Rate: ₹{parseFloat(item.rate).toLocaleString('en-IN')}
+                        </p>
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                        <button
+                          type="button" onClick={() => startEditItem(i)}
+                          title="Edit item"
+                          style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--color-surface-offset)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)', cursor: 'pointer', fontSize: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >✏️</button>
+                        <button
+                          type="button" onClick={() => removeItem(i)}
+                          title="Remove item"
+                          style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'none', color: 'var(--color-error)', border: 'none', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >✕</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           )}
 
-          {/* Draft item form */}
+          {/* Add new item form */}
           <div style={{ background: 'var(--color-surface-offset)', borderRadius: '12px', padding: '16px', border: '1px dashed var(--color-border)' }}>
             <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: '12px', fontFamily: 'Work Sans, sans-serif' }}>Add Item</p>
             <div style={{ marginBottom: '10px' }}>
@@ -315,26 +378,22 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile, onClos
               />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
-              <input value={draftItem.sub_work_ref} onChange={e => setDraftItem(d => ({ ...d, sub_work_ref: e.target.value }))} placeholder="Sub-work ref (e.g. SW:1)" style={{ ...inputStyle, fontSize: '13px', padding: '9px 12px' }} />
-              <input value={draftItem.unit} onChange={e => setDraftItem(d => ({ ...d, unit: e.target.value }))} placeholder="Unit (MT, CUM, Month)" style={{ ...inputStyle, fontSize: '13px', padding: '9px 12px' }} />
-              <input value={draftItem.contracted_qty} onChange={e => setDraftItem(d => ({ ...d, contracted_qty: e.target.value }))} placeholder="Contracted Qty" type="number" style={{ ...inputStyle, fontSize: '13px', padding: '9px 12px' }} />
-              <input value={draftItem.rate} onChange={e => setDraftItem(d => ({ ...d, rate: e.target.value }))} placeholder="Rate (₹) *" type="number" style={{ ...inputStyle, fontSize: '13px', padding: '9px 12px' }} />
+              <input value={draftItem.sub_work_ref}   onChange={e => setDraftItem(d => ({ ...d, sub_work_ref: e.target.value }))}   placeholder="Sub-work ref (e.g. SW:1)" style={smallInputStyle} />
+              <input value={draftItem.unit}           onChange={e => setDraftItem(d => ({ ...d, unit: e.target.value }))}           placeholder="Unit (MT, CUM, Month)"   style={smallInputStyle} />
+              <input value={draftItem.contracted_qty} onChange={e => setDraftItem(d => ({ ...d, contracted_qty: e.target.value }))} placeholder="Contracted Qty" type="number" style={smallInputStyle} />
+              <input value={draftItem.rate}           onChange={e => setDraftItem(d => ({ ...d, rate: e.target.value }))}           placeholder="Rate (₹) *"    type="number" style={smallInputStyle} />
             </div>
             <button
-              type="button"
-              onClick={addItem}
+              type="button" onClick={addItem}
               style={{ width: '100%', padding: '10px', borderRadius: '8px', background: 'var(--color-accent)', color: 'var(--color-primary)', fontSize: '14px', fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: 'Work Sans, sans-serif' }}
             >+ Add Item</button>
           </div>
 
-          {/* Notes */}
           <p style={{ ...sectionTitleStyle, marginTop: '20px' }}>Notes</p>
           <textarea
-            value={notes}
-            onChange={e => setNotes(e.target.value)}
+            value={notes} onChange={e => setNotes(e.target.value)}
             placeholder="Any additional notes…"
-            rows={3}
-            style={{ ...inputStyle, resize: 'none', lineHeight: 1.5 }}
+            rows={3} style={{ ...inputStyle, resize: 'none', lineHeight: 1.5 }}
           />
         </div>
 
