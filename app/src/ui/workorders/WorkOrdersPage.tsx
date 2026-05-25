@@ -44,7 +44,6 @@ function UploadProgressOverlay({ step, progress, error, onDismiss }: {
           {messages[step]}
         </p>
 
-        {/* Progress bar */}
         {(step === 'extracting' || step === 'parsing') && (
           <div style={{ height: '6px', background: 'var(--color-border)', borderRadius: '3px', overflow: 'hidden', marginBottom: '16px' }}>
             <div style={{ height: '100%', width: `${percent}%`, background: 'var(--color-accent)', borderRadius: '3px', transition: 'width 0.3s ease' }} />
@@ -69,17 +68,17 @@ export default function WorkOrdersPage() {
   const [workOrders,   setWorkOrders]   = useState<WorkOrderWithClient[]>([])
   const [loading,      setLoading]      = useState(true)
   const [search,       setSearch]       = useState('')
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'expiring_soon' | 'expired' | 'closed'>('all')
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'expiring_soon' | 'expired' | 'closed'>('active')  // default: active
   const [modalOpen,    setModalOpen]    = useState(false)
   const [editingWO,    setEditingWO]    = useState<WorkOrderWithClient | null>(null)
   const [detailWO,     setDetailWO]     = useState<WorkOrderWithClient | null>(null)
 
   // Upload flow state
-  const [uploadStep,    setUploadStep]    = useState<UploadStep>('idle')
-  const [ocrProgress,   setOcrProgress]   = useState<OcrProgress | null>(null)
-  const [uploadError,   setUploadError]   = useState<string | null>(null)
-  const [parsedData,    setParsedData]    = useState<ParsedWorkOrder | null>(null)
-  const [pendingPdf,    setPendingPdf]    = useState<File | null>(null)
+  const [uploadStep,  setUploadStep]  = useState<UploadStep>('idle')
+  const [ocrProgress, setOcrProgress] = useState<OcrProgress | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [parsedData,  setParsedData]  = useState<ParsedWorkOrder | null>(null)
+  const [pendingPdf,  setPendingPdf]  = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
@@ -128,7 +127,6 @@ export default function WorkOrdersPage() {
     load()
   }
 
-  // PDF upload flow
   function handleUploadClick() {
     fileInputRef.current?.click()
   }
@@ -136,7 +134,6 @@ export default function WorkOrdersPage() {
   async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!e.target.files) return
-    // Reset input so same file can be re-selected
     e.target.value = ''
     if (!file) return
 
@@ -146,14 +143,9 @@ export default function WorkOrdersPage() {
     setUploadStep('extracting')
 
     try {
-      // Step 1: OCR
       const ocrText = await extractTextFromPdf(file, (p) => setOcrProgress(p))
-
-      // Step 2: AI parse
       setUploadStep('parsing')
       const parsed = await parseWorkOrderText(ocrText)
-
-      // Step 3: Ready
       setParsedData(parsed)
       setUploadStep('ready')
     } catch (err: unknown) {
@@ -165,7 +157,6 @@ export default function WorkOrdersPage() {
 
   function handleOverlayDismiss() {
     if (uploadStep === 'ready') {
-      // Open form prefilled with parsed data
       setEditingWO(null)
       setModalOpen(true)
     }
@@ -183,7 +174,6 @@ export default function WorkOrdersPage() {
   return (
     <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
 
-      {/* Hidden file input for PDF selection */}
       <input
         ref={fileInputRef}
         type="file"
@@ -192,7 +182,6 @@ export default function WorkOrdersPage() {
         onChange={handleFileSelected}
       />
 
-      {/* Upload progress overlay */}
       <UploadProgressOverlay
         step={uploadStep}
         progress={ocrProgress}
@@ -209,7 +198,6 @@ export default function WorkOrdersPage() {
               {workOrders.filter(wo => wo.status === 'active' || wo.status === 'expiring_soon').length} active
             </p>
           </div>
-          {/* Action buttons */}
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <button
               type="button"
@@ -276,7 +264,9 @@ export default function WorkOrdersPage() {
         ) : (
           <>
             <p style={{ ...sectionTitleStyle, marginBottom: '14px' }}>
-              {filterStatus !== 'all' ? `${filtered.length} ${filterStatus.replace('_', ' ')}` : `${filtered.length} work order${filtered.length !== 1 ? 's' : ''}`}
+              {filterStatus !== 'all'
+                ? `${filtered.length} ${filterStatus.replace('_', ' ')}`
+                : `${filtered.length} work order${filtered.length !== 1 ? 's' : ''}`}
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {filtered.map(wo => (
