@@ -1,7 +1,7 @@
 // Edge Function: parse-work-order
 // Receives OCR-extracted text from a work order PDF.
 // Calls Gemini 2.5 Flash with a strict JSON schema to extract structured fields.
-// Falls back to Groq (Llama 3.3 70B) if Gemini returns 429.
+// Falls back to Groq (Llama 3.3 70B) if Gemini returns 429 or 503.
 // Requires Authorization: Bearer <jwt> header — authenticated users only.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -16,7 +16,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// The JSON schema we want the AI to fill
 const RESPONSE_SCHEMA = {
   type: 'object',
   properties: {
@@ -59,6 +58,7 @@ Extract structured fields from work order text. Follow these rules strictly:
 - For items, extract sub_work_ref if present (e.g. SW:1, SW:2)
 `
 
+// Returns null to signal fallback needed; throws on hard errors
 async function callGemini(ocrText: string): Promise<object | null> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`
 
@@ -78,7 +78,11 @@ async function callGemini(ocrText: string): Promise<object | null> {
     body: JSON.stringify(body),
   })
 
-  if (res.status === 429) return null  // Signal fallback needed
+  // 429 = rate limited, 503 = model overloaded (high demand) — both are transient, use Groq fallback
+  if (res.status === 429 || res.status === 503) {
+    console.log(`Gemini returned ${res.status} — falling back to Groq`)
+    return null
+  }
 
   if (!res.ok) {
     const err = await res.text()
@@ -126,7 +130,6 @@ Deno.serve(async (req: Request) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
-  // Auth check — same pattern as generate-invoice-number
   const authHeader = req.headers.get('Authorization')
   if (!authHeader?.startsWith('Bearer ')) {
     return new Response(
@@ -149,7 +152,6 @@ Deno.serve(async (req: Request) => {
     )
   }
 
-  // Parse request body
   let ocrText: string
   try {
     const body = await req.json()
@@ -168,13 +170,11 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // Try Gemini 2.5 Flash first
     let parsed = await callGemini(ocrText)
     let provider = 'gemini'
 
-    // Fallback to Groq if Gemini rate-limited
     if (parsed === null) {
-      console.log('Gemini rate limited — falling back to Groq')
+      console.log('Gemini unavailable — using Groq fallback')
       parsed = await callGroq(ocrText)
       provider = 'groq'
     }
