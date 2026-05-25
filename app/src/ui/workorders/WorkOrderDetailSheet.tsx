@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import type { WorkOrderWithClient, WorkOrderItem } from '../../db/types'
 import { getWorkOrderItems } from '../../db/workOrdersDb'
+import { getWorkOrderPdfSignedUrl } from '../../utils/uploadWorkOrderPdf'
 
 interface Props {
   workOrder: WorkOrderWithClient
@@ -27,7 +28,9 @@ function formatValue(v: number | null) {
 }
 
 export default function WorkOrderDetailSheet({ workOrder: wo, onClose, onEdit }: Props) {
-  const [items, setItems] = useState<WorkOrderItem[]>([])
+  const [items,          setItems]          = useState<WorkOrderItem[]>([])
+  const [pdfLoading,     setPdfLoading]     = useState(false)
+  const [pdfError,       setPdfError]       = useState<string | null>(null)
   const status = STATUS_CONFIG[wo.status] ?? STATUS_CONFIG.active
 
   useEffect(() => {
@@ -35,7 +38,21 @@ export default function WorkOrderDetailSheet({ workOrder: wo, onClose, onEdit }:
   }, [wo.id])
 
   const totalContracted = items.reduce((sum, i) => sum + (i.amount ?? 0), 0)
-  const totalBilled = items.reduce((sum, i) => sum + (i.cumulative_billed_qty * i.rate), 0)
+  const totalBilled     = items.reduce((sum, i) => sum + (i.cumulative_billed_qty * i.rate), 0)
+
+  async function handleViewPdf() {
+    if (!wo.original_pdf_url) return
+    setPdfLoading(true)
+    setPdfError(null)
+    try {
+      const url = await getWorkOrderPdfSignedUrl(wo.original_pdf_url)
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch {
+      setPdfError('Could not open PDF. Please try again.')
+    } finally {
+      setPdfLoading(false)
+    }
+  }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(30,20,10,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }}>
@@ -51,6 +68,9 @@ export default function WorkOrderDetailSheet({ workOrder: wo, onClose, onEdit }:
                   <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-accent)' }}>{wo.wo_reference}</span>
                 )}
                 <span style={{ fontSize: '12px', fontWeight: 600, padding: '2px 10px', borderRadius: '20px', background: status.bg, color: status.color }}>{status.label}</span>
+                {wo.original_pdf_url && (
+                  <span style={{ fontSize: '12px', padding: '2px 8px', borderRadius: '20px', background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.7)' }}>📎 PDF</span>
+                )}
               </div>
               <h2 style={{ color: 'var(--color-bg)', fontSize: '18px', fontFamily: 'Playfair Display, serif', lineHeight: 1.3 }}>{wo.subject}</h2>
             </div>
@@ -61,17 +81,22 @@ export default function WorkOrderDetailSheet({ workOrder: wo, onClose, onEdit }:
         {/* Body */}
         <div style={{ overflowY: 'auto', flex: 1, padding: '20px' }}>
 
+          {/* PDF error */}
+          {pdfError && (
+            <div style={{ background: 'rgba(139,46,46,0.08)', border: '1px solid var(--color-error)', color: 'var(--color-error)', borderRadius: '10px', padding: '10px 14px', fontSize: '14px', marginBottom: '16px' }}>{pdfError}</div>
+          )}
+
           {/* Key info grid */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
             {[
-              { label: 'Client',       value: wo.client_name ?? '—' },
-              { label: 'Project',      value: wo.project_name ?? '—' },
-              { label: 'Issue Date',   value: formatDate(wo.issue_date) },
-              { label: 'Duration',     value: wo.duration_months ? `${wo.duration_months} months` : '—' },
-              { label: 'Valid From',   value: formatDate(wo.valid_from) },
-              { label: 'Valid To',     value: formatDate(wo.valid_to) },
-              { label: 'Total Value',  value: formatValue(wo.total_value) },
-              { label: 'Billing',      value: wo.billing_type === 'monthly_ra' ? 'Monthly RA Bills' : wo.billing_type },
+              { label: 'Client',      value: wo.client_name  ?? '—' },
+              { label: 'Project',     value: wo.project_name ?? '—' },
+              { label: 'Issue Date',  value: formatDate(wo.issue_date) },
+              { label: 'Duration',    value: wo.duration_months ? `${wo.duration_months} months` : '—' },
+              { label: 'Valid From',  value: formatDate(wo.valid_from) },
+              { label: 'Valid To',    value: formatDate(wo.valid_to) },
+              { label: 'Total Value', value: formatValue(wo.total_value) },
+              { label: 'Billing',     value: wo.billing_type === 'monthly_ra' ? 'Monthly RA Bills' : wo.billing_type },
             ].map(({ label, value }) => (
               <div key={label} style={{ background: 'var(--color-surface)', borderRadius: '10px', padding: '12px' }}>
                 <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', fontFamily: 'Work Sans, sans-serif' }}>{label}</p>
@@ -109,7 +134,7 @@ export default function WorkOrderDetailSheet({ workOrder: wo, onClose, onEdit }:
                         </p>
                       </div>
                       <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: usedPct !== null ? '10px' : 0 }}>
-                        {item.unit && <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>Unit: {item.unit}</span>}
+                        {item.unit           && <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>Unit: {item.unit}</span>}
                         {item.contracted_qty && <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>Contracted: {item.contracted_qty.toLocaleString('en-IN')}</span>}
                         <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>Rate: ₹{item.rate.toLocaleString('en-IN')}</span>
                         <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>Billed so far: {item.cumulative_billed_qty.toLocaleString('en-IN')}</span>
@@ -155,9 +180,19 @@ export default function WorkOrderDetailSheet({ workOrder: wo, onClose, onEdit }:
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '16px 20px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface)', flexShrink: 0, display: 'flex', gap: '12px' }}>
-          <button type="button" onClick={onClose} style={{ flex: 1, padding: '16px', background: 'var(--color-surface-offset)', color: 'var(--color-text-muted)', fontWeight: 600, fontSize: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontFamily: 'Work Sans, sans-serif' }}>Close</button>
-          <button type="button" onClick={() => onEdit(wo)} style={{ flex: 1, padding: '16px', background: 'var(--color-accent)', color: 'var(--color-primary)', fontWeight: 700, fontSize: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontFamily: 'Work Sans, sans-serif' }}>Edit</button>
+        <div style={{ padding: '16px 20px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface)', flexShrink: 0, display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          {wo.original_pdf_url && (
+            <button
+              type="button"
+              onClick={handleViewPdf}
+              disabled={pdfLoading}
+              style={{ flex: 1, minWidth: '120px', padding: '16px', background: 'var(--color-surface-offset)', color: pdfLoading ? 'var(--color-text-faint)' : 'var(--color-text-muted)', fontWeight: 600, fontSize: '15px', borderRadius: '12px', border: '1px solid var(--color-border)', cursor: pdfLoading ? 'default' : 'pointer', fontFamily: 'Work Sans, sans-serif' }}
+            >
+              {pdfLoading ? 'Opening…' : '📎 View PDF'}
+            </button>
+          )}
+          <button type="button" onClick={onClose} style={{ flex: 1, minWidth: '80px', padding: '16px', background: 'var(--color-surface-offset)', color: 'var(--color-text-muted)', fontWeight: 600, fontSize: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontFamily: 'Work Sans, sans-serif' }}>Close</button>
+          <button type="button" onClick={() => onEdit(wo)} style={{ flex: 1, minWidth: '80px', padding: '16px', background: 'var(--color-accent)', color: 'var(--color-primary)', fontWeight: 700, fontSize: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontFamily: 'Work Sans, sans-serif' }}>Edit</button>
         </div>
       </div>
     </div>

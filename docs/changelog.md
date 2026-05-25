@@ -4,6 +4,37 @@
 
 ***
 
+## [2026-05-25] — Work Orders Module Part 2: PDF Upload + OCR + AI Parsing
+
+### Added
+- `supabase/functions/parse-work-order/index.ts` — Edge Function calling Gemini 2.5 Flash with `response_schema` for strict JSON extraction; auto-falls back to Groq Llama 3.3 70B on **both 429 (rate limit) and 503 (high demand / UNAVAILABLE)**
+- `app/src/utils/ocrPdf.ts` — in-browser PDF→canvas→Tesseract OCR with live page-by-page progress callback; runs 100% client-side before user confirms
+- `app/src/utils/parseWorkOrder.ts` — typed client helper that calls the Edge Function and returns `ParsedWorkOrder`
+- `app/src/utils/uploadWorkOrderPdf.ts` — uploads PDF to private `work-orders` Storage bucket; returns storage **path** (not public URL); companion `getWorkOrderPdfSignedUrl()` generates 1-hour signed URLs on demand
+- **"📎 Upload PDF"** pill button in `WorkOrdersPage` header — triggers OCR→AI→prefill flow with animated step-by-step progress overlay (Reading PDF → Parsing with AI → Ready)
+- **AI prefill banner** in `WorkOrderFormModal` when opened via PDF flow — "Fields pre-filled by AI — tap ✏️ to edit"
+- **Inline item editing** in `WorkOrderFormModal` — each AI-extracted item card has a ✏️ button that expands into an edit form in-place; ✔ Confirm / ✕ Cancel; Save auto-confirms any open edit
+- **"Original Document" section** at bottom of `WorkOrderFormModal` — three states: No PDF / File selected (with size + "Will upload on save") / Already attached (with Replace button); enables retroactive PDF attachment on existing WOs via Edit
+- **"📎 View PDF" button** in `WorkOrderDetailSheet` footer — only visible when `original_pdf_url` is set; generates signed URL on tap and opens in new tab; shows "Opening…" loading state and inline error on failure
+- **"📎 PDF" badge** in detail sheet header — quick visual indicator that a PDF is attached
+- Supabase Storage RLS policies added for `work-orders` bucket (INSERT + SELECT + DELETE for `authenticated` role) — applied via SQL Editor
+
+### Changed
+- `WorkOrdersPage`: default `filterStatus` changed from `'all'` to `'active'` — active WOs shown by default on tab open
+- `WorkOrderFormModal`: PDF upload errors are now **visible in the form** (not silent console.error); WO is still saved on upload failure with a retry message
+- `supabase/functions/parse-work-order/index.ts`: fallback now triggers on **both 429 and 503** — previously only 429 triggered Groq fallback; Gemini 503 (UNAVAILABLE / high demand) is equally transient and must also fall back
+- `package.json`: added `pdfjs-dist@^4.10.38` and `tesseract.js@^5.1.1`
+
+### Observations
+- Gemini `503 UNAVAILABLE` (high demand) must be treated the same as `429` — both are transient and both should silently fall back to Groq. The original code only handled 429; fixed during session.
+- Private Supabase Storage buckets do NOT auto-create RLS policies — you must add INSERT/SELECT/DELETE policies manually or uploads will fail with `new row violates row-level security policy` even for authenticated users.
+- Storage path (not public URL) must be stored in `original_pdf_url` for private buckets — signed URLs expire so storing them is useless; store the path and generate signed URLs on demand.
+- `pdfjs-dist` CDN worker approach avoids Vite bundler complexity for web workers.
+- PDF upload is non-fatal by design: if Storage upload fails, the WO row is still saved cleanly. The user sees an inline error and can retry via Edit.
+- Retroactive PDF attachment (for WOs saved before the Storage RLS policies were in place) is done via Edit — open WO → Edit → scroll to "Original Document" → Attach PDF → Save Changes.
+
+***
+
 ## [2026-05-24] — Work Orders Module Part 1 (Manual Entry)
 
 ### Added

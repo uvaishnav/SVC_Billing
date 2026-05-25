@@ -1,24 +1,89 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import type { WorkOrderWithClient } from '../../db/types'
+import type { ParsedWorkOrder } from '../../utils/parseWorkOrder'
 import { getWorkOrders, closeWorkOrder, computeWOStatus } from '../../db/workOrdersDb'
+import { extractTextFromPdf, type OcrProgress } from '../../utils/ocrPdf'
+import { parseWorkOrderText } from '../../utils/parseWorkOrder'
 import { sectionTitleStyle } from '../settings/_components'
 import WorkOrderCard from './WorkOrderCard'
 import WorkOrderFormModal from './WorkOrderFormModal'
 import WorkOrderDetailSheet from './WorkOrderDetailSheet'
 
+type UploadStep = 'idle' | 'extracting' | 'parsing' | 'ready' | 'error'
+
+function UploadProgressOverlay({ step, progress, error, onDismiss }: {
+  step: UploadStep
+  progress: OcrProgress | null
+  error: string | null
+  onDismiss: () => void
+}) {
+  const messages: Record<UploadStep, string> = {
+    idle:       '',
+    extracting: progress?.totalPages
+      ? `Extracting text… page ${progress.page ?? 1} of ${progress.totalPages}`
+      : 'Extracting text from PDF…',
+    parsing:    'AI is parsing the work order…',
+    ready:      'Done! Review the pre-filled form.',
+    error:      error ?? 'Something went wrong.',
+  }
+
+  if (step === 'idle') return null
+
+  const percent = progress?.percent ?? (step === 'parsing' ? 88 : step === 'ready' ? 100 : 10)
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(30,20,10,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, padding: '24px' }}>
+      <div style={{ background: 'var(--color-bg)', borderRadius: '20px', padding: '28px 24px', width: '100%', maxWidth: '360px', textAlign: 'center' }}>
+        <div style={{ fontSize: '40px', marginBottom: '16px' }}>
+          {step === 'error' ? '⚠️' : step === 'ready' ? '✅' : '📄'}
+        </div>
+        <p style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-text)', fontFamily: 'Work Sans, sans-serif', marginBottom: '8px' }}>
+          {step === 'extracting' ? 'Reading PDF' : step === 'parsing' ? 'Parsing with AI' : step === 'ready' ? 'Ready!' : 'Error'}
+        </p>
+        <p style={{ fontSize: '14px', color: 'var(--color-text-muted)', marginBottom: '20px', lineHeight: 1.5 }}>
+          {messages[step]}
+        </p>
+
+        {(step === 'extracting' || step === 'parsing') && (
+          <div style={{ height: '6px', background: 'var(--color-border)', borderRadius: '3px', overflow: 'hidden', marginBottom: '16px' }}>
+            <div style={{ height: '100%', width: `${percent}%`, background: 'var(--color-accent)', borderRadius: '3px', transition: 'width 0.3s ease' }} />
+          </div>
+        )}
+
+        {(step === 'error' || step === 'ready') && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            style={{ padding: '12px 28px', borderRadius: '10px', background: 'var(--color-accent)', color: 'var(--color-primary)', fontSize: '15px', fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: 'Work Sans, sans-serif' }}
+          >
+            {step === 'ready' ? 'Review Form' : 'Dismiss'}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function WorkOrdersPage() {
   const [workOrders,   setWorkOrders]   = useState<WorkOrderWithClient[]>([])
   const [loading,      setLoading]      = useState(true)
   const [search,       setSearch]       = useState('')
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'expiring_soon' | 'expired' | 'closed'>('all')
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'expiring_soon' | 'expired' | 'closed'>('active')  // default: active
   const [modalOpen,    setModalOpen]    = useState(false)
   const [editingWO,    setEditingWO]    = useState<WorkOrderWithClient | null>(null)
   const [detailWO,     setDetailWO]     = useState<WorkOrderWithClient | null>(null)
 
+  // Upload flow state
+  const [uploadStep,  setUploadStep]  = useState<UploadStep>('idle')
+  const [ocrProgress, setOcrProgress] = useState<OcrProgress | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [parsedData,  setParsedData]  = useState<ParsedWorkOrder | null>(null)
+  const [pendingPdf,  setPendingPdf]  = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const load = useCallback(async () => {
     setLoading(true)
     const data = await getWorkOrders()
-    // Recompute live status client-side
     const withStatus = data.map(wo => ({ ...wo, status: computeWOStatus(wo) }))
     setWorkOrders(withStatus)
     setLoading(false)
@@ -49,13 +114,53 @@ export default function WorkOrdersPage() {
 
   function handleAdd() {
     setEditingWO(null)
+    setParsedData(null)
+    setPendingPdf(null)
     setModalOpen(true)
   }
 
   function handleSaved() {
     setModalOpen(false)
     setEditingWO(null)
+    setParsedData(null)
+    setPendingPdf(null)
     load()
+  }
+
+  function handleUploadClick() {
+    fileInputRef.current?.click()
+  }
+
+  async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!e.target.files) return
+    e.target.value = ''
+    if (!file) return
+
+    setPendingPdf(file)
+    setUploadError(null)
+    setOcrProgress(null)
+    setUploadStep('extracting')
+
+    try {
+      const ocrText = await extractTextFromPdf(file, (p) => setOcrProgress(p))
+      setUploadStep('parsing')
+      const parsed = await parseWorkOrderText(ocrText)
+      setParsedData(parsed)
+      setUploadStep('ready')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setUploadError(msg)
+      setUploadStep('error')
+    }
+  }
+
+  function handleOverlayDismiss() {
+    if (uploadStep === 'ready') {
+      setEditingWO(null)
+      setModalOpen(true)
+    }
+    setUploadStep('idle')
   }
 
   const statusFilters: { id: typeof filterStatus; label: string }[] = [
@@ -69,6 +174,21 @@ export default function WorkOrdersPage() {
   return (
     <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
 
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/pdf"
+        style={{ display: 'none' }}
+        onChange={handleFileSelected}
+      />
+
+      <UploadProgressOverlay
+        step={uploadStep}
+        progress={ocrProgress}
+        error={uploadError}
+        onDismiss={handleOverlayDismiss}
+      />
+
       {/* Sticky header */}
       <div style={{ background: 'var(--color-primary)', padding: '20px 20px 0', position: 'sticky', top: 0, zIndex: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
@@ -78,10 +198,21 @@ export default function WorkOrdersPage() {
               {workOrders.filter(wo => wo.status === 'active' || wo.status === 'expiring_soon').length} active
             </p>
           </div>
-          <button
-            onClick={handleAdd}
-            style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--color-accent)', color: 'var(--color-primary)', fontSize: '24px', fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.25)', flexShrink: 0 }}
-          >+</button>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <button
+              type="button"
+              onClick={handleUploadClick}
+              title="Upload WO PDF"
+              style={{ height: '44px', padding: '0 14px', borderRadius: '22px', background: 'rgba(255,255,255,0.12)', color: 'var(--color-bg)', fontSize: '13px', fontWeight: 600, border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, fontFamily: 'Work Sans, sans-serif' }}
+            >
+              <span style={{ fontSize: '16px' }}>📎</span>
+              Upload PDF
+            </button>
+            <button
+              onClick={handleAdd}
+              style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--color-accent)', color: 'var(--color-primary)', fontSize: '24px', fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.25)', flexShrink: 0 }}
+            >+</button>
+          </div>
         </div>
 
         <input
@@ -127,13 +258,15 @@ export default function WorkOrdersPage() {
               {search || filterStatus !== 'all' ? 'No work orders match your filter.' : 'No work orders yet.'}
             </p>
             {!search && filterStatus === 'all' && (
-              <p style={{ color: 'var(--color-text-faint)', fontSize: '13px', marginTop: '6px' }}>Tap + to add your first work order.</p>
+              <p style={{ color: 'var(--color-text-faint)', fontSize: '13px', marginTop: '6px' }}>Tap + to add manually, or tap "Upload PDF" to extract from a work order document.</p>
             )}
           </div>
         ) : (
           <>
             <p style={{ ...sectionTitleStyle, marginBottom: '14px' }}>
-              {filterStatus !== 'all' ? `${filtered.length} ${filterStatus.replace('_', ' ')}` : `${filtered.length} work order${filtered.length !== 1 ? 's' : ''}`}
+              {filterStatus !== 'all'
+                ? `${filtered.length} ${filterStatus.replace('_', ' ')}`
+                : `${filtered.length} work order${filtered.length !== 1 ? 's' : ''}`}
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {filtered.map(wo => (
@@ -153,7 +286,9 @@ export default function WorkOrdersPage() {
       {modalOpen && (
         <WorkOrderFormModal
           workOrder={editingWO}
-          onClose={() => { setModalOpen(false); setEditingWO(null) }}
+          prefill={parsedData}
+          pdfFile={pendingPdf}
+          onClose={() => { setModalOpen(false); setEditingWO(null); setParsedData(null); setPendingPdf(null) }}
           onSaved={handleSaved}
         />
       )}
