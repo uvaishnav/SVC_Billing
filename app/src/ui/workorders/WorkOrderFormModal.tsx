@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react'
 import type { WorkOrderWithClient, WorkOrderItem, Client, Project } from '../../db/types'
+import type { ParsedWorkOrder } from '../../utils/parseWorkOrder'
 import { upsertWorkOrder, upsertWorkOrderItems, getWorkOrderItems } from '../../db/workOrdersDb'
 import { supabase } from '../../db/supabaseClient'
+import { uploadWorkOrderPdf } from '../../utils/uploadWorkOrderPdf'
 import { Field, PrimaryButton, sectionTitleStyle } from '../settings/_components'
 
 interface Props {
   workOrder?: WorkOrderWithClient | null
-  onClose: () => void
-  onSaved: () => void
+  prefill?:   ParsedWorkOrder | null  // AI-parsed data from PDF upload flow
+  pdfFile?:   File | null             // The PDF file to upload after save
+  onClose:  () => void
+  onSaved:  () => void
 }
 
 const EMPTY_ITEM = { description: '', sub_work_ref: '', unit: '', contracted_qty: '', rate: '', sl_no: 0 }
@@ -19,46 +23,67 @@ function computeValidTo(issueDate: string, durationMonths: number): string {
   return d.toISOString().split('T')[0]
 }
 
-export default function WorkOrderFormModal({ workOrder, onClose, onSaved }: Props) {
+export default function WorkOrderFormModal({ workOrder, prefill, pdfFile, onClose, onSaved }: Props) {
   const isEdit = !!workOrder
 
   const [clients,  setClients]  = useState<Client[]>([])
   const [projects, setProjects] = useState<Project[]>([])
 
-  // Header fields
-  const [woRef,           setWoRef]           = useState(workOrder?.wo_reference ?? '')
-  const [clientId,        setClientId]        = useState<string>(workOrder?.client_id?.toString() ?? '')
-  const [projectId,       setProjectId]       = useState<string>(workOrder?.project_id?.toString() ?? '')
-  const [subject,         setSubject]         = useState(workOrder?.subject ?? '')
-  const [issueDate,       setIssueDate]       = useState(workOrder?.issue_date ?? '')
-  const [durationMonths,  setDurationMonths]  = useState(workOrder?.duration_months?.toString() ?? '15')
-  const [totalValue,      setTotalValue]      = useState(workOrder?.total_value?.toString() ?? '')
-  const [ratesFirm,       setRatesFirm]       = useState(workOrder?.rates_firm ?? true)
-  const [tdsApplicable,   setTdsApplicable]   = useState(workOrder?.tds_applicable ?? true)
-  const [billingType,     setBillingType]     = useState(workOrder?.billing_type ?? 'monthly_ra')
-  const [notes,           setNotes]           = useState(workOrder?.notes ?? '')
+  // Header fields — prefer prefill > existing workOrder > defaults
+  const p = prefill
+  const [woRef,          setWoRef]          = useState(p?.wo_reference    ?? workOrder?.wo_reference    ?? '')
+  const [clientId,       setClientId]       = useState<string>(workOrder?.client_id?.toString() ?? '')
+  const [projectId,      setProjectId]      = useState<string>(workOrder?.project_id?.toString() ?? '')
+  const [subject,        setSubject]        = useState(p?.subject          ?? workOrder?.subject          ?? '')
+  const [issueDate,      setIssueDate]      = useState(p?.issue_date       ?? workOrder?.issue_date       ?? '')
+  const [durationMonths, setDurationMonths] = useState(
+    p?.duration_months != null ? String(p.duration_months) : (workOrder?.duration_months?.toString() ?? '15')
+  )
+  const [totalValue,     setTotalValue]     = useState(
+    p?.total_value != null ? String(p.total_value) : (workOrder?.total_value?.toString() ?? '')
+  )
+  const [ratesFirm,      setRatesFirm]      = useState(p?.rates_firm      ?? workOrder?.rates_firm      ?? true)
+  const [tdsApplicable,  setTdsApplicable]  = useState(p?.tds_applicable  ?? workOrder?.tds_applicable  ?? true)
+  const [billingType,    setBillingType]    = useState(p?.billing_type    ?? workOrder?.billing_type    ?? 'monthly_ra')
+  const [notes,          setNotes]          = useState(workOrder?.notes ?? '')
 
   // Line items
-  const [items,     setItems]     = useState<DraftItem[]>([])
+  const [items,     setItems]     = useState<DraftItem[]>(() => {
+    if (p?.items?.length) {
+      return p.items.map((it, i) => ({
+        description:   it.description,
+        sub_work_ref:  it.sub_work_ref  ?? '',
+        unit:          it.unit          ?? '',
+        contracted_qty: it.contracted_qty != null ? String(it.contracted_qty) : '',
+        rate:          String(it.rate),
+        sl_no:         i + 1,
+      }))
+    }
+    return []
+  })
   const [draftItem, setDraftItem] = useState<DraftItem>({ ...EMPTY_ITEM })
 
-  const [saving, setSaving] = useState(false)
-  const [error,  setError]  = useState<string | null>(null)
+  const [saving,       setSaving]       = useState(false)
+  const [uploadingPdf, setUploadingPdf] = useState(false)
+  const [error,        setError]        = useState<string | null>(null)
+
+  // Banner shown when prefill data is present
+  const hasPrefill = !!p
 
   useEffect(() => {
     supabase.from('clients').select('id, name').eq('is_active', true).order('name')
       .then(({ data }) => setClients(data ?? []))
     supabase.from('projects').select('id, name').eq('is_active', true).order('name')
       .then(({ data }) => setProjects(data ?? []))
-    if (isEdit && workOrder) {
+    if (isEdit && workOrder && !p) {
       getWorkOrderItems(workOrder.id).then(rows => {
         setItems(rows.map(r => ({
-          description:   r.description,
-          sub_work_ref:  r.sub_work_ref ?? '',
-          unit:          r.unit ?? '',
+          description:    r.description,
+          sub_work_ref:   r.sub_work_ref  ?? '',
+          unit:           r.unit          ?? '',
           contracted_qty: r.contracted_qty?.toString() ?? '',
-          rate:          r.rate.toString(),
-          sl_no:         r.sl_no ?? 0,
+          rate:           r.rate.toString(),
+          sl_no:          r.sl_no ?? 0,
         })))
       })
     }
@@ -80,7 +105,7 @@ export default function WorkOrderFormModal({ workOrder, onClose, onSaved }: Prop
     if (!issueDate.trim()) { setError('Issue date is required'); return }
     setSaving(true); setError(null)
 
-    const duration = durationMonths.trim() ? parseInt(durationMonths) : null
+    const duration  = durationMonths.trim() ? parseInt(durationMonths) : null
     const validFrom = issueDate
     const validTo   = duration ? computeValidTo(issueDate, duration) : null
 
@@ -106,18 +131,34 @@ export default function WorkOrderFormModal({ workOrder, onClose, onSaved }: Prop
 
     if (items.length > 0) {
       const itemPayloads = items.map((it, i) => ({
-        sl_no:            i + 1,
-        description:      it.description.trim(),
-        sub_work_ref:     it.sub_work_ref.trim() || null,
-        unit:             it.unit.trim() || null,
-        contracted_qty:   it.contracted_qty.trim() ? parseFloat(it.contracted_qty) : null,
-        rate:             parseFloat(it.rate),
-        amount:           null,
+        sl_no:                 i + 1,
+        description:           it.description.trim(),
+        sub_work_ref:          it.sub_work_ref.trim() || null,
+        unit:                  it.unit.trim() || null,
+        contracted_qty:        it.contracted_qty.trim() ? parseFloat(it.contracted_qty) : null,
+        rate:                  parseFloat(it.rate),
+        amount:                null,
         cumulative_billed_qty: 0,
       }))
       await upsertWorkOrderItems(saved.id, itemPayloads)
     } else {
       await upsertWorkOrderItems(saved.id, [])
+    }
+
+    // Upload PDF and patch original_pdf_url if a PDF file was provided
+    if (pdfFile) {
+      setUploadingPdf(true)
+      try {
+        const pdfUrl = await uploadWorkOrderPdf(pdfFile, saved.id)
+        await supabase
+          .from('work_orders')
+          .update({ original_pdf_url: pdfUrl })
+          .eq('id', saved.id)
+      } catch (uploadErr) {
+        console.error('PDF upload failed (WO saved successfully):', uploadErr)
+        // Non-fatal: WO is saved, PDF upload is best-effort
+      }
+      setUploadingPdf(false)
     }
 
     setSaving(false)
@@ -145,6 +186,9 @@ export default function WorkOrderFormModal({ workOrder, onClose, onSaved }: Prop
     </div>
   )
 
+  const isBusy = saving || uploadingPdf
+  const saveLabel = uploadingPdf ? 'Uploading PDF…' : saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Work Order'
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(30,20,10,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }}>
       <div style={{ background: 'var(--color-bg)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: '640px', maxHeight: '92svh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -154,7 +198,7 @@ export default function WorkOrderFormModal({ workOrder, onClose, onSaved }: Prop
           <div style={{ width: '36px', height: '4px', background: 'rgba(255,255,255,0.25)', borderRadius: '2px', margin: '0 auto 14px' }} />
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <h2 style={{ color: 'var(--color-bg)', fontSize: '20px', fontFamily: 'Playfair Display, serif' }}>
-              {isEdit ? 'Edit Work Order' : 'New Work Order'}
+              {hasPrefill ? '📄 Review AI-Parsed WO' : isEdit ? 'Edit Work Order' : 'New Work Order'}
             </h2>
             <button type="button" onClick={onClose} style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.15)', color: 'var(--color-bg)', fontSize: '18px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
           </div>
@@ -162,6 +206,14 @@ export default function WorkOrderFormModal({ workOrder, onClose, onSaved }: Prop
 
         {/* Body */}
         <div style={{ overflowY: 'auto', flex: 1, padding: '24px 20px' }}>
+
+          {/* AI prefill banner */}
+          {hasPrefill && (
+            <div style={{ background: 'rgba(var(--color-accent-rgb, 212,167,90), 0.12)', border: '1px solid var(--color-accent)', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '16px', lineHeight: 1.5 }}>
+              ✨ <strong>Fields pre-filled by AI</strong> — review each field carefully before saving. Client and Project must be selected manually.
+            </div>
+          )}
+
           {error && (
             <div style={{ background: 'rgba(139,46,46,0.08)', border: '1px solid var(--color-error)', color: 'var(--color-error)', borderRadius: '10px', padding: '10px 14px', fontSize: '14px', marginBottom: '16px' }}>{error}</div>
           )}
@@ -221,7 +273,9 @@ export default function WorkOrderFormModal({ workOrder, onClose, onSaved }: Prop
           {/* Work Order Items */}
           <p style={{ ...sectionTitleStyle, marginTop: '20px' }}>Work Order Items</p>
           <p style={{ fontSize: '13px', color: 'var(--color-text-faint)', marginBottom: '14px', lineHeight: 1.5 }}>
-            Add each line item from the work order table.
+            {hasPrefill && items.length > 0
+              ? `${items.length} item${items.length !== 1 ? 's' : ''} extracted by AI — review and add/remove as needed.`
+              : 'Add each line item from the work order table.'}
           </p>
 
           {/* Existing items list */}
@@ -287,7 +341,7 @@ export default function WorkOrderFormModal({ workOrder, onClose, onSaved }: Prop
         {/* Footer */}
         <div style={{ padding: '16px 20px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface)', flexShrink: 0, display: 'flex', gap: '12px' }}>
           <button type="button" onClick={onClose} style={{ flex: 1, padding: '16px', background: 'var(--color-surface-offset)', color: 'var(--color-text-muted)', fontWeight: 600, fontSize: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontFamily: 'Work Sans, sans-serif' }}>Cancel</button>
-          <PrimaryButton onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Work Order'}</PrimaryButton>
+          <PrimaryButton onClick={handleSave} disabled={isBusy}>{saveLabel}</PrimaryButton>
         </div>
       </div>
     </div>
