@@ -1,14 +1,14 @@
 // Wizard Section 1: Invoice Header
-// Client, GSTIN, invoice date, billing period, WO ref, SAC, bank account
+// Invoice number is NOT generated here.
+// It is assigned at finalize time in Section4Review / invoicesDb.
 import React, { useEffect, useState } from 'react'
 import type { InvoiceDraft, ClientWithGstins, WorkOrder, SacCode, BankAccount, TaxMode } from '../../db/types'
 import { getClients } from '../../db/clientsDb'
 import { getWorkOrders } from '../../db/workOrdersDb'
 import { getSettings, getSacCodes, getBankAccounts } from '../../db/settingsDb'
-import { generateInvoiceNumber } from '../../utils/invoiceNumbering'
 import { inputStyle, labelStyle } from '../settings/_components'
 
-// ─── Local primitives ────────────────────────────────────────────────────────
+// ─── Local primitives ─────────────────────────────────────────
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -43,7 +43,7 @@ function FieldWrap({ label, required, children }: {
 function StyledSelect({
   value, onChange, children, disabled,
 }: {
-  value: string; onChange: (v: string) => void;
+  value: string; onChange: (v: string) => void
   children: React.ReactNode; disabled?: boolean
 }) {
   const [focused, setFocused] = React.useState(false)
@@ -89,7 +89,7 @@ function DateInput({ value, onChange }: { value: string; onChange: (v: string) =
   )
 }
 
-// ─── Main component ──────────────────────────────────────────────────────────
+// ─── Main component ───────────────────────────────────────────
 
 export default function Section1Header({
   draft, patch,
@@ -114,22 +114,21 @@ export default function Section1Header({
       setBankAccounts(banks.filter(b => b.is_active))
       setMyStateCode(settings?.state_code ?? '')
 
-      if (!draft.invoice_number) {
-        const invNum = await generateInvoiceNumber()
-        patch({
-          invoice_number:   invNum ?? '',
-          sac_id:           draft.sac_id          ?? settings?.default_sac_id          ?? null,
-          bank_account_id:  draft.bank_account_id ?? settings?.default_bank_account_id ?? null,
-          tds_rate:         settings?.tds_applicable ? (settings.default_tds_rate ?? 0) : 0,
-          reverse_charge:   settings?.reverse_charge_applicable ?? false,
-        })
-      }
+      // Apply defaults only if not already set (i.e. new invoice, not edit)
+      // invoice_number is intentionally NOT set here — assigned at finalize
+      const updates: Partial<InvoiceDraft> = {}
+      if (!draft.sac_id         && settings?.default_sac_id)          updates.sac_id         = settings.default_sac_id
+      if (!draft.bank_account_id && settings?.default_bank_account_id) updates.bank_account_id = settings.default_bank_account_id
+      if (draft.tds_rate === undefined) updates.tds_rate = settings?.tds_applicable ? (settings.default_tds_rate ?? 0) : 0
+      if (draft.reverse_charge === undefined) updates.reverse_charge = settings?.reverse_charge_applicable ?? false
+      if (Object.keys(updates).length > 0) patch(updates)
+
       setLoading(false)
     }
     load()
   }, [])
 
-  // Load WOs and auto-detect tax mode when client/GSTIN changes
+  // Load WOs + auto-detect IGST vs CGST+SGST when client/GSTIN changes
   useEffect(() => {
     if (!draft.client_id) { setWorkOrders([]); return }
     getWorkOrders().then(wos => {
@@ -150,6 +149,9 @@ export default function Section1Header({
   const selectedClient = clients.find(c => c.id === draft.client_id)
   const selectedBank   = bankAccounts.find(b => b.id === draft.bank_account_id)
 
+  // Is this a finalized invoice being viewed (number already locked)?
+  const isLocked = !!draft.invoice_number && draft.invoice_number !== 'DRAFT'
+
   if (loading) return (
     <div style={{ padding: '48px 20px', textAlign: 'center' }}>
       <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
@@ -158,10 +160,9 @@ export default function Section1Header({
   )
 
   return (
-    // paddingBottom 120px — ensures bank account never hidden behind sticky bottom nav (Save Draft + Next)
     <div style={{ paddingBottom: 120 }}>
 
-      {/* Invoice number banner — dark primary bg, gold number */}
+      {/* Invoice number banner */}
       <div style={{
         background: 'var(--color-primary)',
         padding: '16px 20px',
@@ -171,13 +172,20 @@ export default function Section1Header({
           fontSize: 11, fontWeight: 700, letterSpacing: '1.2px',
           textTransform: 'uppercase', color: 'rgba(245,241,232,0.5)',
         }}>Invoice Number</span>
-        <span style={{
-          fontFamily: 'Playfair Display, serif',
-          fontSize: 20, fontWeight: 700,
-          color: 'var(--color-accent)',
-        }}>
-          {draft.invoice_number || '…'}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {isLocked && (
+            <span style={{ fontSize: 11, color: 'var(--color-accent)', opacity: 0.6 }}>🔒</span>
+          )}
+          <span style={{
+            fontFamily: 'Playfair Display, serif',
+            fontSize: isLocked ? 20 : 15,
+            fontWeight: 700,
+            color: isLocked ? 'var(--color-accent)' : 'rgba(245,241,232,0.35)',
+            fontStyle: isLocked ? 'normal' : 'italic',
+          }}>
+            {isLocked ? draft.invoice_number : 'Assigned on Finalize'}
+          </span>
+        </div>
       </div>
 
       <div style={{ padding: '20px 16px' }}>
@@ -247,7 +255,6 @@ export default function Section1Header({
           </div>
         </div>
 
-        {/* Billing period pill */}
         {draft.billing_from && draft.billing_to && (
           <div style={{
             background: 'var(--color-surface-offset)',
@@ -255,8 +262,7 @@ export default function Section1Header({
             fontSize: 13, color: 'var(--color-text-muted)',
             marginBottom: 6, textAlign: 'center',
           }}>
-            📅 
-            {new Date(draft.billing_from).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+            📅 {new Date(draft.billing_from).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
             {' → '}
             {new Date(draft.billing_to).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
           </div>
@@ -315,7 +321,6 @@ export default function Section1Header({
             ))}
           </StyledSelect>
 
-          {/* Bank detail preview — shown after selection so user can confirm */}
           {selectedBank && (
             <div style={{
               marginTop: 10,
@@ -328,7 +333,7 @@ export default function Section1Header({
                 {selectedBank.bank_name}
               </span>
               <span style={{ color: 'var(--color-text-muted)' }}>
-                A/C: {selectedBank.account_number}  ·  IFSC: {selectedBank.ifsc}
+                A/C: {selectedBank.account_number}  ·  IFSC: {selectedBank.ifsc}
               </span>
               {selectedBank.branch && (
                 <span style={{ color: 'var(--color-text-faint)', display: 'block', fontSize: 12 }}>

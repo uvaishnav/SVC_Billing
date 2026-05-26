@@ -3,11 +3,14 @@ import type {
   Invoice, InvoiceLineItem, InvoiceVehicle,
   InvoiceWithDetails, InvoiceDraft, InvoiceStatus
 } from './types'
+import { generateInvoiceNumber } from '../utils/invoiceNumbering'
 
 // ─── Helpers ─────────────────────────────────────────────────
 
-/** Convert an InvoiceDraft to the invoices row shape for upsert */
-function draftToRow(draft: InvoiceDraft): Omit<Invoice, 'id' | 'created_at' | 'updated_at'> {
+function draftToRow(
+  draft: InvoiceDraft,
+  status: InvoiceStatus = 'draft',
+): Omit<Invoice, 'id' | 'created_at' | 'updated_at'> {
   return {
     invoice_number:       draft.invoice_number,
     invoice_date:         draft.invoice_date,
@@ -31,7 +34,7 @@ function draftToRow(draft: InvoiceDraft): Omit<Invoice, 'id' | 'created_at' | 'u
     overall_description:  draft.overall_description,
     bank_account_id:      draft.bank_account_id,
     sac_id:               draft.sac_id,
-    status:               'draft' as InvoiceStatus,
+    status,
   }
 }
 
@@ -83,28 +86,37 @@ function mapInvoiceRow(row: any): InvoiceWithDetails {
       reg_number:   iv.vehicles?.reg_number ?? '',
       vehicle_type: iv.vehicles?.vehicle_type ?? null,
     })),
-    // clean up joined keys
     clients: undefined, client_gstins: undefined,
     work_orders: undefined, invoice_line_items: undefined, invoice_vehicles: undefined,
   }
 }
 
 // ─── Save Draft ───────────────────────────────────────────────
-// Upserts the invoice header (by invoice_number), then replaces
-// line_items and vehicles. Safe to call at any wizard section.
+// Upserts invoice header + replaces line_items and vehicles.
+// invoice_number for new drafts is 'DRAFT' — never a real number.
 
 export async function saveDraftInvoice(draft: InvoiceDraft): Promise<Invoice | null> {
-  // 1. Upsert header
+  const row = draftToRow(draft, 'draft')
+
+  // For brand-new drafts, use a stable unique placeholder
+  // so upsert by invoice_number works consistently.
+  if (!row.invoice_number || row.invoice_number === 'DRAFT') {
+    // Generate a collision-free draft key: DRAFT-<timestamp>
+    // Only set on very first save — if already has DRAFT-xxx keep it
+    row.invoice_number = draft.invoice_number?.startsWith('DRAFT-')
+      ? draft.invoice_number
+      : `DRAFT-${Date.now()}`
+  }
+
   const { data: inv, error: invErr } = await supabase
     .from('invoices')
-    .upsert(draftToRow(draft), { onConflict: 'invoice_number' })
+    .upsert(row, { onConflict: 'invoice_number' })
     .select()
     .single()
   if (invErr) { console.error('saveDraftInvoice header:', invErr); return null }
 
   const invoiceId = inv.id
 
-  // 2. Replace line items
   await supabase.from('invoice_line_items').delete().eq('invoice_id', invoiceId)
   if (draft.line_items.length > 0) {
     const itemRows = draft.line_items.map((item, i) => ({
@@ -123,7 +135,6 @@ export async function saveDraftInvoice(draft: InvoiceDraft): Promise<Invoice | n
     if (itemErr) console.error('saveDraftInvoice items:', itemErr)
   }
 
-  // 3. Replace vehicles
   await supabase.from('invoice_vehicles').delete().eq('invoice_id', invoiceId)
   if (draft.vehicles.length > 0) {
     const vehicleRows = draft.vehicles.map(v => ({
@@ -135,39 +146,92 @@ export async function saveDraftInvoice(draft: InvoiceDraft): Promise<Invoice | n
     if (vErr) console.error('saveDraftInvoice vehicles:', vErr)
   }
 
-  return inv
+  return { ...inv, invoice_number: row.invoice_number }
 }
 
 // ─── Finalize Invoice ─────────────────────────────────────────
-// 1. Saves the final draft
-// 2. Sets status = 'final'
-// 3. Updates cumulative_billed_qty on linked work_order_items
+// INVOICE NUMBER ASSIGNMENT RULES:
+//   - Already final (editing a finalized invoice): keep existing number — NEVER reassign
+//   - Draft or new: call generate-invoice-number edge fn → assign real number now
+//
+// Sequence: assign number → save → set status=final → update billed qty
 
-export async function finalizeInvoice(draft: InvoiceDraft): Promise<Invoice | null> {
-  // Save latest draft first
-  const inv = await saveDraftInvoice(draft)
-  if (!inv) return null
+export async function finalizeInvoice(
+  draft: InvoiceDraft,
+  currentStatus?: InvoiceStatus,   // pass 'final' when editing an existing final invoice
+): Promise<{ invoice: Invoice; invoiceNumber: string } | null> {
 
-  // Set status to final
-  const { data: finalInv, error: finalErr } = await supabase
+  // ── Step 1: Determine invoice number ──────────────────────
+  let invoiceNumber = draft.invoice_number
+
+  const isAlreadyFinal = currentStatus === 'final' ||
+    (!!invoiceNumber && !invoiceNumber.startsWith('DRAFT') && invoiceNumber !== 'DRAFT')
+
+  if (!isAlreadyFinal) {
+    // New invoice or draft → generate a real number NOW (only moment we call the RPC)
+    const generated = await generateInvoiceNumber()
+    if (!generated) throw new Error('Could not generate invoice number. Check settings configuration.')
+    invoiceNumber = generated
+  }
+  // If already final: invoiceNumber stays exactly as-is — locked forever
+
+  // ── Step 2: Save with real invoice number ─────────────────
+  const draftWithNumber: InvoiceDraft = { ...draft, invoice_number: invoiceNumber }
+  const row = draftToRow(draftWithNumber, 'final')
+
+  const { data: inv, error: invErr } = await supabase
     .from('invoices')
-    .update({ status: 'final' })
-    .eq('id', inv.id)
+    .upsert(row, { onConflict: 'invoice_number' })
     .select()
     .single()
-  if (finalErr) { console.error('finalizeInvoice status:', finalErr); return null }
+  if (invErr) { console.error('finalizeInvoice upsert:', invErr); return null }
 
-  // Update cumulative_billed_qty for each linked work_order_item
-  for (const item of draft.line_items) {
-    if (!item.work_order_item_id || item.qty <= 0) continue
-    const { error: qtyErr } = await supabase.rpc('increment_billed_qty', {
-      p_item_id: item.work_order_item_id,
-      p_qty:     item.qty,
-    })
-    if (qtyErr) console.error('increment_billed_qty:', qtyErr)
+  const invoiceId = inv.id
+
+  // ── Step 3: Replace line items ────────────────────────────
+  await supabase.from('invoice_line_items').delete().eq('invoice_id', invoiceId)
+  if (draft.line_items.length > 0) {
+    const itemRows = draft.line_items.map((item, i) => ({
+      invoice_id:         invoiceId,
+      work_order_item_id: item.work_order_item_id,
+      sl_no:              item.sl_no ?? i + 1,
+      description:        item.description,
+      sac_id:             item.sac_id,
+      unit:               item.unit,
+      qty:                item.qty,
+      rate:               item.rate,
+      taxable_value:      item.taxable_value,
+      rate_overridden:    item.rate_overridden,
+    }))
+    const { error: itemErr } = await supabase.from('invoice_line_items').insert(itemRows)
+    if (itemErr) console.error('finalizeInvoice items:', itemErr)
   }
 
-  return finalInv
+  // ── Step 4: Replace vehicles ──────────────────────────────
+  await supabase.from('invoice_vehicles').delete().eq('invoice_id', invoiceId)
+  if (draft.vehicles.length > 0) {
+    const vehicleRows = draft.vehicles.map(v => ({
+      invoice_id:             invoiceId,
+      vehicle_id:             v.vehicle_id,
+      include_in_description: v.include_in_description,
+    }))
+    const { error: vErr } = await supabase.from('invoice_vehicles').insert(vehicleRows)
+    if (vErr) console.error('finalizeInvoice vehicles:', vErr)
+  }
+
+  // ── Step 5: Update cumulative billed qty (only for new finalizations) ──
+  if (!isAlreadyFinal) {
+    for (const item of draft.line_items) {
+      if (!item.work_order_item_id || item.qty <= 0) continue
+      const { error: qtyErr } = await supabase.rpc('increment_billed_qty', {
+        p_item_id: item.work_order_item_id,
+        p_qty:     item.qty,
+      })
+      if (qtyErr) console.error('increment_billed_qty:', qtyErr)
+    }
+  }
+
+  return { invoice: inv, invoiceNumber }
 }
 
 // ─── Cancel Invoice ───────────────────────────────────────────

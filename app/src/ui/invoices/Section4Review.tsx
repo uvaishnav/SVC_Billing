@@ -1,8 +1,8 @@
 // Wizard Section 4: Review + Save Draft / Finalize
-// All computed values shown read-only.
-// Save Draft (any time) or Finalize Invoice.
+// Finalize calls invoicesDb.finalizeInvoice which assigns the
+// invoice number at this moment only — never earlier.
 import React, { useEffect } from 'react'
-import type { InvoiceDraft } from '../../db/types'
+import type { InvoiceDraft, InvoiceStatus } from '../../db/types'
 import { recomputeTotals } from './useInvoiceDraft'
 import { finalizeInvoice } from '../../db/invoicesDb'
 
@@ -24,8 +24,7 @@ function Row({ label, value, bold, accent, faint }: {
         fontWeight: bold ? 600 : 400,
       }}>{label}</span>
       <span style={{
-        fontSize: bold ? 17 : 14,
-        fontWeight: bold ? 700 : 500,
+        fontSize: bold ? 17 : 14, fontWeight: bold ? 700 : 500,
         color: accent ? 'var(--color-accent)' : faint ? 'var(--color-text-faint)' : 'var(--color-text)',
       }} className="tabular">{value}</span>
     </div>
@@ -33,19 +32,20 @@ function Row({ label, value, bold, accent, faint }: {
 }
 
 export default function Section4Review({
-  draft, patch, saving, saveDraft, onFinalized,
+  draft, patch, saving, saveDraft, onFinalized, existingStatus,
 }: {
   draft: InvoiceDraft
   patch: (u: Partial<InvoiceDraft>) => void
   saving: boolean
   saveDraft: () => Promise<void>
-  onFinalized: () => void
+  onFinalized: (invoiceNumber: string) => void
+  // Pass 'final' when editing an already-finalized invoice so number is never changed
+  existingStatus?: InvoiceStatus
 }) {
   const [finalizing, setFinalizing] = React.useState(false)
   const [error, setError]           = React.useState<string | null>(null)
-  const [done, setDone]             = React.useState(false)
+  const [doneNumber, setDoneNumber] = React.useState<string | null>(null)
 
-  // Always recompute totals when landing on this section
   useEffect(() => {
     const updated = recomputeTotals(draft, draft.gst_rate, draft.tds_rate)
     if (
@@ -61,10 +61,12 @@ export default function Section4Review({
     setFinalizing(true)
     setError(null)
     try {
-      const result = await finalizeInvoice(draft)
+      const result = await finalizeInvoice(draft, existingStatus)
       if (!result) throw new Error('Failed to finalize invoice.')
-      setDone(true)
-      setTimeout(onFinalized, 1200)
+      // Update draft with the real invoice number so Section 1 banner shows it
+      patch({ invoice_number: result.invoiceNumber })
+      setDoneNumber(result.invoiceNumber)
+      setTimeout(() => onFinalized(result.invoiceNumber), 1400)
     } catch (e: any) {
       setError(e.message ?? 'Finalization failed')
     } finally {
@@ -72,16 +74,39 @@ export default function Section4Review({
     }
   }
 
-  if (done) return (
+  const isEditingFinal = existingStatus === 'final'
+
+  if (doneNumber) return (
     <div style={{ padding: '48px 24px', textAlign: 'center' }}>
       <div style={{ fontSize: 56, marginBottom: 16 }}>✅</div>
-      <h2 style={{ marginBottom: 8 }}>Invoice Finalized!</h2>
-      <p style={{ color: 'var(--color-text-muted)' }}>{draft.invoice_number}</p>
+      <h2 style={{ fontFamily: 'Playfair Display, serif', marginBottom: 8 }}>
+        {isEditingFinal ? 'Invoice Updated!' : 'Invoice Finalized!'}
+      </h2>
+      <p style={{
+        fontFamily: 'monospace', fontSize: 18, fontWeight: 700,
+        color: 'var(--color-accent)', marginTop: 8,
+      }}>{doneNumber}</p>
     </div>
   )
 
   return (
     <div style={{ padding: '16px', paddingBottom: 32 }}>
+
+      {/* Finalize notice for already-final invoices */}
+      {isEditingFinal && (
+        <div style={{
+          background: 'var(--color-surface-offset)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 10, padding: '10px 14px',
+          fontSize: 13, color: 'var(--color-text-muted)',
+          marginBottom: 20, display: 'flex', gap: 8, alignItems: 'flex-start',
+        }}>
+          <span>🔒</span>
+          <span>
+            This invoice is already finalized. Invoice number <strong style={{ color: 'var(--color-text)' }}>{draft.invoice_number}</strong> will be preserved.
+          </span>
+        </div>
+      )}
 
       {/* Line items summary */}
       <div style={{ marginBottom: 24 }}>
@@ -107,7 +132,7 @@ export default function Section4Review({
 
       {/* Totals */}
       <div style={{ marginBottom: 24 }}>
-        <Row label="Taxable Value"          value={`₹${fmt(draft.total_taxable)}`} />
+        <Row label="Taxable Value" value={`₹${fmt(draft.total_taxable)}`} />
         {draft.tax_mode === 'cgst_sgst' ? (
           <>
             <Row label={`CGST @ ${draft.gst_rate / 2}%`} value={`₹${fmt(draft.total_gst / 2)}`} />
@@ -125,7 +150,6 @@ export default function Section4Review({
         )}
       </div>
 
-      {/* Amount in words */}
       {draft.amount_in_words && (
         <div style={{ fontSize: 13, color: 'var(--color-text-muted)', fontStyle: 'italic', marginBottom: 24, lineHeight: 1.5 }}>
           {draft.amount_in_words}
@@ -136,7 +160,6 @@ export default function Section4Review({
         <div style={{ color: 'var(--color-error)', fontSize: 13, marginBottom: 16 }}>⚠️ {error}</div>
       )}
 
-      {/* Actions */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <button
           type="button"
@@ -149,22 +172,29 @@ export default function Section4Review({
             cursor: finalizing ? 'not-allowed' : 'pointer', width: '100%',
           }}
         >
-          {finalizing ? 'Finalizing…' : '📄 Finalize Invoice'}
+          {finalizing
+            ? 'Finalizing…'
+            : isEditingFinal
+              ? '💾 Save Changes'
+              : '📄 Finalize Invoice'
+          }
         </button>
-        <button
-          type="button"
-          onClick={saveDraft}
-          disabled={saving || finalizing}
-          style={{
-            padding: '14px', borderRadius: 12,
-            border: '1.5px solid var(--color-border)',
-            background: 'transparent', color: 'var(--color-text-muted)',
-            fontWeight: 600, fontSize: 15,
-            cursor: 'pointer', width: '100%',
-          }}
-        >
-          {saving ? 'Saving…' : '💾 Save Draft'}
-        </button>
+        {!isEditingFinal && (
+          <button
+            type="button"
+            onClick={saveDraft}
+            disabled={saving || finalizing}
+            style={{
+              padding: '14px', borderRadius: 12,
+              border: '1.5px solid var(--color-border)',
+              background: 'transparent', color: 'var(--color-text-muted)',
+              fontWeight: 600, fontSize: 15,
+              cursor: 'pointer', width: '100%',
+            }}
+          >
+            {saving ? 'Saving…' : '💾 Save Draft'}
+          </button>
+        )}
       </div>
     </div>
   )
