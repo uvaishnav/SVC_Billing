@@ -1,234 +1,215 @@
+// Wizard Section 1: Invoice Header
+// Client, GSTIN, invoice date, billing period, WO ref, SAC, bank account
 import React, { useEffect, useState } from 'react'
-import type { InvoiceDraft, Client, ClientGstin, WorkOrder, SacCode, BankAccount, Settings } from '../../db/types'
-import { detectTaxMode } from '../../db/invoicesDb'
+import type { InvoiceDraft, ClientWithGstins, WorkOrder, SacCode, BankAccount, TaxMode } from '../../db/types'
+import { getClients } from '../../db/clientsDb'
+import { getWorkOrdersByClient } from '../../db/workOrdersDb'
+import { getSettings, getSacCodes, getBankAccounts } from '../../db/settingsDb'
+import { generateInvoiceNumber } from '../../utils/invoiceNumbering'
+import { inputStyle, labelStyle, cardStyle } from '../settings/_components'
 
-// Prev month default billing period
-function prevMonthRange(): { from: string; to: string } {
-  const now = new Date()
-  const from = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-  const to   = new Date(now.getFullYear(), now.getMonth(), 0)
-  const fmt  = (d: Date) => d.toISOString().split('T')[0]
-  return { from: fmt(from), to: fmt(to) }
-}
+const FIELD = ({
+  label, children, required,
+}: { label: string; children: React.ReactNode; required?: boolean }) => (
+  <div style={{ marginBottom: '16px' }}>
+    <label style={labelStyle}>
+      {label}{required && <span style={{ color: 'var(--color-error)', marginLeft: 4 }}>*</span>}
+    </label>
+    {children}
+  </div>
+)
 
-interface Props {
-  draft: InvoiceDraft
-  settings: Settings
-  clients: Client[]
-  clientGstins: ClientGstin[]
-  workOrders: WorkOrder[]
-  sacCodes: SacCode[]
-  bankAccounts: BankAccount[]
-  onLoadGstins: (clientId: number) => void
-  onLoadWorkOrders: (clientId: number) => void
-  onChange: (patch: Partial<InvoiceDraft>) => void
-  onNext: () => void
-}
-
-const field: React.CSSProperties = {
-  display: 'flex', flexDirection: 'column', gap: '4px',
-}
-const label: React.CSSProperties = {
-  fontSize: '11px', fontWeight: 600, color: 'var(--color-text-faint)',
-  fontFamily: 'Work Sans, sans-serif', letterSpacing: '0.5px', textTransform: 'uppercase',
-}
-const input: React.CSSProperties = {
-  padding: '10px 12px',
-  background: 'rgba(255,255,255,0.05)',
-  border: '1px solid rgba(200,169,106,0.2)',
-  borderRadius: '8px',
-  color: 'var(--color-text)',
-  fontSize: '14px',
-  fontFamily: 'Work Sans, sans-serif',
-  width: '100%',
-  boxSizing: 'border-box',
-}
-const readonlyBadge: React.CSSProperties = {
-  padding: '8px 12px',
-  background: 'rgba(255,255,255,0.03)',
-  border: '1px solid rgba(200,169,106,0.1)',
-  borderRadius: '8px',
-  color: 'var(--color-text-faint)',
-  fontSize: '13px',
-  fontFamily: 'Work Sans, sans-serif',
-}
+const Select = ({
+  value, onChange, children, disabled,
+}: { value: string; onChange: (v: string) => void; children: React.ReactNode; disabled?: boolean }) => (
+  <select
+    value={value}
+    onChange={e => onChange(e.target.value)}
+    disabled={disabled}
+    style={{ ...inputStyle, appearance: 'none', backgroundImage: 'none' }}
+  >
+    {children}
+  </select>
+)
 
 export default function Section1Header({
-  draft, settings, clients, clientGstins, workOrders,
-  sacCodes, bankAccounts, onLoadGstins, onLoadWorkOrders, onChange, onNext,
-}: Props) {
-  const today = new Date().toISOString().split('T')[0]
-  const { from: prevFrom, to: prevTo } = prevMonthRange()
+  draft, patch,
+}: {
+  draft: InvoiceDraft
+  patch: (u: Partial<InvoiceDraft>) => void
+}) {
+  const [clients, setClients]         = useState<ClientWithGstins[]>([])
+  const [workOrders, setWorkOrders]   = useState<WorkOrder[]>([])
+  const [sacCodes, setSacCodes]       = useState<SacCode[]>([])
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
+  const [myStateCode, setMyStateCode] = useState('')
+  const [loading, setLoading]         = useState(true)
 
-  // Init defaults on mount
   useEffect(() => {
-    const patch: Partial<InvoiceDraft> = {}
-    if (!draft.invoice_date)  patch.invoice_date  = today
-    if (!draft.billing_from)  patch.billing_from  = prevFrom
-    if (!draft.billing_to)    patch.billing_to    = prevTo
-    if (!draft.sac_id && settings.default_sac_id)              patch.sac_id         = settings.default_sac_id
-    if (!draft.bank_account_id && settings.default_bank_account_id) patch.bank_account_id = settings.default_bank_account_id
-    if (Object.keys(patch).length > 0) onChange(patch)
+    async function load() {
+      const [cls, sacs, banks, settings] = await Promise.all([
+        getClients(),
+        getSacCodes(),
+        getBankAccounts(),
+        getSettings(),
+      ])
+      setClients(cls)
+      setSacCodes(sacs.filter(s => s.is_active))
+      setBankAccounts(banks.filter(b => b.is_active))
+      setMyStateCode(settings?.state_code ?? '')
+
+      // Pre-fill defaults if draft is fresh
+      if (!draft.invoice_number) {
+        const invNum = await generateInvoiceNumber()
+        patch({
+          invoice_number:     invNum ?? '',
+          sac_id:             draft.sac_id  ?? settings?.default_sac_id  ?? null,
+          bank_account_id:    draft.bank_account_id ?? settings?.default_bank_account_id ?? null,
+          tds_rate:           settings?.tds_applicable ? settings.default_tds_rate : 0,
+          reverse_charge:     settings?.reverse_charge_applicable ?? false,
+        })
+      }
+      setLoading(false)
+    }
+    load()
   }, [])
 
-  // Auto-detect tax mode when client GSTIN changes
-  function handleGstinChange(gstinId: number) {
-    const gstin = clientGstins.find(g => g.id === gstinId)
-    if (!gstin) return
-    const taxMode = detectTaxMode(gstin.state_code, settings.state_code)
-    onChange({ client_gstin_id: gstinId, tax_mode: taxMode })
-  }
+  // When client changes, load their WOs + update tax mode
+  useEffect(() => {
+    if (!draft.client_id) { setWorkOrders([]); return }
+    getWorkOrdersByClient(draft.client_id).then(wos => {
+      setWorkOrders(wos.filter(wo => wo.status !== 'closed'))
+    })
+    // Determine tax mode from selected GSTIN
+    const client = clients.find(c => c.id === draft.client_id)
+    const gstin  = client?.gstins.find(g => g.id === draft.client_gstin_id)
+    if (gstin && myStateCode) {
+      const taxMode: TaxMode = gstin.state_code === myStateCode ? 'cgst_sgst' : 'igst'
+      patch({
+        tax_mode:             taxMode,
+        place_of_supply:      gstin.state,
+        place_of_supply_code: gstin.state_code,
+      })
+    }
+  }, [draft.client_id, draft.client_gstin_id, clients, myStateCode])
 
-  function handleClientChange(clientId: number) {
-    onChange({ client_id: clientId, client_gstin_id: null, work_order_id: null, tax_mode: 'cgst_sgst' })
-    onLoadGstins(clientId)
-    onLoadWorkOrders(clientId)
-  }
+  const selectedClient = clients.find(c => c.id === draft.client_id)
 
-  const isValid = !!(draft.client_id && draft.client_gstin_id && draft.invoice_date &&
-    draft.billing_from && draft.billing_to && draft.sac_id && draft.bank_account_id)
-
-  const taxModeLabel = draft.tax_mode === 'igst' ? 'IGST (Inter-state)' : 'CGST + SGST (Intra-state)'
+  if (loading) return (
+    <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--color-text-faint)' }}>
+      Loading...
+    </div>
+  )
 
   return (
-    <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      {/* Invoice Number */}
-      <div style={field}>
-        <span style={label}>Invoice Number</span>
-        <div style={readonlyBadge}>{draft.invoice_number || 'Generating…'}</div>
+    <div style={{ padding: '16px' }}>
+
+      {/* Invoice Number — read only */}
+      <div style={{ ...cardStyle, marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Invoice Number</span>
+        <span style={{ fontFamily: 'Playfair Display, serif', fontSize: '18px', color: 'var(--color-accent)', fontWeight: 700 }}>
+          {draft.invoice_number || '...'}
+        </span>
       </div>
 
       {/* Client */}
-      <div style={field}>
-        <span style={label}>Client *</span>
-        <select
-          style={input}
-          value={draft.client_id ?? ''}
-          onChange={e => handleClientChange(Number(e.target.value))}
-        >
-          <option value=''>Select client…</option>
+      <FIELD label="Client" required>
+        <Select value={String(draft.client_id ?? '')} onChange={v => patch({ client_id: Number(v) || null, client_gstin_id: null, work_order_id: null })}>
+          <option value="">Select client...</option>
           {clients.filter(c => c.is_active).map(c => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
-        </select>
-      </div>
+        </Select>
+      </FIELD>
 
       {/* Client GSTIN */}
-      {draft.client_id && (
-        <div style={field}>
-          <span style={label}>Bill To (GSTIN) *</span>
-          <select
-            style={input}
-            value={draft.client_gstin_id ?? ''}
-            onChange={e => handleGstinChange(Number(e.target.value))}
+      {selectedClient && (
+        <FIELD label="Client GSTIN" required>
+          <Select
+            value={String(draft.client_gstin_id ?? '')}
+            onChange={v => patch({ client_gstin_id: Number(v) || null })}
           >
-            <option value=''>Select GSTIN…</option>
-            {clientGstins.map(g => (
+            <option value="">Select GSTIN...</option>
+            {selectedClient.gstins.map(g => (
               <option key={g.id} value={g.id}>
                 {g.gstin} — {g.state}
               </option>
             ))}
-          </select>
-        </div>
-      )}
-
-      {/* Tax Mode Badge */}
-      {draft.client_gstin_id && (
-        <div style={field}>
-          <span style={label}>Tax Mode (auto-detected)</span>
-          <div style={{
-            ...readonlyBadge,
-            color: draft.tax_mode === 'igst' ? '#f59e0b' : '#22c55e',
-            borderColor: draft.tax_mode === 'igst' ? 'rgba(245,158,11,0.3)' : 'rgba(34,197,94,0.3)',
-          }}>⚡ {taxModeLabel}</div>
-        </div>
+          </Select>
+          {/* Tax mode badge */}
+          {draft.client_gstin_id && (
+            <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={{
+                padding: '3px 10px', borderRadius: 20,
+                fontSize: 12, fontWeight: 600,
+                background: draft.tax_mode === 'igst' ? 'var(--color-info)' : 'var(--color-success)',
+                color: '#fff',
+              }}>
+                {draft.tax_mode === 'igst' ? 'IGST' : 'CGST + SGST'}
+              </span>
+              <span style={{ fontSize: 12, color: 'var(--color-text-faint)' }}>
+                {draft.place_of_supply} ({draft.place_of_supply_code})
+              </span>
+            </div>
+          )}
+        </FIELD>
       )}
 
       {/* Invoice Date */}
-      <div style={field}>
-        <span style={label}>Invoice Date *</span>
-        <input type='date' style={input} value={draft.invoice_date}
-          onChange={e => onChange({ invoice_date: e.target.value })} />
-      </div>
+      <FIELD label="Invoice Date" required>
+        <input
+          type="date" value={draft.invoice_date}
+          onChange={e => patch({ invoice_date: e.target.value })}
+          style={inputStyle}
+        />
+      </FIELD>
 
       {/* Billing Period */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-        <div style={field}>
-          <span style={label}>Billing From *</span>
-          <input type='date' style={input} value={draft.billing_from}
-            onChange={e => onChange({ billing_from: e.target.value })} />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+        <div>
+          <label style={labelStyle}>Billing From<span style={{ color: 'var(--color-error)', marginLeft: 4 }}>*</span></label>
+          <input type="date" value={draft.billing_from}
+            onChange={e => patch({ billing_from: e.target.value })} style={inputStyle} />
         </div>
-        <div style={field}>
-          <span style={label}>Billing To *</span>
-          <input type='date' style={input} value={draft.billing_to}
-            onChange={e => onChange({ billing_to: e.target.value })} />
+        <div>
+          <label style={labelStyle}>Billing To<span style={{ color: 'var(--color-error)', marginLeft: 4 }}>*</span></label>
+          <input type="date" value={draft.billing_to}
+            onChange={e => patch({ billing_to: e.target.value })} style={inputStyle} />
         </div>
       </div>
 
       {/* Work Order */}
-      <div style={field}>
-        <span style={label}>Work Order Reference (optional)</span>
-        <select
-          style={input}
-          value={draft.work_order_id ?? ''}
-          onChange={e => onChange({ work_order_id: e.target.value ? Number(e.target.value) : null })}
-        >
-          <option value=''>None / Ad-hoc invoice</option>
-          {workOrders.filter(wo => wo.status !== 'closed').map(wo => (
+      <FIELD label="Work Order (optional)">
+        <Select value={String(draft.work_order_id ?? '')} onChange={v => patch({ work_order_id: Number(v) || null })} disabled={!draft.client_id}>
+          <option value="">No work order linked</option>
+          {workOrders.map(wo => (
             <option key={wo.id} value={wo.id}>
-              {wo.wo_reference ? `${wo.wo_reference} — ` : ''}{wo.subject}
+              {wo.wo_reference ? `${wo.wo_reference} — ` : ''}{wo.subject.slice(0, 40)}
             </option>
           ))}
-        </select>
-      </div>
+        </Select>
+      </FIELD>
 
       {/* SAC Code */}
-      <div style={field}>
-        <span style={label}>SAC Code *</span>
-        <select
-          style={input}
-          value={draft.sac_id ?? ''}
-          onChange={e => onChange({ sac_id: Number(e.target.value) })}
-        >
-          <option value=''>Select SAC…</option>
-          {sacCodes.filter(s => s.is_active).map(s => (
+      <FIELD label="SAC Code" required>
+        <Select value={String(draft.sac_id ?? '')} onChange={v => patch({ sac_id: Number(v) || null })}>
+          <option value="">Select SAC code...</option>
+          {sacCodes.map(s => (
             <option key={s.id} value={s.id}>{s.sac_code} — {s.nickname}</option>
           ))}
-        </select>
-      </div>
+        </Select>
+      </FIELD>
 
       {/* Bank Account */}
-      <div style={field}>
-        <span style={label}>Bank Account *</span>
-        <select
-          style={input}
-          value={draft.bank_account_id ?? ''}
-          onChange={e => onChange({ bank_account_id: Number(e.target.value) })}
-        >
-          <option value=''>Select bank…</option>
-          {bankAccounts.filter(b => b.is_active).map(b => (
-            <option key={b.id} value={b.id}>{b.nickname} — {b.bank_name}</option>
+      <FIELD label="Bank Account" required>
+        <Select value={String(draft.bank_account_id ?? '')} onChange={v => patch({ bank_account_id: Number(v) || null })}>
+          <option value="">Select bank account...</option>
+          {bankAccounts.map(b => (
+            <option key={b.id} value={b.id}>{b.nickname} — {b.account_number}</option>
           ))}
-        </select>
-      </div>
+        </Select>
+      </FIELD>
 
-      {/* Next */}
-      <button
-        onClick={onNext}
-        disabled={!isValid}
-        style={{
-          padding: '14px',
-          background: isValid ? 'var(--color-accent)' : 'rgba(255,255,255,0.05)',
-          color: isValid ? 'var(--color-primary)' : 'var(--color-text-faint)',
-          border: 'none', borderRadius: '10px',
-          fontSize: '15px', fontWeight: 700,
-          fontFamily: 'Work Sans, sans-serif',
-          cursor: isValid ? 'pointer' : 'default',
-          marginTop: '8px',
-        }}
-      >
-        Next → Work Items
-      </button>
     </div>
   )
 }

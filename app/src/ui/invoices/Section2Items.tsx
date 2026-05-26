@@ -1,243 +1,241 @@
-import React, { useState } from 'react'
-import type { InvoiceDraft, InvoiceLineItemDraft, WorkOrderItem } from '../../db/types'
+// Wizard Section 2: Work Order Item Selection
+// Checklist of WO items; each checked item expands to show qty input.
+// Rate shown read-only; tap-to-edit with warning if rates_firm.
+import React, { useEffect, useState } from 'react'
+import type { InvoiceDraft, WorkOrderItem, InvoiceLineDraft } from '../../db/types'
+import { getWorkOrderItems } from '../../db/workOrdersDb'
+import { getWorkOrders } from '../../db/workOrdersDb'
+import { cardStyle, labelStyle, inputStyle } from '../settings/_components'
 
-interface Props {
+function fmt(n: number): string {
+  return new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
+}
+
+export default function Section2Items({
+  draft, setLineItems,
+}: {
   draft: InvoiceDraft
-  woItems: WorkOrderItem[]
-  ratesFirm: boolean
-  onChange: (patch: Partial<InvoiceDraft>) => void
-  onNext: () => void
-  onBack: () => void
-}
+  setLineItems: (items: InvoiceLineDraft[]) => void
+}) {
+  const [woItems, setWoItems]           = useState<WorkOrderItem[]>([])
+  const [ratesFirm, setRatesFirm]       = useState(false)
+  const [editingRate, setEditingRate]   = useState<number | null>(null)
+  const [loading, setLoading]           = useState(false)
 
-const card: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.04)',
-  border: '1px solid rgba(200,169,106,0.15)',
-  borderRadius: '10px',
-  padding: '12px',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '8px',
-}
+  useEffect(() => {
+    if (!draft.work_order_id) { setWoItems([]); return }
+    setLoading(true)
+    Promise.all([
+      getWorkOrderItems(draft.work_order_id),
+      getWorkOrders(),
+    ]).then(([items, wos]) => {
+      setWoItems(items)
+      const wo = wos.find(w => w.id === draft.work_order_id)
+      setRatesFirm(wo?.rates_firm ?? false)
+      setLoading(false)
+    })
+  }, [draft.work_order_id])
 
-export default function Section2Items({ draft, woItems, ratesFirm, onChange, onNext, onBack }: Props) {
-  const [rateEditWarned, setRateEditWarned] = useState<Set<number>>(new Set())
+  function isSelected(itemId: number) {
+    return draft.line_items.some(li => li.work_order_item_id === itemId)
+  }
+
+  function getDraft(itemId: number): InvoiceLineDraft | undefined {
+    return draft.line_items.find(li => li.work_order_item_id === itemId)
+  }
 
   function toggleItem(woItem: WorkOrderItem) {
-    const exists = draft.line_items.find(i => i.work_order_item_id === woItem.id)
-    if (exists) {
-      onChange({ line_items: draft.line_items.filter(i => i.work_order_item_id !== woItem.id) })
+    if (isSelected(woItem.id)) {
+      setLineItems(draft.line_items.filter(li => li.work_order_item_id !== woItem.id))
     } else {
-      const newItem: InvoiceLineItemDraft = {
-        work_order_item_id:    woItem.id,
-        sl_no:                 draft.line_items.length + 1,
-        description:           woItem.description,
-        unit:                  woItem.unit,
-        qty:                   0,
-        rate:                  woItem.rate,
-        rate_overridden:       false,
-        taxable_value:         0,
-        wo_item_rate:          woItem.rate,
-        contracted_qty:        woItem.contracted_qty,
-        cumulative_billed_qty: woItem.cumulative_billed_qty,
+      const newItem: InvoiceLineDraft = {
+        work_order_item_id: woItem.id,
+        sl_no:              draft.line_items.length + 1,
+        description:        woItem.description,
+        sac_id:             draft.sac_id,
+        unit:               woItem.unit,
+        qty:                0,
+        rate:               woItem.rate,
+        taxable_value:      0,
+        rate_overridden:    false,
       }
-      onChange({ line_items: [...draft.line_items, newItem] })
+      setLineItems([...draft.line_items, newItem])
     }
   }
 
-  function updateItem(woItemId: number, patch: Partial<InvoiceLineItemDraft>) {
-    onChange({
-      line_items: draft.line_items.map(i => {
-        if (i.work_order_item_id !== woItemId) return i
-        const updated = { ...i, ...patch }
-        updated.taxable_value = parseFloat((updated.qty * updated.rate).toFixed(2))
-        if (patch.rate !== undefined && patch.rate !== i.wo_item_rate) {
-          updated.rate_overridden = true
-        }
-        return updated
-      })
-    })
+  function updateQty(itemId: number, qty: number) {
+    const items = draft.line_items.map(li =>
+      li.work_order_item_id === itemId
+        ? { ...li, qty, taxable_value: parseFloat((qty * li.rate).toFixed(2)) }
+        : li
+    )
+    setLineItems(items)
   }
 
-  function handleRateEdit(woItemId: number, newRate: number) {
-    if (ratesFirm && !rateEditWarned.has(woItemId)) {
-      setRateEditWarned(prev => new Set([...prev, woItemId]))
-    }
-    updateItem(woItemId, { rate: newRate })
+  function updateRate(itemId: number, rate: number) {
+    const items = draft.line_items.map(li =>
+      li.work_order_item_id === itemId
+        ? { ...li, rate, taxable_value: parseFloat((li.qty * rate).toFixed(2)), rate_overridden: true }
+        : li
+    )
+    setLineItems(items)
+    setEditingRate(null)
   }
 
   const subtotal = draft.line_items.reduce((s, i) => s + i.taxable_value, 0)
-  const isValid  = draft.line_items.length > 0 && draft.line_items.every(i => i.qty > 0)
 
-  const fmt = (n: number) => `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+  if (!draft.work_order_id) {
+    return (
+      <div style={{ padding: '32px 16px', textAlign: 'center' }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
+        <p style={{ color: 'var(--color-text-muted)', fontSize: 15 }}>
+          No work order selected. Go back to Section 1 and select a work order to load items.
+        </p>
+      </div>
+    )
+  }
 
-  // Items from WO
-  const availableItems = woItems
+  if (loading) return (
+    <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--color-text-faint)' }}>Loading items...</div>
+  )
 
   return (
-    <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      <p style={{ margin: 0, fontSize: '13px', color: 'var(--color-text-faint)', fontFamily: 'Work Sans, sans-serif' }}>
-        Select work items to bill. Enter quantity for each selected item.
+    <div style={{ padding: '16px', paddingBottom: 80 }}>
+      <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 16 }}>
+        Select the items to bill and enter quantities.
       </p>
 
-      {availableItems.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-faint)', fontSize: '14px' }}>
-          {draft.work_order_id ? 'No items found for this work order.' : 'Select a work order in Section 1 to load items.'}
-        </div>
-      )}
-
-      {availableItems.map(woItem => {
-        const selected = draft.line_items.find(i => i.work_order_item_id === woItem.id)
-        const warned   = rateEditWarned.has(woItem.id)
+      {woItems.map((woItem, idx) => {
+        const selected = isSelected(woItem.id)
+        const li = getDraft(woItem.id)
+        const billed = woItem.cumulative_billed_qty
 
         return (
           <div key={woItem.id} style={{
-            ...card,
-            borderColor: selected ? 'rgba(200,169,106,0.4)' : 'rgba(200,169,106,0.15)',
-            background: selected ? 'rgba(200,169,106,0.06)' : 'rgba(255,255,255,0.04)',
+            ...cardStyle,
+            marginBottom: 12,
+            borderColor: selected ? 'var(--color-accent)' : 'var(--color-border)',
+            transition: 'border-color 0.15s',
           }}>
-            {/* Checkbox + description */}
-            <label style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', cursor: 'pointer' }}>
-              <input
-                type='checkbox'
-                checked={!!selected}
-                onChange={() => toggleItem(woItem)}
-                style={{ marginTop: '2px', accentColor: 'var(--color-accent)', width: '16px', height: '16px' }}
-              />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '14px', color: 'var(--color-text)', fontFamily: 'Work Sans, sans-serif', fontWeight: 500 }}>
-                  {woItem.description}
+            {/* Checkbox row */}
+            <div
+              style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer' }}
+              onClick={() => toggleItem(woItem)}
+            >
+              <div style={{
+                width: 22, height: 22, borderRadius: 6, flexShrink: 0, marginTop: 2,
+                border: `2px solid ${selected ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                background: selected ? 'var(--color-accent)' : 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {selected && <span style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>✓</span>}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text)', marginBottom: 2 }}>
                   {woItem.sub_work_ref && (
-                    <span style={{ fontSize: '11px', color: 'var(--color-text-faint)', marginLeft: '6px' }}>
-                      ({woItem.sub_work_ref})
-                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--color-text-faint)', marginRight: 6 }}>[{woItem.sub_work_ref}]</span>
+                  )}
+                  {woItem.description}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  <span>Unit: {woItem.unit ?? '—'}</span>
+                  <span>Rate: ₹{fmt(woItem.rate)}</span>
+                  {billed > 0 && (
+                    <span style={{ color: 'var(--color-warning)' }}>Billed so far: {billed} {woItem.unit ?? 'units'}</span>
                   )}
                 </div>
-                {/* Billed qty hint */}
-                {woItem.contracted_qty != null && (
-                  <div style={{ fontSize: '11px', color: 'var(--color-text-faint)', marginTop: '2px' }}>
-                    {woItem.cumulative_billed_qty} of {woItem.contracted_qty} {woItem.unit ?? 'units'} billed so far
-                  </div>
-                )}
               </div>
-            </label>
+            </div>
 
             {/* Expanded: qty + rate */}
-            {selected && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingTop: '4px', paddingLeft: '26px' }}>
-
-                {/* Rate (editable with warning) */}
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '11px', color: 'var(--color-text-faint)', marginBottom: '4px', fontFamily: 'Work Sans, sans-serif' }}>
-                      Rate / {woItem.unit ?? 'unit'}
-                    </div>
+            {selected && li && (
+              <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--color-border)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  {/* Qty */}
+                  <div>
+                    <label style={labelStyle}>Qty ({woItem.unit ?? 'units'})</label>
                     <input
-                      type='number'
-                      min='0'
-                      step='0.01'
-                      value={selected.rate}
-                      onChange={e => handleRateEdit(woItem.id, parseFloat(e.target.value) || 0)}
-                      style={{
-                        padding: '8px 10px',
-                        background: selected.rate_overridden ? 'rgba(245,158,11,0.08)' : 'rgba(255,255,255,0.05)',
-                        border: `1px solid ${selected.rate_overridden ? 'rgba(245,158,11,0.4)' : 'rgba(200,169,106,0.2)'}`,
-                        borderRadius: '8px',
-                        color: 'var(--color-text)',
-                        fontSize: '14px',
-                        fontFamily: 'Work Sans, sans-serif',
-                        width: '100%',
-                        boxSizing: 'border-box',
-                      }}
+                      type="number" min="0" step="any"
+                      value={li.qty || ''}
+                      placeholder="0"
+                      onChange={e => updateQty(woItem.id, parseFloat(e.target.value) || 0)}
+                      style={{ ...inputStyle, textAlign: 'right' }}
                     />
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '11px', color: 'var(--color-text-faint)', marginBottom: '4px', fontFamily: 'Work Sans, sans-serif' }}>
-                      Quantity
-                    </div>
-                    <input
-                      type='number'
-                      min='0'
-                      step='0.001'
-                      value={selected.qty || ''}
-                      onChange={e => updateItem(woItem.id, { qty: parseFloat(e.target.value) || 0 })}
-                      placeholder='Enter qty'
-                      style={{
-                        padding: '8px 10px',
-                        background: 'rgba(255,255,255,0.05)',
-                        border: '1px solid rgba(200,169,106,0.2)',
-                        borderRadius: '8px',
-                        color: 'var(--color-text)',
-                        fontSize: '14px',
-                        fontFamily: 'Work Sans, sans-serif',
-                        width: '100%',
-                        boxSizing: 'border-box',
-                      }}
-                    />
+
+                  {/* Rate */}
+                  <div>
+                    <label style={labelStyle}>
+                      Rate (₹/{woItem.unit ?? 'unit'})
+                      {li.rate_overridden && (
+                        <span style={{ color: 'var(--color-warning)', marginLeft: 4, fontSize: 10 }}>⚠ Overridden</span>
+                      )}
+                    </label>
+                    {editingRate === woItem.id ? (
+                      <input
+                        type="number" min="0" step="any"
+                        defaultValue={li.rate}
+                        autoFocus
+                        onBlur={e => updateRate(woItem.id, parseFloat(e.target.value) || li.rate)}
+                        style={{ ...inputStyle, textAlign: 'right', borderColor: 'var(--color-warning)' }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          ...inputStyle,
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          cursor: 'pointer', color: 'var(--color-text)',
+                        }}
+                        onClick={() => {
+                          if (ratesFirm) {
+                            const yes = window.confirm(
+                              '⚠️ This work order has firm rates. Changing the rate is unusual. Proceed?'
+                            )
+                            if (!yes) return
+                          }
+                          setEditingRate(woItem.id)
+                        }}
+                      >
+                        <span className="tabular">₹{fmt(li.rate)}</span>
+                        <span style={{ fontSize: 11, color: 'var(--color-text-faint)' }}>tap to edit</span>
+                      </div>
+                    )}
                   </div>
                 </div>
-
-                {/* Rate override warning */}
-                {warned && ratesFirm && selected.rate_overridden && (
-                  <div style={{
-                    padding: '8px 10px',
-                    background: 'rgba(245,158,11,0.1)',
-                    border: '1px solid rgba(245,158,11,0.3)',
-                    borderRadius: '8px',
-                    fontSize: '12px',
-                    color: '#f59e0b',
-                    fontFamily: 'Work Sans, sans-serif',
-                  }}>
-                    ⚠️ This work order has firm rates. You are overriding ₹{selected.wo_item_rate}/{woItem.unit ?? 'unit'}.
-                  </div>
-                )}
 
                 {/* Line total */}
-                <div style={{ textAlign: 'right', fontSize: '14px', fontWeight: 600, color: 'var(--color-accent)', fontFamily: 'Work Sans, sans-serif' }}>
-                  {fmt(selected.taxable_value)}
-                </div>
+                {li.qty > 0 && (
+                  <div style={{
+                    marginTop: 10,
+                    textAlign: 'right',
+                    fontSize: 15, fontWeight: 600,
+                    color: 'var(--color-text)',
+                  }}>
+                    Line Total: <span className="tabular">₹{fmt(li.taxable_value)}</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
         )
       })}
 
-      {/* Subtotal */}
+      {/* Floating subtotal */}
       {draft.line_items.length > 0 && (
         <div style={{
-          padding: '14px',
-          background: 'rgba(200,169,106,0.08)',
-          borderRadius: '10px',
+          position: 'fixed', bottom: 64, left: 0, right: 0,
+          background: 'var(--color-primary)',
+          color: 'var(--color-accent)',
+          padding: '12px 20px',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          zIndex: 40,
         }}>
-          <span style={{ fontFamily: 'Work Sans, sans-serif', fontSize: '14px', color: 'var(--color-text-faint)' }}>
-            Taxable Subtotal ({draft.line_items.length} items)
+          <span style={{ fontSize: 13, fontWeight: 600 }}>
+            {draft.line_items.filter(i => i.qty > 0).length} item(s) • Subtotal
           </span>
-          <span style={{ fontFamily: 'Work Sans, sans-serif', fontSize: '16px', fontWeight: 700, color: 'var(--color-accent)' }}>
-            {fmt(subtotal)}
-          </span>
+          <span className="tabular" style={{ fontSize: 17, fontWeight: 700 }}>₹{fmt(subtotal)}</span>
         </div>
       )}
-
-      {/* Navigation */}
-      <div style={{ display: 'flex', gap: '10px' }}>
-        <button onClick={onBack} style={{
-          flex: 1, padding: '12px',
-          background: 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(200,169,106,0.2)',
-          borderRadius: '10px', color: 'var(--color-text-faint)',
-          fontSize: '14px', fontFamily: 'Work Sans, sans-serif', cursor: 'pointer',
-        }}>← Back</button>
-        <button onClick={onNext} disabled={!isValid} style={{
-          flex: 2, padding: '12px',
-          background: isValid ? 'var(--color-accent)' : 'rgba(255,255,255,0.05)',
-          color: isValid ? 'var(--color-primary)' : 'var(--color-text-faint)',
-          border: 'none', borderRadius: '10px',
-          fontSize: '14px', fontWeight: 700,
-          fontFamily: 'Work Sans, sans-serif',
-          cursor: isValid ? 'pointer' : 'default',
-        }}>Next → Description ✨</button>
-      </div>
     </div>
   )
 }
