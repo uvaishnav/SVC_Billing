@@ -1,230 +1,169 @@
-import React, { useState } from 'react'
-import type { InvoiceDraft, Settings, BankAccount, SacCode } from '../../db/types'
-import { computeTotals } from '../../db/invoicesDb'
+// Wizard Section 4: Review + Save Draft / Finalize
+// All computed values shown read-only.
+// Save Draft (any time) or Finalize Invoice.
+import React, { useEffect } from 'react'
+import type { InvoiceDraft } from '../../db/types'
+import { recomputeTotals } from './useInvoiceDraft'
+import { finalizeInvoice } from '../../db/invoicesDb'
 
-function toWords(n: number): string {
-  if (n === 0) return 'Zero Rupees Only'
-  const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten',
-    'Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen']
-  const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety']
-  function below100(n: number): string {
-    return n < 20 ? ones[n] : tens[Math.floor(n/10)] + (n%10 ? ' ' + ones[n%10] : '')
-  }
-  function below1000(n: number): string {
-    return n >= 100 ? ones[Math.floor(n/100)] + ' Hundred' + (n%100 ? ' ' + below100(n%100) : '') : below100(n)
-  }
-  const crore = Math.floor(n / 10000000)
-  const lakh  = Math.floor((n % 10000000) / 100000)
-  const thous = Math.floor((n % 100000) / 1000)
-  const rem   = Math.floor(n % 1000)
-  const paise = Math.round((n - Math.floor(n)) * 100)
-  let result = ''
-  if (crore) result += below1000(crore) + ' Crore '
-  if (lakh)  result += below1000(lakh)  + ' Lakh '
-  if (thous) result += below1000(thous) + ' Thousand '
-  if (rem)   result += below1000(rem)
-  result = result.trim() + ' Rupees'
-  if (paise) result += ' and ' + below100(paise) + ' Paise'
-  return result + ' Only'
+function fmt(n: number): string {
+  return new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
 }
 
-interface Props {
-  draft: InvoiceDraft
-  settings: Settings
-  bankAccount: BankAccount | null
-  sacCode: SacCode | null
-  tdsApplicable: boolean
-  onSaveDraft: () => Promise<void>
-  onFinalize: () => Promise<void>
-  onBack: () => void
-  saving: boolean
-  finalizing: boolean
+function Row({ label, value, bold, accent, faint }: {
+  label: string; value: string; bold?: boolean; accent?: boolean; faint?: boolean
+}) {
+  return (
+    <div style={{
+      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      padding: '10px 0', borderBottom: '1px solid var(--color-border)',
+    }}>
+      <span style={{
+        fontSize: faint ? 13 : 14,
+        color: faint ? 'var(--color-text-faint)' : 'var(--color-text-muted)',
+        fontWeight: bold ? 600 : 400,
+      }}>{label}</span>
+      <span style={{
+        fontSize: bold ? 17 : 14,
+        fontWeight: bold ? 700 : 500,
+        color: accent ? 'var(--color-accent)' : faint ? 'var(--color-text-faint)' : 'var(--color-text)',
+      }} className="tabular">{value}</span>
+    </div>
+  )
 }
-
-const row: React.CSSProperties = {
-  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-  padding: '10px 0',
-  borderBottom: '1px solid rgba(200,169,106,0.1)',
-}
-const labelStyle: React.CSSProperties = {
-  fontSize: '13px', color: 'var(--color-text-faint)', fontFamily: 'Work Sans, sans-serif',
-}
-const valueStyle: React.CSSProperties = {
-  fontSize: '14px', color: 'var(--color-text)', fontFamily: 'Work Sans, sans-serif', fontWeight: 500,
-}
-
-const fmt = (n: number) => `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
 
 export default function Section4Review({
-  draft, settings, bankAccount, sacCode, tdsApplicable,
-  onSaveDraft, onFinalize, onBack, saving, finalizing,
-}: Props) {
-  const totals = computeTotals({ ...draft, tds_applicable: tdsApplicable })
-  const cgst   = draft.tax_mode === 'cgst_sgst' ? totals.total_gst / 2 : 0
-  const sgst   = draft.tax_mode === 'cgst_sgst' ? totals.total_gst / 2 : 0
-  const igst   = draft.tax_mode === 'igst'       ? totals.total_gst    : 0
+  draft, patch, saving, saveDraft, onFinalized,
+}: {
+  draft: InvoiceDraft
+  patch: (u: Partial<InvoiceDraft>) => void
+  saving: boolean
+  saveDraft: () => Promise<void>
+  onFinalized: () => void
+}) {
+  const [finalizing, setFinalizing] = React.useState(false)
+  const [error, setError]           = React.useState<string | null>(null)
+  const [done, setDone]             = React.useState(false)
+
+  // Always recompute totals when landing on this section
+  useEffect(() => {
+    const updated = recomputeTotals(draft, draft.gst_rate, draft.tds_rate)
+    if (
+      updated.total_taxable !== draft.total_taxable ||
+      updated.total_gst     !== draft.total_gst     ||
+      updated.total_amount  !== draft.total_amount
+    ) {
+      patch(updated)
+    }
+  }, [])
+
+  async function handleFinalize() {
+    setFinalizing(true)
+    setError(null)
+    try {
+      const result = await finalizeInvoice(draft)
+      if (!result) throw new Error('Failed to finalize invoice.')
+      setDone(true)
+      setTimeout(onFinalized, 1200)
+    } catch (e: any) {
+      setError(e.message ?? 'Finalization failed')
+    } finally {
+      setFinalizing(false)
+    }
+  }
+
+  if (done) return (
+    <div style={{ padding: '48px 24px', textAlign: 'center' }}>
+      <div style={{ fontSize: 56, marginBottom: 16 }}>✅</div>
+      <h2 style={{ marginBottom: 8 }}>Invoice Finalized!</h2>
+      <p style={{ color: 'var(--color-text-muted)' }}>{draft.invoice_number}</p>
+    </div>
+  )
 
   return (
-    <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+    <div style={{ padding: '16px', paddingBottom: 32 }}>
 
-      {/* Line Items Summary */}
-      <div style={{
-        background: 'rgba(255,255,255,0.04)',
-        border: '1px solid rgba(200,169,106,0.15)',
-        borderRadius: '10px',
-        overflow: 'hidden',
-      }}>
-        <div style={{ padding: '10px 14px', borderBottom: '1px solid rgba(200,169,106,0.15)', fontSize: '12px', fontWeight: 600, color: 'var(--color-text-faint)', fontFamily: 'Work Sans, sans-serif', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-          Line Items
-        </div>
+      {/* Line items summary */}
+      <div style={{ marginBottom: 24 }}>
+        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>Line Items</p>
         {draft.line_items.map((item, i) => (
-          <div key={i} style={{ padding: '10px 14px', borderBottom: '1px solid rgba(200,169,106,0.08)', display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '13px', color: 'var(--color-text)', fontFamily: 'Work Sans, sans-serif' }}>{item.description}</div>
-              <div style={{ fontSize: '11px', color: 'var(--color-text-faint)', fontFamily: 'Work Sans, sans-serif' }}>
-                {item.qty} {item.unit ?? ''} × {fmt(item.rate)}
-                {item.rate_overridden && <span style={{ color: '#f59e0b', marginLeft: '4px' }}>(⚠️ overridden)</span>}
-              </div>
-            </div>
-            <div style={{ fontWeight: 600, color: 'var(--color-accent)', fontFamily: 'Work Sans, sans-serif', fontSize: '14px', whiteSpace: 'nowrap' }}>
-              {fmt(item.taxable_value)}
-            </div>
+          <div key={i} style={{
+            display: 'flex', justifyContent: 'space-between',
+            padding: '8px 0', borderBottom: '1px solid var(--color-border)',
+            fontSize: 13,
+          }}>
+            <span style={{ flex: 1, color: 'var(--color-text)', paddingRight: 12 }}>
+              {i + 1}. {item.description.slice(0, 50)}{item.description.length > 50 ? '…' : ''}
+            </span>
+            <span style={{ color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+              {item.qty} {item.unit ?? ''} × ₹{fmt(item.rate)}
+            </span>
+            <span className="tabular" style={{ fontWeight: 600, minWidth: 80, textAlign: 'right', color: 'var(--color-text)' }}>
+              ₹{fmt(item.taxable_value)}
+            </span>
           </div>
         ))}
       </div>
 
-      {/* Totals Block */}
-      <div style={{
-        background: 'rgba(255,255,255,0.04)',
-        border: '1px solid rgba(200,169,106,0.15)',
-        borderRadius: '10px',
-        padding: '14px',
-      }}>
-        <div style={row}>
-          <span style={labelStyle}>Taxable Value</span>
-          <span style={valueStyle}>{fmt(totals.total_taxable)}</span>
-        </div>
+      {/* Totals */}
+      <div style={{ marginBottom: 24 }}>
+        <Row label="Taxable Value"          value={`₹${fmt(draft.total_taxable)}`} />
         {draft.tax_mode === 'cgst_sgst' ? (
           <>
-            <div style={row}>
-              <span style={labelStyle}>CGST @ {draft.gst_rate/2}%</span>
-              <span style={valueStyle}>{fmt(cgst)}</span>
-            </div>
-            <div style={row}>
-              <span style={labelStyle}>SGST @ {draft.gst_rate/2}%</span>
-              <span style={valueStyle}>{fmt(sgst)}</span>
-            </div>
+            <Row label={`CGST @ ${draft.gst_rate / 2}%`} value={`₹${fmt(draft.total_gst / 2)}`} />
+            <Row label={`SGST @ ${draft.gst_rate / 2}%`} value={`₹${fmt(draft.total_gst / 2)}`} />
           </>
         ) : (
-          <div style={row}>
-            <span style={labelStyle}>IGST @ {draft.gst_rate}%</span>
-            <span style={valueStyle}>{fmt(igst)}</span>
-          </div>
+          <Row label={`IGST @ ${draft.gst_rate}%`} value={`₹${fmt(draft.total_gst)}`} />
         )}
-        {/* Total Invoice Amount */}
-        <div style={{ ...row, paddingTop: '14px', borderBottom: 'none' }}>
-          <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)', fontFamily: 'Work Sans, sans-serif' }}>Total Invoice Amount</span>
-          <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-accent)', fontFamily: 'Work Sans, sans-serif' }}>{fmt(totals.total_amount)}</span>
-        </div>
-        {/* TDS informational line */}
-        {tdsApplicable && (
+        <Row label="Total Invoice Amount" value={`₹${fmt(draft.total_amount)}`} bold accent />
+        {draft.tds_rate > 0 && (
           <>
-            <div style={{ ...row, opacity: 0.7 }}>
-              <span style={{ ...labelStyle, fontStyle: 'italic' }}>TDS @ {draft.tds_rate}% (deducted by client)</span>
-              <span style={{ ...valueStyle, fontStyle: 'italic' }}>- {fmt(totals.tds_amount)}</span>
-            </div>
-            <div style={row}>
-              <span style={{ ...labelStyle, fontWeight: 600 }}>Net Receivable</span>
-              <span style={{ ...valueStyle, fontWeight: 700, color: '#22c55e' }}>{fmt(totals.net_receivable)}</span>
-            </div>
+            <Row label={`TDS @ ${draft.tds_rate}% (deducted by client)`} value={`₹${fmt(draft.tds_amount)}`} faint />
+            <Row label="Net Receivable" value={`₹${fmt(draft.net_receivable)}`} bold />
           </>
         )}
       </div>
 
       {/* Amount in words */}
-      <div style={{
-        padding: '12px',
-        background: 'rgba(255,255,255,0.03)',
-        border: '1px solid rgba(200,169,106,0.1)',
-        borderRadius: '8px',
-        fontSize: '12px', fontStyle: 'italic',
-        color: 'var(--color-text-faint)',
-        fontFamily: 'Work Sans, sans-serif',
-        lineHeight: '1.5',
-      }}>
-        {toWords(totals.total_amount)}
-      </div>
-
-      {/* Bank Details */}
-      {bankAccount && (
-        <div style={{
-          padding: '12px 14px',
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid rgba(200,169,106,0.15)',
-          borderRadius: '10px',
-        }}>
-          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-faint)', fontFamily: 'Work Sans, sans-serif', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '8px' }}>Payment Bank</div>
-          <div style={{ fontSize: '13px', color: 'var(--color-text)', fontFamily: 'Work Sans, sans-serif', lineHeight: '1.8' }}>
-            {bankAccount.bank_name} — {bankAccount.account_name}<br />
-            A/c: {bankAccount.account_number} | IFSC: {bankAccount.ifsc}
-            {bankAccount.branch && <><br />Branch: {bankAccount.branch}</>}
-          </div>
+      {draft.amount_in_words && (
+        <div style={{ fontSize: 13, color: 'var(--color-text-muted)', fontStyle: 'italic', marginBottom: 24, lineHeight: 1.5 }}>
+          {draft.amount_in_words}
         </div>
       )}
 
-      {/* Description preview */}
-      {draft.overall_description && (
-        <div style={{
-          padding: '12px 14px',
-          background: 'rgba(255,255,255,0.03)',
-          border: '1px solid rgba(200,169,106,0.1)',
-          borderRadius: '8px',
-          fontSize: '13px', color: 'var(--color-text-faint)',
-          fontFamily: 'Work Sans, sans-serif', lineHeight: '1.5', fontStyle: 'italic',
-        }}>
-          “{draft.overall_description}”
-        </div>
+      {error && (
+        <div style={{ color: 'var(--color-error)', fontSize: 13, marginBottom: 16 }}>⚠️ {error}</div>
       )}
 
-      {/* Navigation */}
-      <button onClick={onBack} style={{
-        padding: '12px',
-        background: 'rgba(255,255,255,0.05)',
-        border: '1px solid rgba(200,169,106,0.2)',
-        borderRadius: '10px', color: 'var(--color-text-faint)',
-        fontSize: '14px', fontFamily: 'Work Sans, sans-serif', cursor: 'pointer',
-      }}>← Back</button>
-
-      <div style={{ display: 'flex', gap: '10px' }}>
+      {/* Actions */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <button
-          onClick={onSaveDraft}
+          type="button"
+          onClick={handleFinalize}
+          disabled={finalizing || saving}
+          style={{
+            padding: '16px', borderRadius: 12, border: 'none',
+            background: finalizing ? 'var(--color-text-faint)' : 'var(--color-primary)',
+            color: 'var(--color-bg)', fontWeight: 700, fontSize: 16,
+            cursor: finalizing ? 'not-allowed' : 'pointer', width: '100%',
+          }}
+        >
+          {finalizing ? 'Finalizing…' : '📄 Finalize Invoice'}
+        </button>
+        <button
+          type="button"
+          onClick={saveDraft}
           disabled={saving || finalizing}
           style={{
-            flex: 1, padding: '14px',
-            background: 'rgba(255,255,255,0.07)',
-            border: '1px solid rgba(200,169,106,0.3)',
-            borderRadius: '10px', color: 'var(--color-accent)',
-            fontSize: '14px', fontWeight: 600,
-            fontFamily: 'Work Sans, sans-serif',
-            cursor: saving ? 'default' : 'pointer',
+            padding: '14px', borderRadius: 12,
+            border: '1.5px solid var(--color-border)',
+            background: 'transparent', color: 'var(--color-text-muted)',
+            fontWeight: 600, fontSize: 15,
+            cursor: 'pointer', width: '100%',
           }}
         >
           {saving ? 'Saving…' : '💾 Save Draft'}
-        </button>
-        <button
-          onClick={onFinalize}
-          disabled={saving || finalizing}
-          style={{
-            flex: 2, padding: '14px',
-            background: finalizing ? 'rgba(255,255,255,0.05)' : 'var(--color-accent)',
-            color: finalizing ? 'var(--color-text-faint)' : 'var(--color-primary)',
-            border: 'none', borderRadius: '10px',
-            fontSize: '14px', fontWeight: 700,
-            fontFamily: 'Work Sans, sans-serif',
-            cursor: finalizing ? 'default' : 'pointer',
-          }}
-        >
-          {finalizing ? 'Finalizing…' : '✅ Finalize Invoice'}
         </button>
       </div>
     </div>
