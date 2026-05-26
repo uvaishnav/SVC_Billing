@@ -147,3 +147,25 @@ For the upcoming PDF-to-text extraction step, chose **Tesseract.js in-browser OC
 - Work order PDFs are typically clean scanned documents — Tesseract accuracy is sufficient
 - Running in-browser avoids uploading large PDFs to a server before extraction; only the extracted text is sent to the AI
 - PDF → text extraction happens before the Supabase Storage upload (upload only happens after user confirms the parsed data)
+
+***
+
+## [2026-05-26] PDF Invoice Generation — Compliance-first invoice face (deviation from PRD Section 8.2 item 6)
+
+Chose a **stripped-down, compliance-first invoice face** over the PRD's fuller project-reference block layout because:
+
+- **No project name / subject on invoice:** Project name and work order subject are internal records only. The invoice face should describe the taxable supply, not the internal project taxonomy. Printing a long subject line clutters the bill without adding GST-required information.
+- **No explicit vehicle block on invoice:** Vehicle selection is used for internal analytics, usage tracking, and description assistance only. Vehicles may optionally appear inside the AI-generated description text when contextually relevant, but they will not appear as a separate printed section.
+- **W.O. Reference printed in low-emphasis style:** When a work order is linked, its reference (e.g. "W.O. Ref: LC-14") is printed in a muted, small-text style in the invoice metadata block. This aids client-side reconciliation without dominating the invoice face.
+- **TDS as informational summary line (not a GST field):** TDS (@ 2% on taxable value) is shown below the GST-inclusive invoice total as: `TDS @ 2% (deducted by client): ₹X` and `Net Receivable: ₹Y`. This is not a mandatory GST field but is operationally essential for the business to set payment expectations with the client.
+- **Multi-row line items:** Each billed work-order item gets its own row (Sl. No, Description, SAC, Unit, Qty, Rate, Taxable Value). A single consolidated tax row appears at the bottom. This keeps per-item traceability intact.
+
+**Locked invoice section structure:**
+1. Header band — supplier identity (name, address, GSTIN, PAN, phone/email, logo)
+2. Invoice metadata — invoice number, date, billing period, W.O. reference (muted)
+3. Bill-to block — client name, address, GSTIN, place of supply + state code, tax mode, reverse charge
+4. Line items table — Sl. No / Description / SAC / Unit / Qty / Rate / Taxable Value
+5. Totals block — total taxable, CGST+SGST or IGST, **total invoice amount** (bold), TDS informational line, net receivable
+6. Amount in words
+7. Bank details — bank name, account name, account number, IFSC, branch
+8. Declaration + authorized signatory name + signature line
