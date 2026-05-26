@@ -1,9 +1,9 @@
 // Edge Function: generate-invoice-description
-// Receives structured invoice context and returns a crisp GST-compliant
-// overall description paragraph (1–3 sentences).
-// Supports Gemini 2.5 Flash (primary) with Groq Llama 3.3 70B fallback
-// on 429 (rate limit) or 503 (model overloaded) — same pattern as parse-work-order.
-// Requires Authorization: Bearer <jwt> header — authenticated users only.
+// Receives structured invoice context and returns a detailed GST-compliant
+// description paragraph (2-4 sentences, ~100-150 words).
+// Gemini 2.5 Flash (primary) — system_instruction separated from content.
+// Groq Llama 3.3 70B (fallback) on 429/503.
+// Requires Authorization: Bearer <jwt> — authenticated users only.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -17,7 +17,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// ─── Types (mirrors InvoiceDraft context sent from frontend) ─────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 interface LineItemContext {
   description: string
   unit: string | null
@@ -32,95 +32,118 @@ interface VehicleContext {
 }
 
 interface DescriptionRequest {
-  // Core invoice context
   client_name: string
-  billing_from: string          // YYYY-MM-DD
-  billing_to: string            // YYYY-MM-DD
+  billing_from: string
+  billing_to: string
   wo_reference: string | null
   wo_subject: string | null
   line_items: LineItemContext[]
   vehicles: VehicleContext[]
   sac_description: string | null
-
-  // Optional: user refinement instruction
-  // If provided, existing_description must also be provided
   refinement_instruction: string | null
   existing_description: string | null
 }
 
-// ─── Prompt builder ───────────────────────────────────────────────────────────
-function buildPrompt(req: DescriptionRequest): string {
+// ─── System instruction (same for both generation and refinement) ─────────────
+const SYSTEM_INSTRUCTION = `You are an expert billing assistant for an Indian civil engineering and infrastructure services company.
+You write the "Description of Services" field that appears on GST tax invoices.
+
+Your descriptions are:
+- Specific: mention work order reference, billing period, exact services performed, quantities if notable
+- Professional: formal language appropriate for a B2B GST invoice submitted to government clients
+- Complete: 2 to 4 sentences, approximately 80 to 150 words
+- Accurate: only describe what is present in the provided invoice data — never invent details
+- GST-aware: you may reference the SAC code category naturally (e.g. "civil construction services", "transportation services")
+
+Do NOT include: labels, headers, bullet points, quotes, markdown, or any text other than the description paragraph itself.`
+
+// ─── Content prompt builder ───────────────────────────────────────────────────
+function buildContentPrompt(req: DescriptionRequest): string {
   const billingPeriod = `${formatDate(req.billing_from)} to ${formatDate(req.billing_to)}`
 
   const itemLines = req.line_items
-    .map(i => `- ${i.description} (${i.qty} ${i.unit ?? 'units'} @ ₹${i.rate}/${i.unit ?? 'unit'})`)
+    .map(i => {
+      const qty  = i.qty > 0 ? `${i.qty} ${i.unit ?? 'units'}` : `(qty not specified)`
+      return `  • ${i.description} — ${qty} @ ₹${i.rate.toLocaleString('en-IN')} per ${i.unit ?? 'unit'}`
+    })
     .join('\n')
 
   const vehiclesForDesc = req.vehicles.filter(v => v.include_in_description)
   const vehicleLines = vehiclesForDesc.length > 0
-    ? vehiclesForDesc.map(v => `${v.vehicle_type ?? 'Vehicle'} (${v.reg_number})`).join(', ')
+    ? vehiclesForDesc
+        .map(v => `${v.vehicle_type ?? 'Vehicle'} (${v.reg_number})`)
+        .join(', ')
     : null
 
-  const parts: string[] = []
-  parts.push(`Client: ${req.client_name}`)
-  parts.push(`Billing Period: ${billingPeriod}`)
-  if (req.wo_reference) parts.push(`Work Order Reference: ${req.wo_reference}`)
-  if (req.wo_subject)   parts.push(`Work Order Subject: ${req.wo_subject}`)
-  if (req.sac_description) parts.push(`Service Type: ${req.sac_description}`)
-  parts.push(`Line Items Billed:\n${itemLines}`)
-  if (vehicleLines)     parts.push(`Vehicles Deployed: ${vehicleLines}`)
+  const lines: string[] = [
+    `INVOICE DATA:`,
+    `Client: ${req.client_name}`,
+    `Billing Period: ${billingPeriod}`,
+  ]
 
-  if (req.refinement_instruction && req.existing_description) {
-    return [
-      `You are refining an existing invoice description based on user instructions.`,
-      ``,
-      `Existing description:`,
-      `"${req.existing_description}"`,
-      ``,
-      `User instruction: ${req.refinement_instruction}`,
-      ``,
-      `Invoice context for reference:`,
-      ...parts,
-      ``,
-      `Rules:`,
-      `- Return ONLY the revised description text (1–3 sentences, max 300 characters)`,
-      `- Formal, professional tone suitable for a GST tax invoice`,
-      `- Do not include labels, quotes, or any extra text`,
-      `- Must truthfully describe the service rendered`,
-    ].join('\n')
+  if (req.wo_reference) lines.push(`Work Order No.: ${req.wo_reference}`)
+  if (req.wo_subject)   lines.push(`Work Order Subject: ${req.wo_subject}`)
+  if (req.sac_description) lines.push(`SAC / Service Category: ${req.sac_description}`)
+
+  lines.push(``, `Services / Items Billed:`, itemLines)
+
+  if (vehicleLines) {
+    lines.push(``, `Vehicles / Equipment Deployed: ${vehicleLines}`)
   }
 
-  return [
-    `You are generating a concise overall description for an Indian GST tax invoice.`,
+  lines.push(
     ``,
-    `Invoice context:`,
-    ...parts,
+    `Write the invoice description paragraph for the above. Be specific, professional, and complete (2–4 sentences, 80–150 words).`,
+  )
+
+  return lines.join('\n')
+}
+
+function buildRefinementPrompt(req: DescriptionRequest): string {
+  const lines: string[] = [
+    `EXISTING DESCRIPTION:`,
+    req.existing_description!,
     ``,
-    `Rules:`,
-    `- Return ONLY the description text (1–3 sentences, max 300 characters)`,
-    `- Formal, professional tone suitable for a GST tax invoice`,
-    `- Do not include labels, headers, quotes, or any extra text`,
-    `- Describe the nature of service, time period, and key context`,
-    `- If vehicles are provided, mention them naturally (e.g. "deployed 1 excavator and 2 JCBs")`,
-    `- Must truthfully describe the service rendered based on the context above`,
-  ].join('\n')
+    `USER INSTRUCTION: ${req.refinement_instruction}`,
+    ``,
+    `INVOICE DATA (for reference):`,
+    `Client: ${req.client_name}`,
+    `Billing Period: ${formatDate(req.billing_from)} to ${formatDate(req.billing_to)}`,
+  ]
+
+  if (req.wo_reference) lines.push(`Work Order No.: ${req.wo_reference}`)
+  if (req.wo_subject)   lines.push(`Work Order Subject: ${req.wo_subject}`)
+
+  const itemLines = req.line_items
+    .map(i => `  • ${i.description} — ${i.qty} ${i.unit ?? 'units'}`)
+    .join('\n')
+  lines.push(``, `Services Billed:`, itemLines)
+
+  lines.push(
+    ``,
+    `Rewrite the description applying the user's instruction. Keep it professional, 2–4 sentences, 80–150 words.`,
+  )
+
+  return lines.join('\n')
 }
 
 function formatDate(iso: string): string {
   try {
-    return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-  } catch {
-    return iso
-  }
+    return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })
+  } catch { return iso }
 }
 
-// ─── Gemini call ──────────────────────────────────────────────────────────────
-async function callGemini(prompt: string): Promise<string | null> {
+// ─── Gemini call (system_instruction separated) ───────────────────────────────
+async function callGemini(contentPrompt: string): Promise<string | null> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`
 
   const body = {
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.4, maxOutputTokens: 200 },
+    system_instruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+    contents: [{ parts: [{ text: contentPrompt }] }],
+    generationConfig: {
+      temperature: 0.5,
+      maxOutputTokens: 600,
+    },
   }
 
   const res = await fetch(url, {
@@ -146,21 +169,25 @@ async function callGemini(prompt: string): Promise<string | null> {
 }
 
 // ─── Groq fallback ────────────────────────────────────────────────────────────
-async function callGroq(prompt: string): Promise<string> {
+async function callGroq(contentPrompt: string): Promise<string> {
   const url = 'https://api.groq.com/openai/v1/chat/completions'
 
   const body = {
     model: 'llama-3.3-70b-versatile',
     messages: [
-      { role: 'user', content: prompt },
+      { role: 'system', content: SYSTEM_INSTRUCTION },
+      { role: 'user',   content: contentPrompt },
     ],
-    temperature: 0.4,
-    max_tokens: 200,
+    temperature: 0.5,
+    max_tokens: 600,
   }
 
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${GROQ_API_KEY}`,
+    },
     body: JSON.stringify(body),
   })
 
@@ -181,7 +208,6 @@ Deno.serve(async (req: Request) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
-  // Auth check — same pattern as parse-work-order
   const authHeader = req.headers.get('Authorization')
   if (!authHeader?.startsWith('Bearer ')) {
     return new Response(
@@ -204,7 +230,6 @@ Deno.serve(async (req: Request) => {
     )
   }
 
-  // Parse body
   let reqBody: DescriptionRequest
   try {
     reqBody = await req.json()
@@ -227,15 +252,17 @@ Deno.serve(async (req: Request) => {
     )
   }
 
-  // Generate description
   try {
-    const prompt = buildPrompt(reqBody)
+    const isRefinement = !!(reqBody.refinement_instruction && reqBody.existing_description)
+    const contentPrompt = isRefinement
+      ? buildRefinementPrompt(reqBody)
+      : buildContentPrompt(reqBody)
 
-    let description = await callGemini(prompt)
+    let description = await callGemini(contentPrompt)
     let provider = 'gemini'
 
     if (description === null) {
-      description = await callGroq(prompt)
+      description = await callGroq(contentPrompt)
       provider = 'groq'
     }
 
