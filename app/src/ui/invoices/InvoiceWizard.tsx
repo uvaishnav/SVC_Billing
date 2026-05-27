@@ -1,6 +1,6 @@
 // Main Invoice Wizard — orchestrates all 4 sections
 import React from 'react'
-import type { InvoiceDraft } from '../../db/types'
+import type { InvoiceDraft, InvoiceStatus } from '../../db/types'
 import { useInvoiceDraft } from './useInvoiceDraft'
 import WizardNav from './WizardNav'
 import Section1Header from './Section1Header'
@@ -11,10 +11,14 @@ import { recomputeTotals } from './useInvoiceDraft'
 
 export default function InvoiceWizard({
   initialDraft,
+  existingStatus,
   onComplete,
   onSaveDraft,
 }: {
   initialDraft?: InvoiceDraft
+  // Pass 'final' when opening an already-finalized invoice for editing.
+  // Section4Review uses this to lock the invoice number and skip re-generating.
+  existingStatus?: InvoiceStatus
   onComplete: () => void
   onSaveDraft?: () => void
 }) {
@@ -38,7 +42,6 @@ export default function InvoiceWizard({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%', background: 'var(--color-bg)' }}>
 
-      {/* Wizard top nav */}
       <WizardNav
         draft={draft}
         activeSection={activeSection}
@@ -46,7 +49,6 @@ export default function InvoiceWizard({
         onSelect={goToSection}
       />
 
-      {/* Section content */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {activeSection === 1 && (
           <Section1Header draft={draft} patch={patch} />
@@ -63,13 +65,14 @@ export default function InvoiceWizard({
             patch={patch}
             saving={saving}
             saveDraft={handleSaveDraft}
-            onFinalized={onComplete}
+            onFinalized={() => onComplete()}
+            existingStatus={existingStatus}
           />
         )}
       </div>
 
-      {/* Bottom nav: Save Draft + Next */}
-      {activeSection < 4 && (
+      {/* Bottom nav: Save Draft + Next — hidden on Section 4 and when editing a final invoice */}
+      {activeSection < 4 && existingStatus !== 'final' && (
         <div style={{
           position: 'sticky', bottom: 64, left: 0, right: 0,
           padding: '10px 16px',
