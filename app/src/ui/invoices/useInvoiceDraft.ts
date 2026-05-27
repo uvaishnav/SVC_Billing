@@ -3,20 +3,31 @@
 import { useState, useCallback } from 'react'
 import type { InvoiceDraft, InvoiceLineDraft, InvoiceVehicleDraft, TaxMode } from '../../db/types'
 import { saveDraftInvoice } from '../../db/invoicesDb'
-import { generateInvoiceNumber } from '../../utils/invoiceNumbering'
+
+// ─── Date helpers ─────────────────────────────────────────────
+
+// NEVER use toISOString() for local date formatting.
+// toISOString() converts to UTC, so midnight IST (UTC+5:30)
+// becomes the previous day in UTC — causing off-by-one date bugs.
+// Instead, read local year/month/day directly from the Date object.
+function localISO(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
 
 function prevMonthRange(): { from: string; to: string } {
   const now = new Date()
+  // First day of previous month (local)
   const from = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  // Last day of previous month = day 0 of current month (local)
   const to   = new Date(now.getFullYear(), now.getMonth(), 0)
-  return {
-    from: from.toISOString().slice(0, 10),
-    to:   to.toISOString().slice(0, 10),
-  }
+  return { from: localISO(from), to: localISO(to) }
 }
 
 function today(): string {
-  return new Date().toISOString().slice(0, 10)
+  return localISO(new Date())
 }
 
 export function emptyDraft(): InvoiceDraft {
@@ -102,7 +113,6 @@ export interface SectionStatus {
 export function isSectionComplete(draft: InvoiceDraft, section: WizardSection): boolean {
   switch (section) {
     case 1: return !!(
-      draft.invoice_number &&
       draft.client_id &&
       draft.client_gstin_id &&
       draft.invoice_date &&
@@ -131,7 +141,6 @@ export function useInvoiceDraft(initialDraft?: InvoiceDraft) {
     setDraft(d => {
       const items = [...d.line_items]
       items[index] = { ...items[index], ...updates }
-      // recompute taxable_value
       items[index].taxable_value = parseFloat((items[index].qty * items[index].rate).toFixed(2))
       return { ...d, line_items: items }
     })
