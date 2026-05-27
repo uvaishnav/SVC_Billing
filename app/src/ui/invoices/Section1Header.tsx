@@ -8,6 +8,18 @@ import { getWorkOrders } from '../../db/workOrdersDb'
 import { getSettings, getSacCodes, getBankAccounts } from '../../db/settingsDb'
 import { inputStyle, labelStyle } from '../settings/_components'
 
+// ─── Helpers ──────────────────────────────────────────────────
+
+// IMPORTANT: always use this instead of new Date(isoString) for display.
+// new Date("2026-03-01") parses as UTC midnight, which in IST (UTC+5:30)
+// becomes 28 Feb 11:30 PM — showing the wrong date in the pill.
+function formatISODate(iso: string): string {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-').map(Number)
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  return `${String(d).padStart(2, '0')} ${months[m - 1]} ${y}`
+}
+
 // ─── Local primitives ─────────────────────────────────────────
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -114,12 +126,10 @@ export default function Section1Header({
       setBankAccounts(banks.filter(b => b.is_active))
       setMyStateCode(settings?.state_code ?? '')
 
-      // Apply defaults only if not already set (i.e. new invoice, not edit)
-      // invoice_number is intentionally NOT set here — assigned at finalize
       const updates: Partial<InvoiceDraft> = {}
-      if (!draft.sac_id         && settings?.default_sac_id)          updates.sac_id         = settings.default_sac_id
+      if (!draft.sac_id          && settings?.default_sac_id)          updates.sac_id          = settings.default_sac_id
       if (!draft.bank_account_id && settings?.default_bank_account_id) updates.bank_account_id = settings.default_bank_account_id
-      if (draft.tds_rate === undefined) updates.tds_rate = settings?.tds_applicable ? (settings.default_tds_rate ?? 0) : 0
+      if (draft.tds_rate     === undefined) updates.tds_rate     = settings?.tds_applicable ? (settings.default_tds_rate ?? 0) : 0
       if (draft.reverse_charge === undefined) updates.reverse_charge = settings?.reverse_charge_applicable ?? false
       if (Object.keys(updates).length > 0) patch(updates)
 
@@ -128,7 +138,6 @@ export default function Section1Header({
     load()
   }, [])
 
-  // Load WOs + auto-detect IGST vs CGST+SGST when client/GSTIN changes
   useEffect(() => {
     if (!draft.client_id) { setWorkOrders([]); return }
     getWorkOrders().then(wos => {
@@ -148,9 +157,7 @@ export default function Section1Header({
 
   const selectedClient = clients.find(c => c.id === draft.client_id)
   const selectedBank   = bankAccounts.find(b => b.id === draft.bank_account_id)
-
-  // Is this a finalized invoice being viewed (number already locked)?
-  const isLocked = !!draft.invoice_number && draft.invoice_number !== 'DRAFT'
+  const isLocked       = !!draft.invoice_number && !draft.invoice_number.startsWith('DRAFT') && draft.invoice_number !== 'DRAFT'
 
   if (loading) return (
     <div style={{ padding: '48px 20px', textAlign: 'center' }}>
@@ -173,13 +180,10 @@ export default function Section1Header({
           textTransform: 'uppercase', color: 'rgba(245,241,232,0.5)',
         }}>Invoice Number</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {isLocked && (
-            <span style={{ fontSize: 11, color: 'var(--color-accent)', opacity: 0.6 }}>🔒</span>
-          )}
+          {isLocked && <span style={{ fontSize: 11, color: 'var(--color-accent)', opacity: 0.6 }}>🔒</span>}
           <span style={{
             fontFamily: 'Playfair Display, serif',
-            fontSize: isLocked ? 20 : 15,
-            fontWeight: 700,
+            fontSize: isLocked ? 20 : 15, fontWeight: 700,
             color: isLocked ? 'var(--color-accent)' : 'rgba(245,241,232,0.35)',
             fontStyle: isLocked ? 'normal' : 'italic',
           }}>
@@ -255,6 +259,7 @@ export default function Section1Header({
           </div>
         </div>
 
+        {/* Billing period pill — uses formatISODate to avoid UTC→IST timezone shift */}
         {draft.billing_from && draft.billing_to && (
           <div style={{
             background: 'var(--color-surface-offset)',
@@ -262,9 +267,7 @@ export default function Section1Header({
             fontSize: 13, color: 'var(--color-text-muted)',
             marginBottom: 6, textAlign: 'center',
           }}>
-            📅 {new Date(draft.billing_from).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-            {' → '}
-            {new Date(draft.billing_to).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+            📅 {formatISODate(draft.billing_from)} → {formatISODate(draft.billing_to)}
           </div>
         )}
 
