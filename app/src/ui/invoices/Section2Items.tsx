@@ -249,9 +249,26 @@ function Section2Rental({
 
   const rentalTotal = draft.rental_items.reduce((s, ri) => s + ri.subtotal, 0)
 
+  // IDs of vehicles already added (excluding nulls from unselected rows)
+  const selectedVehicleIds = new Set(
+    draft.rental_items.map(ri => ri.vehicle_id).filter((id): id is number => id !== null)
+  )
+
   // ── Vehicle row handlers ─────────────────────────────────
 
   function addVehicleRow() {
+    // Guard: don't add a new row if any existing row has no vehicle selected
+    const hasIncompleteRow = draft.rental_items.some(ri => ri.vehicle_id === null)
+    if (hasIncompleteRow) {
+      window.alert('Please select a vehicle in the current row before adding another.')
+      return
+    }
+    // Guard: all active vehicles are already added
+    const availableCount = vehicles.filter(v => !selectedVehicleIds.has(v.id)).length
+    if (availableCount === 0 && vehicles.length > 0) {
+      window.alert('All available vehicles have already been added.')
+      return
+    }
     setRentalItems([...draft.rental_items, {
       vehicle_id:   null,
       reg_number:   '',
@@ -338,6 +355,11 @@ function Section2Rental({
   const distTotal = draft.item_distribution.reduce((s, d) => s + d.allocation_pct, 0)
   const distOk    = Math.abs(distTotal - 100) < 0.1
 
+  // How many vehicles are still available to add
+  const remainingVehicles = vehicles.filter(v => !selectedVehicleIds.has(v.id)).length
+  const allVehiclesAdded  = vehicles.length > 0 && remainingVehicles === 0
+  const hasIncompleteRow  = draft.rental_items.some(ri => ri.vehicle_id === null)
+
   if (loading) return <LoadingState />
 
   return (
@@ -356,6 +378,7 @@ function Section2Rental({
           ri={ri}
           idx={idx}
           vehicles={vehicles}
+          selectedVehicleIds={selectedVehicleIds}
           onVehicleSelect={vid => handleVehicleSelect(idx, vid)}
           onUpdate={patch => updateVehicleRow(idx, patch)}
           onRemove={() => removeVehicleRow(idx)}
@@ -365,14 +388,24 @@ function Section2Rental({
       <button
         type="button"
         onClick={addVehicleRow}
+        disabled={hasIncompleteRow || allVehiclesAdded}
         style={{
           width: '100%', padding: '12px', marginTop: 8, marginBottom: 24,
           borderRadius: 10, border: '1.5px dashed var(--color-border)',
-          background: 'transparent', color: 'var(--color-primary)',
-          fontWeight: 600, fontSize: 14, cursor: 'pointer',
+          background: 'transparent',
+          color: (hasIncompleteRow || allVehiclesAdded) ? 'var(--color-text-faint)' : 'var(--color-primary)',
+          fontWeight: 600, fontSize: 14,
+          cursor: (hasIncompleteRow || allVehiclesAdded) ? 'not-allowed' : 'pointer',
+          opacity: (hasIncompleteRow || allVehiclesAdded) ? 0.5 : 1,
+          transition: 'opacity 0.15s',
         }}
       >
-        + Add Vehicle
+        {allVehiclesAdded
+          ? '✓ All vehicles added'
+          : hasIncompleteRow
+            ? '⚠ Select a vehicle in the current row first'
+            : `+ Add Vehicle${remainingVehicles > 0 ? ` (${remainingVehicles} remaining)` : ''}`
+        }
       </button>
 
       {/* ── Distribution Panel (only when WO items are available) ── */}
@@ -497,11 +530,12 @@ function Section2Rental({
 
 // ─── Rental Vehicle Row ─────────────────────────────────────────────────
 function RentalVehicleRow({
-  ri, idx, vehicles, onVehicleSelect, onUpdate, onRemove,
+  ri, idx, vehicles, selectedVehicleIds, onVehicleSelect, onUpdate, onRemove,
 }: {
   ri: InvoiceRentalItemDraft
   idx: number
   vehicles: Vehicle[]
+  selectedVehicleIds: Set<number>
   onVehicleSelect: (vehicleId: number) => void
   onUpdate: (patch: Partial<InvoiceRentalItemDraft>) => void
   onRemove: () => void
@@ -518,11 +552,15 @@ function RentalVehicleRow({
             style={{ ...inputStyle, color: ri.vehicle_id ? 'var(--color-text)' : 'var(--color-text-muted)' }}
           >
             <option value="">Select vehicle…</option>
-            {vehicles.map(v => (
-              <option key={v.id} value={v.id}>
-                {v.reg_number}{v.vehicle_type ? ` — ${v.vehicle_type}` : ''}
-              </option>
-            ))}
+            {vehicles.map(v => {
+              // A vehicle is unavailable if it's already selected in a *different* row
+              const takenByOther = selectedVehicleIds.has(v.id) && v.id !== ri.vehicle_id
+              return (
+                <option key={v.id} value={v.id} disabled={takenByOther}>
+                  {v.reg_number}{v.vehicle_type ? ` — ${v.vehicle_type}` : ''}{takenByOther ? ' (already added)' : ''}
+                </option>
+              )
+            })}
           </select>
         </div>
         <button
