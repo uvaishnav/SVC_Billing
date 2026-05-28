@@ -16,14 +16,14 @@ export default function InvoiceWizard({
   onSaveDraft,
 }: {
   initialDraft?: InvoiceDraft
-  // Pass 'final' when opening an already-finalized invoice for editing.
-  // Section4Review uses this to lock the invoice number and skip re-generating.
   existingStatus?: InvoiceStatus
   onComplete: () => void
   onSaveDraft?: () => void
 }) {
   const {
-    draft, patch, patchLineItem, setLineItems, setVehicles,
+    draft, patch, patchLineItem,
+    setLineItems, setVehicles,
+    setRentalItems, setItemDistribution,
     activeSection, goToSection, visitedSections,
     saving, saveDraft,
   } = useInvoiceDraft(initialDraft)
@@ -41,7 +41,6 @@ export default function InvoiceWizard({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%', background: 'var(--color-bg)' }}>
-
       <WizardNav
         draft={draft}
         activeSection={activeSection}
@@ -54,9 +53,16 @@ export default function InvoiceWizard({
           <Section1Header draft={draft} patch={patch} />
         )}
         {activeSection === 2 && (
-          <Section2Items draft={draft} setLineItems={setLineItems} />
+          <Section2Items
+            draft={draft}
+            setLineItems={setLineItems}
+            setRentalItems={setRentalItems}
+            setItemDistribution={setItemDistribution}
+          />
         )}
         {activeSection === 3 && (
+          // For rental invoices, vehicles list is not used — Section3 skips the vehicle panel.
+          // Pass setVehicles regardless; Section3 reads draft.line_item_billing_type internally.
           <Section3Description draft={draft} setVehicles={setVehicles} patch={patch} />
         )}
         {activeSection === 4 && (
@@ -71,15 +77,13 @@ export default function InvoiceWizard({
         )}
       </div>
 
-      {/* Bottom nav: Save Draft + Next — hidden on Section 4 and when editing a final invoice */}
       {activeSection < 4 && existingStatus !== 'final' && (
         <div style={{
           position: 'sticky', bottom: 64, left: 0, right: 0,
           padding: '10px 16px',
           background: 'var(--color-bg)',
           borderTop: '1px solid var(--color-border)',
-          display: 'flex', gap: 10,
-          zIndex: 30,
+          display: 'flex', gap: 10, zIndex: 30,
         }}>
           <button
             type="button" onClick={handleSaveDraft} disabled={saving}
@@ -96,8 +100,7 @@ export default function InvoiceWizard({
             type="button" onClick={advanceSection}
             style={{
               flex: 2, padding: '13px', borderRadius: 12,
-              border: 'none',
-              background: 'var(--color-accent)',
+              border: 'none', background: 'var(--color-accent)',
               color: 'var(--color-primary)', fontWeight: 700, fontSize: 15,
               cursor: 'pointer',
             }}
