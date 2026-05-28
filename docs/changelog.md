@@ -4,6 +4,40 @@
 
 ***
 
+## [2026-05-27] — PDF Invoice Generation Part 2: Invoice Wizard UI + Data Flow
+
+### Added
+- `app/src/ui/invoices/InvoiceWizard.tsx` — 4-section wizard orchestrator; accepts `existingStatus` prop to correctly handle editing finalized invoices (number locked, Save Draft hidden, bottom nav hidden)
+- `app/src/ui/invoices/Section1Header.tsx` — client selector, GSTIN selector with auto IGST/CGST+SGST detection, invoice date, billing From/To (defaults to 1st–last of previous month), work order link, SAC code, bank account with detail card
+- `app/src/ui/invoices/Section2Items.tsx` — line items from linked work order, qty input, rate pre-fill with override warning, taxable value auto-computed
+- `app/src/ui/invoices/Section3Description.tsx` — vehicle multi-select, AI description generation via Edge Function, editable textarea
+- `app/src/ui/invoices/Section4Review.tsx` — read-only totals (taxable, GST split, TDS, net receivable), amount in words, Finalize + Save Draft buttons; shows lock banner when editing a finalized invoice
+- `app/src/ui/invoices/WizardNav.tsx` — top stepper nav with visited/active/pending states
+- `app/src/ui/invoices/useInvoiceDraft.ts` — central wizard state hook; `emptyDraft()`, `recomputeTotals()`, `isSectionComplete()`, `prevMonthRange()` with timezone-safe `localISO()` helper
+- `app/src/db/invoicesDb.ts` — `saveDraftInvoice()` (upsert by `DRAFT-{timestamp}` key), `finalizeInvoice(draft, existingStatus?)` (assigns invoice number at finalize only; locks number if already final; skips `increment_billed_qty` on re-finalize), `getInvoices()`, `getInvoiceByNumber()`, `cancelInvoice()`
+- `app/src/ui/invoices/InvoicesPage.tsx` — invoice list with status pills (All / Draft / Final / Cancelled), search by invoice number or client, tap to open wizard in edit mode
+
+### Changed
+- `app/src/ui/invoices/useInvoiceDraft.ts` — removed `generateInvoiceNumber()` import and call; invoice number no longer set on wizard open
+- `app/src/ui/invoices/useInvoiceDraft.ts` — `isSectionComplete()` for Section 1 no longer checks `invoice_number` (it is always empty until finalize)
+- `app/src/ui/invoices/Section1Header.tsx` — billing period pill uses `formatISODate()` (splits ISO string into parts) instead of `new Date(iso).toLocaleDateString()` to avoid UTC→IST timezone shift
+- `app/src/db/invoicesDb.ts` — `finalizeInvoice()` return type changed from `Invoice | null` to `{ invoice: Invoice; invoiceNumber: string } | null` so callers can get the assigned number
+- `app/src/ui/invoices/InvoiceWizard.tsx` — `existingStatus` prop wired to `Section4Review`; bottom Save Draft + Next nav hidden when `existingStatus === 'final'`
+
+### Bug Fixes
+- **Invoice number consuming sequence on wizard open** — `generateInvoiceNumber()` was called in `Section1Header` `useEffect` on mount; moved to `finalizeInvoice()` only. Sequence now only increments when user taps Finalize.
+- **Invoice number changing on re-edit of finalized invoice** — `finalizeInvoice()` now checks `isAlreadyFinal` flag; if true, existing number is kept and `increment_billed_qty` is skipped.
+- **Billing period dates off by 1 day (UTC/IST timezone bug)** — `prevMonthRange()` was using `toISOString().slice(0,10)` which converts local midnight to UTC, rolling back 1 day in IST. Fixed with `localISO()` helper that reads `getFullYear()`, `getMonth()`, `getDate()` directly from local time.
+- **Bank account dropdown hidden behind sticky bottom nav** — root div `paddingBottom` increased to `120px`.
+
+### Observations
+- `toISOString()` is **never safe for local date formatting** in IST (UTC+5:30). Always use `getFullYear()` / `getMonth()` / `getDate()` and format manually. This affects any date initialized via `new Date(year, month, day)` and displayed via `toISOString()`.
+- Invoice number must be assigned at **finalization time**, not creation time. Assigning on wizard open wastes sequence numbers on cancellations. This matches how Tally, Zoho, and QuickBooks handle invoice numbering.
+- Draft invoices use a stable `DRAFT-{timestamp}` key for upsert identity. This avoids needing a separate `id` lookup before every draft save.
+- Vehicle rental billing (daily/monthly rate × duration, not unit × qty) was discovered as a requirement during this session. Schema and wizard changes needed — deferred to a dedicated session before Part 3 PDF rendering.
+
+***
+
 ## [2026-05-25] — Work Orders Module Part 2: PDF Upload + OCR + AI Parsing
 
 ### Added
