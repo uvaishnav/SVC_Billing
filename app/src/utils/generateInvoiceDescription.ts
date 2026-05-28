@@ -5,16 +5,11 @@ import { supabase } from '../db/supabaseClient'
 import type { InvoiceDraft } from '../db/types'
 
 export interface DescriptionContext {
-  draft: InvoiceDraft
-  client_name: string
-  wo_reference: string | null
-  wo_subject: string | null
+  draft:           InvoiceDraft
+  client_name:     string
+  wo_reference:    string | null
+  wo_subject:      string | null
   sac_description: string | null
-}
-
-export interface RefinementContext extends DescriptionContext {
-  existing_description: string
-  refinement_instruction: string
 }
 
 async function callEdgeFunction(body: object): Promise<string> {
@@ -42,27 +37,58 @@ async function callEdgeFunction(body: object): Promise<string> {
   return data.description as string
 }
 
-/** Generate a fresh description from invoice draft context */
-export async function generateInvoiceDescription(ctx: DescriptionContext): Promise<string> {
+/** Build the common payload shared by generate and refine calls */
+function buildPayload(
+  ctx: DescriptionContext,
+  extra: Record<string, unknown> = {}
+): object {
   const { draft, client_name, wo_reference, wo_subject, sac_description } = ctx
+  const isRental = draft.line_item_billing_type === 'rental'
 
-  return callEdgeFunction({
+  return {
     client_name,
-    billing_from:            draft.billing_from,
-    billing_to:              draft.billing_to,
+    billing_from:    draft.billing_from,
+    billing_to:      draft.billing_to,
+    billing_type:    draft.line_item_billing_type,
     wo_reference,
     wo_subject,
     sac_description,
-    line_items: draft.line_items.map(i => ({
-      description: i.description,
-      unit:        i.unit,
-      qty:         i.qty,
-      rate:        i.rate,
-    })),
-    vehicles:                draft.vehicles,
-    refinement_instruction:  null,
-    existing_description:    null,
-  })
+
+    // Quantity mode: send line items
+    line_items: isRental
+      ? []
+      : draft.line_items.map(i => ({
+          description: i.description,
+          unit:        i.unit,
+          qty:         i.qty,
+          rate:        i.rate,
+        })),
+
+    // Rental mode: send rental rows (only confirmed vehicle rows)
+    rental_items: isRental
+      ? draft.rental_items
+          .filter(ri => ri.vehicle_id !== null)
+          .map(ri => ({
+            reg_number:   ri.reg_number,
+            vehicle_type: ri.vehicle_type,
+            billing_mode: ri.billing_mode,
+            num_days:     ri.num_days,
+            monthly_rent: ri.monthly_rent,
+            subtotal:     ri.subtotal,
+          }))
+      : [],
+
+    vehicles: draft.vehicles,
+
+    refinement_instruction: null,
+    existing_description:   null,
+    ...extra,
+  }
+}
+
+/** Generate a fresh description from invoice draft context */
+export async function generateInvoiceDescription(ctx: DescriptionContext): Promise<string> {
+  return callEdgeFunction(buildPayload(ctx))
 }
 
 /** Refine an existing description based on user instruction */
@@ -71,23 +97,8 @@ export async function refineInvoiceDescription(
   existingDescription: string,
   refinementInstruction: string,
 ): Promise<string> {
-  const { draft, client_name, wo_reference, wo_subject, sac_description } = ctx
-
-  return callEdgeFunction({
-    client_name,
-    billing_from:            draft.billing_from,
-    billing_to:              draft.billing_to,
-    wo_reference,
-    wo_subject,
-    sac_description,
-    line_items: draft.line_items.map(i => ({
-      description: i.description,
-      unit:        i.unit,
-      qty:         i.qty,
-      rate:        i.rate,
-    })),
-    vehicles:                draft.vehicles,
-    refinement_instruction:  refinementInstruction,
-    existing_description:    existingDescription,
-  })
+  return callEdgeFunction(buildPayload(ctx, {
+    existing_description:   existingDescription,
+    refinement_instruction: refinementInstruction,
+  }))
 }
