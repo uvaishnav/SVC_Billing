@@ -4,6 +4,19 @@
 
 ***
 
+## [2026-05-29] — Documentation Correction: Wizard Section Breakdown
+
+### Changed
+- `docs/progress.md` — corrected wizard section breakdown to match actual code (verified by reading `Section1Header.tsx`, `Section3Description.tsx`)
+- `docs/changelog.md` — corrected `[2026-05-27]` Section 1 description (billing type toggle was omitted)
+
+### Corrections Made
+- **Section 1** includes the **Billing Type toggle** (Per Quantity / Monthly Rental) — this was NOT mentioned in the original docs. The toggle lives in `Section1Header.tsx` and drives the entire Section 2 rendering.
+- **Section 3** rental mode shows a **read-only vehicle summary** (pulled from Section 2’s rental_items), not a vehicle picker. The multi-select picker is quantity mode only. Both modes include the AI description textarea + refinement input.
+- The original docs described Section 1 as only “client/period/WO/SAC/bank” which was incomplete.
+
+***
+
 ## [2026-05-28] — Rental Billing Schema + Wizard UI + AI Description Fix
 
 ### Added
@@ -30,9 +43,9 @@
 
 ### Added
 - `app/src/ui/invoices/InvoiceWizard.tsx` — 4-section wizard orchestrator; accepts `existingStatus` prop to correctly handle editing finalized invoices (number locked, Save Draft hidden, bottom nav hidden)
-- `app/src/ui/invoices/Section1Header.tsx` — client selector, GSTIN selector with auto IGST/CGST+SGST detection, invoice date, billing From/To (defaults to 1st–last of previous month), work order link, SAC code, bank account with detail card
-- `app/src/ui/invoices/Section2Items.tsx` — line items from linked work order, qty input, rate pre-fill with override warning, taxable value auto-computed
-- `app/src/ui/invoices/Section3Description.tsx` — vehicle multi-select, AI description generation via Edge Function, editable textarea
+- `app/src/ui/invoices/Section1Header.tsx` — invoice number banner (shows locked number or “Assigned on Finalize”); client selector + GSTIN selector with auto IGST/CGST+SGST detection; invoice date; billing From/To (defaults to 1st–last of previous month); work order link (optional); **Billing Type toggle** (Per Quantity 📦 / Monthly Rental 🚛) — drives entire Section 2 rendering, disabled on finalized invoices; SAC code; bank account with detail card
+- `app/src/ui/invoices/Section2Items.tsx` — quantity mode: line items from linked work order, qty input, rate pre-fill with override warning, taxable value auto-computed. Rental mode (added 2026-05-28): per-vehicle rental rows + distribution panel
+- `app/src/ui/invoices/Section3Description.tsx` — quantity mode: vehicle multi-select picker (add/remove/toggle include-in-description) + AI description generation + refinement input. Rental mode: read-only vehicle summary (from Section 2 rental_items) + AI description + refinement input
 - `app/src/ui/invoices/Section4Review.tsx` — read-only totals (taxable, GST split, TDS, net receivable), amount in words, Finalize + Save Draft buttons; shows lock banner when editing a finalized invoice
 - `app/src/ui/invoices/WizardNav.tsx` — top stepper nav with visited/active/pending states
 - `app/src/ui/invoices/useInvoiceDraft.ts` — central wizard state hook; `emptyDraft()`, `recomputeTotals()`, `isSectionComplete()`, `prevMonthRange()` with timezone-safe `localISO()` helper
