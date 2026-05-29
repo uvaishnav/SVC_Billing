@@ -29,11 +29,14 @@ Mobile-first PWA (React + Vite) — Supabase backend (Postgres + Auth + Storage 
       003_vehicles.sql
       004_invoice_numbering.sql
       005_projects_and_work_orders.sql
+      006_rental_billing.sql    ← Rental billing tables + line_item_billing_type column
     functions/                  ← Edge Functions deployed via Supabase CLI from repo root
       generate-invoice-number/
         index.ts
-      parse-work-order/         ← TO BE BUILT (next session)
+      parse-work-order/
         index.ts
+      generate-invoice-description/
+        index.ts                ← Rental-aware AI description prompt (no per-day rate language)
   app/                          ← React frontend ONLY — no supabase folder here
     src/
       db/
@@ -45,6 +48,7 @@ Mobile-first PWA (React + Vite) — Supabase backend (Postgres + Auth + Storage 
         invoiceNumberingDb.ts   — generateInvoiceNumber() — calls Edge Function
         projectsDb.ts           — Projects DB helpers
         workOrdersDb.ts         — WorkOrders + WorkOrderItems DB helpers + computeWOStatus()
+        invoicesDb.ts           — Invoices CRUD + saveDraftInvoice() + finalizeInvoice() (quantity + rental paths)
         index.ts                — re-exports all DB modules
       ui/
         LoginScreen.tsx
@@ -75,6 +79,15 @@ Mobile-first PWA (React + Vite) — Supabase backend (Postgres + Auth + Storage 
           WorkOrderCard.tsx
           WorkOrderFormModal.tsx    — handles both manual entry AND AI-prefill mode
           WorkOrderDetailSheet.tsx
+        invoices/
+          InvoicesPage.tsx
+          InvoiceWizard.tsx         — 4-section wizard orchestrator
+          WizardNav.tsx
+          useInvoiceDraft.ts        — central wizard state hook
+          Section1Header.tsx
+          Section2Items.tsx         — billing mode selector + rental sub-form + distribution panel
+          Section3Description.tsx   — vehicle summary (rental) or multi-select (quantity) + AI description
+          Section4Review.tsx
   docs/
     progress.md
     architecture.md
@@ -149,6 +162,7 @@ Mobile-first PWA (React + Vite) — Supabase backend (Postgres + Auth + Storage 
 | sac_code | TEXT NOT NULL | |
 | description | TEXT | |
 | is_active | BOOLEAN NOT NULL | |
+| applicable_billing_type | TEXT NOT NULL | `'quantity'` / `'rental'` / `'both'` — filters SAC dropdown per billing type in Section 1 |
 
 ### `clients`
 | Column | Type | Notes |
@@ -242,10 +256,105 @@ Mobile-first PWA (React + Vite) — Supabase backend (Postgres + Auth + Storage 
 | contracted_qty | NUMERIC | |
 | rate | NUMERIC NOT NULL | |
 | amount | NUMERIC | contracted_qty × rate |
-| cumulative_billed_qty | NUMERIC NOT NULL | default 0 — updated on each invoice |
+| cumulative_billed_qty | NUMERIC NOT NULL | default 0 — updated on each invoice finalize |
 | created_at | TIMESTAMPTZ | |
 
 > ⚠️ Items use **replace-on-save**: `upsertWorkOrderItems()` deletes all existing items for the WO then re-inserts. Do NOT attempt differential updates.
+
+### `invoices`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | BIGSERIAL PK | |
+| invoice_number | TEXT UNIQUE | assigned at finalize only (e.g. `SVC/25-26/001`) |
+| client_id | BIGINT FK → clients | |
+| client_gstin_id | BIGINT FK → client_gstins | |
+| work_order_id | BIGINT FK → work_orders | nullable |
+| sac_id | BIGINT FK → sac_codes | |
+| bank_account_id | BIGINT FK → bank_accounts | |
+| invoice_date | DATE NOT NULL | |
+| billing_from | DATE NOT NULL | |
+| billing_to | DATE NOT NULL | |
+| tax_mode | TEXT NOT NULL | `cgst_sgst` or `igst` |
+| reverse_charge | BOOLEAN NOT NULL | |
+| total_taxable | NUMERIC NOT NULL | |
+| cgst_amount | NUMERIC | |
+| sgst_amount | NUMERIC | |
+| igst_amount | NUMERIC | |
+| total_invoice_amount | NUMERIC NOT NULL | |
+| tds_amount | NUMERIC | |
+| net_receivable | NUMERIC | |
+| description | TEXT | AI-generated or user-edited |
+| status | TEXT NOT NULL | `draft` / `final` / `cancelled` |
+| **line_item_billing_type** | **TEXT NOT NULL DEFAULT 'quantity'** | **`'quantity'` or `'rental'` — drives Section 2 UI and PDF layout path. Single authoritative flag, never inferred from child tables.** |
+| created_at | TIMESTAMPTZ | |
+
+### `invoice_line_items` (quantity invoices only)
+| Column | Type | Notes |
+|--------|------|-------|
+| id | BIGSERIAL PK | |
+| invoice_id | BIGINT FK → invoices | ON DELETE CASCADE |
+| work_order_item_id | BIGINT FK → work_order_items | nullable |
+| sl_no | INTEGER | |
+| description | TEXT NOT NULL | |
+| unit | TEXT | |
+| qty | NUMERIC NOT NULL | |
+| rate | NUMERIC NOT NULL | |
+| taxable_value | NUMERIC NOT NULL | qty × rate |
+
+### Migration 006 — Rental Billing (`supabase/migrations/006_rental_billing.sql`)
+
+| Table / Change | Purpose |
+|---|---|
+| `invoice_rental_items` | One row per vehicle per rental invoice. Stores `billing_mode` (`full_month` / `partial_days`), `num_days`, `monthly_rent` (snapshot), `subtotal` (computed). SUM of subtotals = `invoices.total_taxable`. |
+| `invoice_item_distribution` | Maps rental invoice total to individual WO items for `cumulative_billed_qty` tracking. Per-row: `work_order_item_id`, `allocation_pct`, `allocated_amount`. Rental invoices only. |
+| `vehicle_billing_ledger` | Analytics ledger — one row per vehicle per invoice finalized. Written on finalize, deleted on cancel. Used for future "revenue per vehicle" dashboard. Never edited by the user. |
+| `invoices.line_item_billing_type` | New column (`TEXT NOT NULL DEFAULT 'quantity'`). Values: `'quantity'` or `'rental'`. Drives Section 2 wizard UI and PDF layout path. Single authoritative flag — not inferred from child tables. |
+| `sac_codes.applicable_billing_type` | New column (`TEXT NOT NULL DEFAULT 'both'`). Values: `'quantity'`, `'rental'`, `'both'`. Filters SAC code dropdown in Section 1 based on billing type selected. |
+
+#### `invoice_rental_items`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | BIGSERIAL PK | |
+| invoice_id | BIGINT FK → invoices | ON DELETE CASCADE |
+| vehicle_id | BIGINT FK → vehicles | |
+| billing_mode | TEXT NOT NULL | `full_month` or `partial_days` |
+| num_days | INTEGER | NULL for `full_month`; required for `partial_days` |
+| monthly_rent | NUMERIC NOT NULL | snapshot of rent at invoice time |
+| subtotal | NUMERIC NOT NULL | `monthly_rent` for full month; `(monthly_rent / 30) × num_days` for partial |
+
+#### `invoice_item_distribution`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | BIGSERIAL PK | |
+| invoice_id | BIGINT FK → invoices | ON DELETE CASCADE |
+| work_order_item_id | BIGINT FK → work_order_items | |
+| allocation_pct | NUMERIC NOT NULL | user-set percentage (0–100); all rows must sum to 100 at finalize |
+| allocated_amount | NUMERIC NOT NULL | `total_taxable × (allocation_pct / 100)` |
+
+> ⚠️ Distribution percentage sum = 100% is enforced in the UI (live warning + blocked submit). No DB-level CHECK constraint — allows mid-edit saves with an incomplete distribution.
+
+#### `vehicle_billing_ledger`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | BIGSERIAL PK | |
+| invoice_id | BIGINT FK → invoices | |
+| vehicle_id | BIGINT FK → vehicles | |
+| billing_period_from | DATE NOT NULL | |
+| billing_period_to | DATE NOT NULL | |
+| billing_mode | TEXT NOT NULL | |
+| num_days | INTEGER | |
+| monthly_rent | NUMERIC NOT NULL | |
+| subtotal | NUMERIC NOT NULL | |
+| created_at | TIMESTAMPTZ | |
+
+> ⚠️ Analytics-only table. Never shown in UI directly. Written on `finalizeInvoice()`, deleted on `cancelInvoice()`. Used for future "revenue per vehicle" dashboard feature.
+
+**Rental invoice data flow:**
+1. User selects `billing_type = 'rental'` in Section 1 → `InvoiceDraft.line_item_billing_type = 'rental'`
+2. Section 2 shows rental sub-form → writes `InvoiceRentalItemDraft[]` + `InvoiceItemDistributionDraft[]`
+3. Section 3 shows read-only vehicle summary (no picker); AI description uses rental prompt (no per-day rate)
+4. On finalize → `invoicesDb.finalizeInvoice()` writes `invoice_rental_items`, `invoice_item_distribution`, `vehicle_billing_ledger`; increments `cumulative_billed_qty` per WO item proportional to `allocated_amount`
+5. PDF renderer checks `line_item_billing_type` → routes to rental layout (vehicle table, no qty/unit columns)
 
 ***
 
@@ -347,3 +456,4 @@ For boolean fields (rates_firm, tds_applicable), use the pill-toggle pattern est
 8. **Edge Function env vars** — `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` auto-injected; only use `supabase secrets set` for custom third-party keys (AI API keys, etc.)
 9. **JOIN pattern in DB helpers** — use `.select('*, related_table(col)')` for FK joins; map result to flatten: `client_name: row.clients?.name ?? null, clients: undefined`
 10. **Delete-before-insert for child lists** — for 1:many relationships where the user edits the full list (e.g. work_order_items), delete all children then re-insert rather than diffing. Simpler and safe for this use case.
+11. **`NUMERIC` division in SQL for rental billing** — never use integer division for `(monthly_rent / 30) × num_days`; ensure both operands are `NUMERIC` to avoid truncation. TypeScript: use plain `number` arithmetic, never `Math.floor` on intermediate rental subtotal.
