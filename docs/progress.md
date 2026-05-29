@@ -11,7 +11,8 @@
 **Goal:** Build GST-compliant invoice creation wizard, PDF rendering, and invoice history. Working in 3 sub-parts:
 - ✅ **Part 1** — GST compliance audit + invoice field spec locked
 - ✅ **Part 2** — Invoice creation wizard UI + DB schema + AI description flow
-- 🔜 **Part 3** (next session) — PDF rendering logic, jsPDF layout, design + aesthetics
+- ✅ **Rental Billing** — Schema + Wizard UI + AI description fix (dedicated session 2026-05-28)
+- 🔜 **Part 3** (next session) — PDF rendering logic, jsPDF layout (quantity + rental paths), design + aesthetics
 
 ***
 
@@ -27,6 +28,14 @@
 - [x] **Work Orders Module — Part 2 (PDF Upload + OCR + AI Parsing)** — In-browser OCR (Tesseract.js), Supabase Edge Function with Gemini 2.5 Flash primary + Groq Llama 3.3 70B fallback (on 429 AND 503), prefill flow with editable items, private Storage bucket with signed URLs, retroactive PDF attach via Edit form, View PDF button in detail sheet (PR branch: `feature/wo-pdf-upload-ocr-ai-20260525`)
 - [x] **PDF Invoice Generation — Part 1 (Field Spec + GST Compliance Audit)** — All 17 mandatory GST fields verified against Rule 46 CGST Rules 2017, invoice field spec locked, 3 design decisions made and documented (TDS display, vehicle visibility, line item structure). See `docs/design-decisions.md` entries dated 2026-05-26.
 - [x] **PDF Invoice Generation — Part 2 (Invoice Wizard UI + Data Flow)** — DB schema (`invoices`, `invoice_line_items`, `invoice_vehicles`), full 4-section wizard (client/period/WO/SAC/bank → line items → vehicles+AI description → review+finalize), `invoicesDb.ts` with save draft + finalize + cancel, `cumulative_billed_qty` updated on finalize, invoice list page with status pills. Invoice number assigned at finalize only (never on wizard open). Finalized invoice number locked forever on re-edit. Billing period defaults to 1st–last day of previous month using local timezone-safe date helpers. (PR branch: `feature/invoice-wizard-part2-20260527`)
+- [x] **Rental Billing Schema + Wizard UI** — SQL migration 006 (`invoice_rental_items`, `invoice_item_distribution`, `vehicle_billing_ledger`, `line_item_billing_type` column on `invoices`), types.ts updated, invoicesDb.ts updated for rental finalize path, Section 2 wizard UI with monthly/quantity billing mode selector + distribution panel, AI description fixed (no per-day rate language, rental-specific prompt). (PR branch: `feature/rental-billing-schema-20260528`)
+
+***
+
+## ⚠️ Resolved — Vehicle Rental Billing (Completed 2026-05-28)
+
+Originally deferred from the 2026-05-27 session. Completed in a dedicated session on 2026-05-28.
+See changelog entry `[2026-05-28]` for full implementation details.
 
 ***
 
@@ -34,36 +43,23 @@
 
 ### PDF Invoice Generation — Part 3: PDF Rendering
 
-- [ ] jsPDF layout — GST-compliant invoice PDF matching all 17 Rule 46 fields
+- [ ] jsPDF layout — **quantity invoice** PDF path: multi-row line items table (Sl. No / Description / SAC / Unit / Qty / Rate / Taxable Value)
+- [ ] jsPDF layout — **rental invoice** PDF path: vehicle rental table (Vehicle / Billing Period / Mode / Days / Monthly Rent / Amount); no qty/unit columns
 - [ ] PDF preview in-app (before download/share)
 - [ ] Upload generated PDF to Supabase Storage (`invoices` bucket)
 - [ ] Storage RLS policies for `invoices` bucket
 - [ ] Download + Share PDF from invoice detail / list page
 
-***
-
-## ⚠️ Important Discovery — Vehicle Rental Billing (Requires Planning)
-
-Discovered during 2026-05-27 session: the business also lends vehicles on a **rental basis** (daily/monthly rate), not only deploys them under work orders.
-
-This changes:
-- **Work Order line item types** — need to distinguish `service` vs `rental` billing type per item
-- **Invoice line item logic** — rental items are rate × days/months, not unit × qty
-- **Possible new table** — `rental_agreements` or `rental_items` to track rental periods per vehicle
-- **Invoice wizard Section 2** — different input fields for rental items
-- **Invoice description generation** — rental description format differs from service format
-
-**Decision: Handle in a dedicated new chat session** before starting Part 3 PDF rendering, as schema changes made after PDF rendering would require revisiting the layout.
+> ⚠️ **Critical for PDF rendering:** Check `invoice.line_item_billing_type` first — `'quantity'` renders `invoice_line_items`, `'rental'` renders `invoice_rental_items` + shows distribution summary. Two completely separate jsPDF layout functions needed.
 
 ***
 
 ## Backlog
 
-- [ ] **Vehicle Rental Billing — Planning + Schema** (must do before Part 3)
 - [ ] PDF Invoice Generation — Part 3: jsPDF rendering + PDF preview + upload to Supabase Storage (`invoices` bucket)
 - [ ] Invoice History — list, search, download
 - [ ] Edit-and-replace invoice PDF
-- [ ] Dashboard — revenue summary, active WOs, expiring soon
+- [ ] Dashboard — revenue summary, active WOs, expiring soon, **revenue per vehicle** (enabled by `vehicle_billing_ledger`)
 - [ ] Supabase Storage RLS policies — already added for `work-orders` bucket; add equivalent for `invoices` bucket when that feature is built
 
 ***
@@ -81,3 +77,4 @@ This changes:
 | 2026-05-25 | Work Orders Module Part 2 — OCR + AI parsing pipeline, private Storage bucket with signed URLs, Gemini+Groq fallback (429 + 503), prefillable + editable form, retroactive PDF attach, View PDF in detail sheet, active filter default, Storage RLS policies added via SQL Editor. Edge Function deployed. PR branch ready. |
 | 2026-05-26 | PDF Invoice Generation Part 1 — GST compliance audit (Rule 46 CGST), invoice field spec locked, 3 design decisions confirmed (TDS as informational line, vehicles internal-only, multi-row line items). No code this session — pure spec + docs. |
 | 2026-05-27 | PDF Invoice Generation Part 2 — Full invoice wizard (4 sections), invoicesDb.ts, invoice list page, invoice number assigned at finalize only, finalized number locked on re-edit, billing period defaults to prev month (timezone-safe), UI accessibility + color scheme fixes, UTC→IST date bug fixed in prevMonthRange(). Vehicle rental billing requirement discovered — deferred to next session. PR branch: `feature/invoice-wizard-part2-20260527`. |
+| 2026-05-28 | Rental Billing — SQL migration 006, types.ts, invoicesDb.ts, Section 2 rental UI (monthly/partial days + distribution panel), AI description fixed (no per-day rate). PR branch: `feature/rental-billing-schema-20260528`. |
