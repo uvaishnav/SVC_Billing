@@ -2,7 +2,7 @@
 // Invoice number is NOT generated here.
 // It is assigned at finalize time in Section4Review / invoicesDb.
 import React, { useEffect, useState } from 'react'
-import type { InvoiceDraft, ClientWithGstins, WorkOrder, SacCode, BankAccount, TaxMode } from '../../db/types'
+import type { InvoiceDraft, ClientWithGstins, WorkOrder, SacCode, BankAccount, TaxMode, InvoiceBillingType } from '../../db/types'
 import { getClients } from '../../db/clientsDb'
 import { getWorkOrders } from '../../db/workOrdersDb'
 import { getSettings, getSacCodes, getBankAccounts } from '../../db/settingsDb'
@@ -101,6 +101,88 @@ function DateInput({ value, onChange }: { value: string; onChange: (v: string) =
   )
 }
 
+// ─── Billing type segmented toggle ────────────────────────────
+
+const BILLING_TYPES: { value: InvoiceBillingType; label: string; icon: string; hint: string }[] = [
+  {
+    value: 'quantity',
+    label: 'Per Quantity',
+    icon: '📦',
+    hint: 'Bill by unit × rate (trips, hours, loads)',
+  },
+  {
+    value: 'rental',
+    label: 'Monthly Rental',
+    icon: '🚛',
+    hint: 'Full month or partial days at fixed monthly rent',
+  },
+]
+
+function BillingTypeToggle({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: InvoiceBillingType
+  onChange: (v: InvoiceBillingType) => void
+  disabled?: boolean
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {BILLING_TYPES.map(opt => {
+        const active = value === opt.value
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            disabled={disabled}
+            onClick={() => !disabled && onChange(opt.value)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '12px 14px', borderRadius: 12, textAlign: 'left',
+              border: `2px solid ${active ? 'var(--color-primary)' : 'var(--color-border)'}`,
+              background: active ? 'var(--color-primary-highlight)' : 'var(--color-surface)',
+              cursor: disabled ? 'not-allowed' : 'pointer',
+              opacity: disabled ? 0.6 : 1,
+              transition: 'border-color 0.15s, background 0.15s',
+              width: '100%',
+            }}
+          >
+            <span style={{ fontSize: 22 }}>{opt.icon}</span>
+            <div style={{ flex: 1 }}>
+              <div style={{
+                fontWeight: active ? 700 : 500,
+                fontSize: 14,
+                color: active ? 'var(--color-primary)' : 'var(--color-text)',
+              }}>
+                {opt.label}
+              </div>
+              <div style={{
+                fontSize: 12,
+                color: active ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                marginTop: 2,
+                opacity: active ? 0.85 : 0.7,
+              }}>
+                {opt.hint}
+              </div>
+            </div>
+            {active && (
+              <div style={{
+                width: 18, height: 18, borderRadius: '50%',
+                background: 'var(--color-primary)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>✓</span>
+              </div>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────
 
 export default function Section1Header({
@@ -158,6 +240,33 @@ export default function Section1Header({
   const selectedClient = clients.find(c => c.id === draft.client_id)
   const selectedBank   = bankAccounts.find(b => b.id === draft.bank_account_id)
   const isLocked       = !!draft.invoice_number && !draft.invoice_number.startsWith('DRAFT') && draft.invoice_number !== 'DRAFT'
+
+  // When switching billing type, clear the opposing data arrays so
+  // totals don't bleed across modes. Show a confirmation if data exists.
+  function handleBillingTypeChange(newType: InvoiceBillingType) {
+    if (newType === draft.line_item_billing_type) return
+
+    const hasQuantityData = draft.line_items.length > 0
+    const hasRentalData   = draft.rental_items.length > 0
+
+    if (
+      (newType === 'rental'   && hasQuantityData) ||
+      (newType === 'quantity' && hasRentalData)
+    ) {
+      const ok = window.confirm(
+        `Switching billing type will clear the ${newType === 'rental' ? 'quantity line items' : 'rental vehicle rows'} you have entered. Continue?`
+      )
+      if (!ok) return
+    }
+
+    patch({
+      line_item_billing_type: newType,
+      // Clear the opposing arrays so totals are clean
+      line_items:         newType === 'rental'   ? [] : draft.line_items,
+      rental_items:       newType === 'quantity' ? [] : draft.rental_items,
+      item_distribution:  newType === 'quantity' ? [] : draft.item_distribution,
+    })
+  }
 
   if (loading) return (
     <div style={{ padding: '48px 20px', textAlign: 'center' }}>
@@ -300,6 +409,24 @@ export default function Section1Header({
 
         {/* ───── BILLING DETAILS ───── */}
         <SectionLabel>Billing Details</SectionLabel>
+
+        {/* Billing type toggle — drives Section 2 entirely */}
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ ...labelStyle, marginBottom: 8, display: 'block' }}>
+            Billing Type
+            <span style={{ color: 'var(--color-error)', marginLeft: 4 }}>*</span>
+          </label>
+          <BillingTypeToggle
+            value={draft.line_item_billing_type}
+            onChange={handleBillingTypeChange}
+            disabled={isLocked}
+          />
+          {isLocked && (
+            <p style={{ fontSize: 12, color: 'var(--color-text-faint)', marginTop: 6 }}>
+              🔒 Billing type cannot be changed on a finalized invoice.
+            </p>
+          )}
+        </div>
 
         <FieldWrap label="SAC Code" required>
           <StyledSelect

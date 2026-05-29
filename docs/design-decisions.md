@@ -169,3 +169,45 @@ Chose a **stripped-down, compliance-first invoice face** over the PRD's fuller p
 6. Amount in words
 7. Bank details — bank name, account name, account number, IFSC, branch
 8. Declaration + authorized signatory name + signature line
+
+***
+
+## [2026-05-28] Rental Billing — Separate `invoice_rental_items` table over nullable columns on `invoice_line_items`
+
+Chose a **separate `invoice_rental_items` table** (Option B) over adding nullable `billing_mode`, `num_days`, `monthly_rent` columns to the existing `invoice_line_items` table because:
+- Rental rows have fundamentally different fields — they don't have `unit`, `qty`, or per-unit `rate`; instead they have `billing_mode`, `num_days`, and `monthly_rent`
+- Adding these as nullable columns to `invoice_line_items` would result in a wide, sparse table where one set of columns is always NULL depending on billing type — a classic "mixed entity" anti-pattern
+- Separate tables keep both schemas lean and explicit; the correct child table to query is determined by `invoices.line_item_billing_type`
+- PDF renderer, invoice totals, and API joins all benefit from knowing exactly which table to read without conditional logic
+
+## [2026-05-28] Rental Billing — `line_item_billing_type` column on `invoices`, not inferred from child tables
+
+Chose to store **`line_item_billing_type TEXT NOT NULL DEFAULT 'quantity'`** explicitly on the `invoices` table rather than inferring billing type by checking whether `invoice_rental_items` or `invoice_line_items` rows exist because:
+- PDF renderer needs the billing type at render time — a single column read is cleaner and faster than a child-table existence check
+- Querying child tables to infer type is fragile: a newly created invoice with no items yet would be mis-classified
+- Future reporting queries (`WHERE line_item_billing_type = 'rental'`) are simpler and indexable
+- Explicit is always better than inferred for data that drives layout decisions
+
+## [2026-05-28] Rental Billing — `invoice_item_distribution` table for rental-to-WO-item allocation
+
+Chose a **separate `invoice_item_distribution` table** to map rental invoice totals back to work order items rather than skipping `cumulative_billed_qty` tracking for rental invoices because:
+- Work Order detail sheet shows utilisation bars per item — these must stay accurate for rental invoices too
+- Without distribution, the WO utilisation tracking would be blind to all rental billing, making the "contracted vs billed" view meaningless for rental-heavy work orders
+- Distribution is user-adjustable (default: equal split) so the business can reflect actual work allocation per sub-item
+- Distribution table is rental-only; quantity invoices track allocation implicitly via `invoice_line_items.work_order_item_id`
+
+## [2026-05-28] Rental Billing — Monthly rent formula: `(monthly_rent / 30) × num_days` for partial billing
+
+Chose a **fixed 30-day divisor** for partial-month billing rather than actual calendar days in the billing month because:
+- The business uses a fixed daily rate derived from monthly rent — the divisor 30 is an agreed commercial convention, not calendar arithmetic
+- Using actual calendar days (28/29/30/31) would produce inconsistent daily rates month-to-month, making invoices harder to explain to the client
+- The formula `(monthly_rent / 30) × num_days` is simple, predictable, and client-friendly
+- `NUMERIC` division (not integer) must be used in SQL; TypeScript must use `number` (never `Math.floor` on intermediate result)
+
+## [2026-05-28] AI Description — No per-day rate language for rental invoices
+
+Chose to **exclude per-day rate phrasing** (e.g. "₹X/day") from AI-generated descriptions for rental invoices because:
+- The business charges a monthly rent (or a prorated fraction of it) — the unit of the contract is the month, not the day
+- Stating a daily rate in the description would misrepresent the billing basis to the client and create confusion during reconciliation
+- Rental descriptions should be vehicle-and-period-focused: e.g. "JCB 3DX (KA-01-AB-1234) deployed at site for the full month of May 2026"
+- This rule applies even for partial-day billing — the description states the number of days worked, not the implied daily rate

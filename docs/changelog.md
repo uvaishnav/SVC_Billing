@@ -4,6 +4,28 @@
 
 ***
 
+## [2026-05-28] — Rental Billing Schema + Wizard UI + AI Description Fix
+
+### Added
+- `supabase/migrations/006_rental_billing.sql` — new tables: `invoice_rental_items` (per-vehicle rental rows with `billing_mode`, `num_days`, `monthly_rent`, `subtotal`), `invoice_item_distribution` (maps rental invoice total back to WO items for `cumulative_billed_qty` tracking), `vehicle_billing_ledger` (analytics ledger written on finalize, deleted on cancel); new column `line_item_billing_type TEXT NOT NULL DEFAULT 'quantity'` on `invoices`; new column `applicable_billing_type` on `sac_codes`
+- `app/src/db/types.ts` — `InvoiceBillingType`, `RentalBillingMode`, `InvoiceRentalItem`, `InvoiceRentalItemDraft`, `InvoiceItemDistribution`, `InvoiceItemDistributionDraft`, `VehicleBillingLedger`; `Invoice.line_item_billing_type`; `InvoiceDraft.rental_items` + `item_distribution`; `InvoiceWithDetails.rental_items` + `item_distribution`
+- `app/src/ui/invoices/Section2Items.tsx` — billing mode selector (Monthly Rental / Per Quantity); rental sub-form per vehicle (vehicle dropdown, monthly rent field, Full Month / Partial Days toggle, num_days input, auto-computed subtotal read-only); distribution panel below rental items (equal-split default, per-item percentage + amount inputs, live 100% validation warning)
+- `app/src/db/invoicesDb.ts` — updated `saveDraftInvoice()` and `finalizeInvoice()` to write `invoice_rental_items`, `invoice_item_distribution`, and `vehicle_billing_ledger`; updated `getInvoiceByNumber()` to join and return `rental_items` + `item_distribution`; rental finalize path increments `cumulative_billed_qty` per WO item proportional to `allocated_amount`
+
+### Changed
+- `app/src/ui/invoices/Section3Description.tsx` — AI description generation skips "₹X/day" phrasing for rental invoices; rental vehicles shown in a read-only summary panel (not the multi-select picker used for quantity invoices); auto-triggers description generation when rental_items change
+- `supabase/functions/generate-invoice-description/index.ts` — rental payload now sends `billing_mode`, `num_days`, `monthly_rent` per vehicle instead of unit/qty/rate; prompt instructs model to write vehicle-and-period-focused descriptions (e.g. "Deployed for the full month of May 2026") without per-day rate language
+
+### Observations
+- `line_item_billing_type` stored on `invoices` (not inferred from child tables) — PDF renderer and query filters need a single authoritative column, not a child-table existence check
+- `invoice_item_distribution` is rental-only — quantity invoices track allocation implicitly via `invoice_line_items.work_order_item_id`
+- `(monthly_rent / 30) × num_days` is the exact partial-days formula; integer division must be avoided — use `NUMERIC` division in SQL and `number` in TypeScript
+- Distribution percentage sum must equal 100% at finalize — enforced in UI with a live warning and blocked submit; not enforced at DB level (no CHECK constraint) to allow mid-edit saves
+- `vehicle_billing_ledger` is an analytics table only — never shown in UI directly; used for future dashboard "revenue per vehicle" feature
+- AI description prompt must never mention per-day rates — the business charges monthly rent (or a prorated fraction), and stating a daily rate would misrepresent the billing to the client
+
+***
+
 ## [2026-05-27] — PDF Invoice Generation Part 2: Invoice Wizard UI + Data Flow
 
 ### Added
