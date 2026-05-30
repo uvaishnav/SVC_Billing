@@ -182,7 +182,7 @@ Chose a **separate `invoice_rental_items` table** (Option B) over adding nullabl
 
 ## [2026-05-28] Rental Billing — `line_item_billing_type` column on `invoices`, not inferred from child tables
 
-Chose to store **`line_item_billing_type TEXT NOT NULL DEFAULT 'quantity'`** explicitly on the `invoices` table rather than inferring billing type by checking whether `invoice_rental_items` or `invoice_line_items` rows exist because:
+Chose to **store `line_item_billing_type TEXT NOT NULL DEFAULT 'quantity'`** explicitly on the `invoices` table rather than inferring billing type by checking whether `invoice_rental_items` or `invoice_line_items` rows exist because:
 - PDF renderer needs the billing type at render time — a single column read is cleaner and faster than a child-table existence check
 - Querying child tables to infer type is fragile: a newly created invoice with no items yet would be mis-classified
 - Future reporting queries (`WHERE line_item_billing_type = 'rental'`) are simpler and indexable
@@ -211,3 +211,85 @@ Chose to **exclude per-day rate phrasing** (e.g. "₹X/day") from AI-generated d
 - Stating a daily rate in the description would misrepresent the billing basis to the client and create confusion during reconciliation
 - Rental descriptions should be vehicle-and-period-focused: e.g. "JCB 3DX (KA-01-AB-1234) deployed at site for the full month of May 2026"
 - This rule applies even for partial-day billing — the description states the number of days worked, not the implied daily rate
+
+***
+
+## [2026-05-30] PDF Rendering — `@react-pdf/renderer` over jsPDF
+
+Chose **`@react-pdf/renderer`** over jsPDF + html2canvas for invoice PDF generation because:
+- jsPDF requires manual coordinate math (x, y, w, h) for every element — table layout becomes brittle and hard to maintain
+- html2canvas produces a rasterized screenshot inside a PDF — blurry at print resolution, fails the print quality requirement
+- `@react-pdf/renderer` produces fully vector PDFs (text, lines, borders) via PDFKit — identical print sharpness to jsPDF but with a Flexbox-based JSX layout model
+- Layout is expressed as React components with `StyleSheet.create({})` (React Native style API) — far more maintainable than coordinate math
+- Custom TTF fonts (Playfair Display + Work Sans) can be embedded directly for brand consistency
+- The existing React codebase makes component-based PDF layout a natural fit
+- **Note:** `@react-pdf/renderer` cannot use Tailwind classes — all styles are inline `StyleSheet.create()` objects. This is acceptable since the PDF is a standalone document component.
+
+## [2026-05-30] PDF Rendering — Portrait A4 orientation
+
+Chose **Portrait A4** over Landscape for all invoice types because:
+- GST tax invoices in India follow a universal portrait A4 standard — landscape would appear non-standard to clients and tax authorities
+- All invoice data (3–8 quantity line items or 2–6 rental vehicle rows) fits comfortably in portrait layout with the chosen column structure
+- Portrait prints correctly on all office printers and renders properly when shared via WhatsApp/email on mobile
+- Landscape would waste vertical space and make the document feel like a spreadsheet, not a legal document
+
+## [2026-05-30] PDF Rendering — Dual-axis color differentiation system
+
+Chose a **dual-axis subtle color system** to visually distinguish invoice types without breaking brand identity:
+
+**Axis 1 — Tax Mode (drives accent rule + SAC code chip background):**
+- `cgst_sgst` → Gold accent `#C8A96A` / chip bg `#FFF8ED` (warm — intra-state, domestic)
+- `igst` → Steel blue accent `#4A7FA5` / chip bg `#EEF4FA` (cool — inter-state)
+
+**Axis 2 — Billing Type (drives table header background):**
+- `quantity` → Parchment `#EDE9DE` (warm earthy — materials/services)
+- `rental` → Cool blue-grey `#E8EEF2` (cool — machinery/fleet)
+
+**Invariant brand elements (never change across any combination):**
+- Page background: `#FFFFFF`
+- Company name: `#3B2A1F` (espresso brown) in Playfair Display
+- Body text: `#2A1F15`
+- Totals highlight row: `#3B2A1F` bg + `#FAF8F3` text
+- Header band: `#FAF8F3` (cream — logo sits without masking on any background)
+
+All 4 combinations (Qty+CGST, Qty+IGST, Rental+CGST, Rental+IGST) use only desaturated, muted tones so no combination feels out of place from the brand identity.
+
+## [2026-05-30] PDF Rendering — SAC code as standalone chip, not embedded in description
+
+Chose to render the **SAC code as a visually distinct chip/badge** (its own row with tinted background between the Bill To block and the description section) rather than mentioning it inside the description text or as a column in the line items table because:
+- SAC is a statutory classification code under GST — it has independent legal significance separate from the service description
+- Repeating the SAC code on every line item row is redundant when all items on one invoice share the same SAC code (enforced by the wizard's single SAC selector)
+- A dedicated chip draws attention to the code as a standalone GST field, making it easy for the client's accounts team to verify classification without reading the description
+- Chip shows only the numeric code (e.g. `996601`) — no nickname/description — keeping it clean and unambiguous
+- Chip background uses the tax-mode accent tint (gold or blue) to tie into the dual-axis color system
+
+## [2026-05-30] PDF Rendering — Invoice number as prominent right-aligned bordered box in document identity band
+
+Chose to give the invoice number a **prominent bordered call-out box** in a dedicated "document identity" band (below the header, above the two-column details section) rather than inline metadata text because:
+- Invoice number is the primary reference used by both parties for reconciliation, payment tracking, and GST filing — it deserves visual hierarchy
+- A bordered box with larger Playfair Display type makes it scannable at a glance, even when printed and stacked with other invoices
+- Centering "TAX INVOICE" with the invoice number box right-aligned in the same band creates a professional document identity row without wasting vertical space
+- Compliance requirement (Rule 46(b)): invoice number must be clearly visible — a prominent box satisfies this more robustly than small inline text
+
+## [2026-05-30] PDF Rendering — Supplier identity in header band, not a separate labelled section
+
+Chose to place **all supplier details (logo, name, address, GSTIN, PAN, phone, email, state+code) in the header band** rather than a labelled "SUPPLIER" section below it because:
+- Premium Indian B2B invoices (Tata, L&T, Infosys) universally place supplier identity in the letterhead/header — it is visually implied, not labelled
+- A separate "SUPPLIER" label below the header is redundant — the header IS the supplier identity
+- This frees vertical space for the two-column Invoice Details + Bill To layout below
+- Logo on cream background (`#FAF8F3`) renders correctly for any PNG logo without requiring a dark background
+
+## [2026-05-30] PDF Rendering — Description of Services above the line items table
+
+Chose to place the **AI-generated overall description above the line items table** (between the SAC chip and the table) rather than in the footer area because:
+- The description contextualises the line items — placing it before the table lets the reader understand the service scope before reviewing individual amounts
+- It mirrors how professional service invoices are structured: description of engagement → itemised billing
+- Footer area is reserved for amount-in-words and bank details — adding a long text block there would push bank details off-page on invoices with many line items
+
+## [2026-05-30] PDF Rendering — Work Items Covered block for rental invoices only
+
+Chose to include a **"Work Items Covered Under This Billing Period"** informational block (below the rental vehicle table) for rental invoices only because:
+- `invoice_item_distribution` data (WO item descriptions + allocation percentages) exists specifically for rental invoices and is meaningless to exclude from the document
+- It provides the client's accounts team with context on what the hired machinery was supporting — important for project cost allocation on the client side
+- This block is strictly informational (not a GST mandatory field) and is clearly labelled as such
+- Quantity invoices do not need this block — each line item already maps directly to a WO item via `work_order_item_id`
