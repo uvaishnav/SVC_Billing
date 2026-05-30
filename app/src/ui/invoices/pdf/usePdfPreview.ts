@@ -18,13 +18,17 @@ import React from 'react'
 import { InvoicePdf } from './InvoicePdf'
 import type {
   InvoicePdfProps,
-  PdfSupplier, PdfRecipient, PdfBankAccount,
-  PdfLineItem, PdfRentalItem, PdfDistributionItem,
-} from './InvoicePdf'
+  PdfSupplier,
+  PdfRecipient,
+  PdfBankAccount,
+  PdfLineItem,
+  PdfRentalItem,
+  PdfDistributionItem,
+} from './invoicePayloadTypes'
 import type { InvoiceDraft } from '../../../db/types'
 import { supabase } from '../../../db/supabaseClient'
 
-// ─── DB helpers ───────────────────────────────────────────────────────────────
+// ── DB helpers ─────────────────────────────────────────────────────
 
 async function loadSettings() {
   const { data, error } = await supabase.from('settings').select('*').eq('id', 1).single()
@@ -68,7 +72,7 @@ async function loadWorkOrderRef(id: number) {
   return (data as { wo_reference: string | null } | null)?.wo_reference ?? null
 }
 
-// ─── Draft → Props mapper ─────────────────────────────────────────────────────
+// ── Draft → Props mapper ──────────────────────────────────────────────────
 
 function buildProps(
   draft: InvoiceDraft,
@@ -125,7 +129,6 @@ function buildProps(
     sl_no:        idx + 1,
     reg_number:   ri.reg_number,
     vehicle_type: ri.vehicle_type,
-    // per-row billing period = invoice billing period (per spec §11 notes)
     billing_from: draft.billing_from,
     billing_to:   draft.billing_to,
     billing_mode: ri.billing_mode,
@@ -170,7 +173,7 @@ function buildProps(
   }
 }
 
-// ─── Hook ─────────────────────────────────────────────────────────────────────
+// ── Hook ────────────────────────────────────────────────────────────────
 
 export function usePdfPreview(draft: InvoiceDraft) {
   const [pdfUrl,  setPdfUrl]  = useState<string | null>(null)

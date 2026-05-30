@@ -6,10 +6,10 @@
  */
 import React, { useEffect, useState, useCallback } from 'react';
 import { PDFViewer, PDFDownloadLink, pdf } from '@react-pdf/renderer';
-import { InvoiceDocument } from './InvoiceDocument';
+import { InvoicePdf } from './InvoicePdf';
 import { buildInvoicePayload } from './buildInvoicePayload';
 import { uploadInvoicePdf } from '../../../db/invoicePdfDb';
-import type { InvoicePayload } from './invoicePayloadTypes';
+import type { InvoicePdfProps } from './invoicePayloadTypes';
 
 interface Props {
   invoiceId: number;
@@ -21,7 +21,7 @@ type Stage = 'loading' | 'ready' | 'error';
 
 export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props) {
   const [stage, setStage] = useState<Stage>('loading');
-  const [payload, setPayload] = useState<InvoicePayload | null>(null);
+  const [payload, setPayload] = useState<InvoicePdfProps | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploaded, setUploaded] = useState(false);
@@ -42,7 +42,7 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props
   useEffect(() => {
     if (stage !== 'ready' || !payload || uploaded || uploading) return;
     setUploading(true);
-    pdf(<InvoiceDocument payload={payload} />)
+    pdf(<InvoicePdf {...payload} />)
       .toBlob()
       .then((blob) => uploadInvoicePdf(invoiceId, invoiceNumber, blob))
       .then(() => setUploaded(true))
@@ -53,14 +53,13 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props
   const handleShare = useCallback(async () => {
     if (!payload) return;
     try {
-      const blob = await pdf(<InvoiceDocument payload={payload} />).toBlob();
+      const blob = await pdf(<InvoicePdf {...payload} />).toBlob();
       const file = new File([blob], `${invoiceNumber.replace(/\//g, '_')}.pdf`, {
         type: 'application/pdf',
       });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({ files: [file], title: `Invoice ${invoiceNumber}` });
       } else {
-        // Fallback: trigger download
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -126,9 +125,8 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props
         )}
         {stage === 'ready' && payload && (
           <>
-            {/* Download button */}
             <PDFDownloadLink
-              document={<InvoiceDocument payload={payload} />}
+              document={<InvoicePdf {...payload} />}
               fileName={`${invoiceNumber.replace(/\//g, '_')}.pdf`}
               style={{
                 background: 'rgba(255,255,255,0.15)',
@@ -138,13 +136,11 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props
                 fontSize: 12,
                 padding: '6px 14px',
                 textDecoration: 'none',
-                fontFamily: 'Work Sans, sans-serif',
+                fontFamily: 'Inter, sans-serif',
               }}
             >
               {({ loading }) => (loading ? 'Preparing…' : '⬇ Download')}
             </PDFDownloadLink>
-
-            {/* Share button */}
             <button
               type="button"
               onClick={handleShare}
@@ -204,15 +200,10 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props
 
         {stage === 'ready' && payload && (
           isDesktop ? (
-            <PDFViewer
-              width="100%"
-              height="100%"
-              style={{ border: 'none' }}
-            >
-              <InvoiceDocument payload={payload} />
+            <PDFViewer width="100%" height="100%" style={{ border: 'none' }}>
+              <InvoicePdf {...payload} />
             </PDFViewer>
           ) : (
-            // Mobile: PDFViewer is heavy on mobile — show download prompt instead
             <div
               style={{
                 display: 'flex',
