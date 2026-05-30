@@ -38,6 +38,7 @@
   (PR branch: `feature/invoice-wizard-part2-20260527`)
 
 - [x] **Rental Billing Schema + Wizard UI** — SQL migration 006 (`invoice_rental_items`, `invoice_item_distribution`, `vehicle_billing_ledger`, `line_item_billing_type` column on `invoices`), types.ts updated, invoicesDb.ts updated for rental finalize path, Section 2 wizard UI with monthly/quantity billing mode selector + distribution panel, AI description fixed (no per-day rate language, rental-specific prompt). (PR branch: `feature/rental-billing-schema-20260528`)
+- [x] **Invoice Wizard Polish + AI Description Redesign** — AI description inputs cleaned up for both billing modes; `client_name`, rates, quantities, and amounts removed from prompt payload; separate system prompts for quantity / rental / refine; hard limit aligned to 350 characters; quantity mode always mentions vehicles marked for inclusion on initial generation, but refinement instructions can explicitly remove them; rental mode now also sends `work_item_descriptions` so the AI can describe what the hired vehicles were supporting. Logo asset uploaded to Supabase Storage and `settings.logo_url` is now ready for Part 3 PDF rendering. (PR branch: `fix/ai-description-redesign-20260530`)
 
 ***
 
@@ -58,8 +59,11 @@ See changelog entry `[2026-05-28]` for full implementation details.
 - [ ] Upload generated PDF to Supabase Storage (`invoices` bucket)
 - [ ] Storage RLS policies for `invoices` bucket
 - [ ] Download + Share PDF from invoice detail / list page
+- [ ] Read `settings.logo_url` and render company logo in the PDF header
 
 > ⚠️ **Critical for PDF rendering:** Check `invoice.line_item_billing_type` first — `'quantity'` renders `invoice_line_items`, `'rental'` renders `invoice_rental_items` + shows distribution summary. Two completely separate jsPDF layout functions needed.
+> 
+> ✅ **Pre-PDF asset prep completed:** company logo uploaded to Supabase Storage and stored in `settings.logo_url`. Prefer this direct public asset URL over Google Drive / Photos links — PDF renderers need a raw image URL, not an HTML viewer page.
 
 ***
 
@@ -88,3 +92,4 @@ See changelog entry `[2026-05-28]` for full implementation details.
 | 2026-05-27 | PDF Invoice Generation Part 2 — Full invoice wizard (4 sections), invoicesDb.ts, invoice list page, invoice number assigned at finalize only, finalized number locked on re-edit, billing period defaults to prev month (timezone-safe), UI accessibility + color scheme fixes, UTC→IST date bug fixed in prevMonthRange(). Vehicle rental billing requirement discovered — deferred to next session. PR branch: `feature/invoice-wizard-part2-20260527`. |
 | 2026-05-28 | Rental Billing — SQL migration 006, types.ts, invoicesDb.ts, Section 2 rental UI (monthly/partial days + distribution panel), AI description fixed (no per-day rate). PR branch: `feature/rental-billing-schema-20260528`. |
 | 2026-05-29 | Docs correction — wizard section breakdown updated in progress.md and changelog.md to match actual code (Section 1 includes Billing Type toggle; Section 3 rental mode shows read-only vehicle summary). No code changes. |
+| 2026-05-30 | Invoice wizard polish — AI description redesign for quantity + rental modes (leaner payload, separate prompts, 350-char limit), quantity refinement now honours instructions like "remove vehicles", rental mode now also sends work item descriptions for better context, and company logo asset prepared in Supabase Storage for the upcoming PDF session. PR branch: `fix/ai-description-redesign-20260530`. |

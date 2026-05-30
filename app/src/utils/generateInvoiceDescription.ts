@@ -1,15 +1,27 @@
 // Frontend helper to call the generate-invoice-description edge function.
 // Handles both initial generation and user-driven refinement.
+//
+// What we send to the AI (intentionally minimal):
+//   - billing period, WO reference, WO subject, billing type
+//   - sac_description: internal context only (AI must NOT mention it in output)
+//   - work_item_descriptions: sent for BOTH quantity and rental modes
+//     (rental vehicles support some work — describing it makes the description richer)
+//   - quantity mode: vehicles marked include_in_description
+//   - rental mode: rental items with reg_number, vehicle_type, billing_mode, num_days (no money)
+//
+// What we deliberately do NOT send:
+//   - client_name (already on the invoice header)
+//   - rates, quantities, amounts, subtotals (already in the bill table)
 
 import { supabase } from '../db/supabaseClient'
 import type { InvoiceDraft } from '../db/types'
 
 export interface DescriptionContext {
   draft:           InvoiceDraft
-  client_name:     string
+  // client_name intentionally removed — already on invoice header
   wo_reference:    string | null
   wo_subject:      string | null
-  sac_description: string | null
+  sac_description: string | null  // sent as internal context only; AI must not repeat it
 }
 
 async function callEdgeFunction(body: object): Promise<string> {
@@ -42,29 +54,30 @@ function buildPayload(
   ctx: DescriptionContext,
   extra: Record<string, unknown> = {}
 ): object {
-  const { draft, client_name, wo_reference, wo_subject, sac_description } = ctx
+  const { draft, wo_reference, wo_subject, sac_description } = ctx
   const isRental = draft.line_item_billing_type === 'rental'
 
   return {
-    client_name,
     billing_from:    draft.billing_from,
     billing_to:      draft.billing_to,
     billing_type:    draft.line_item_billing_type,
     wo_reference,
     wo_subject,
+    // Sent as internal context only — AI is instructed not to mention SAC code or nickname
     sac_description,
 
-    // Quantity mode: send line items
-    line_items: isRental
-      ? []
-      : draft.line_items.map(i => ({
-          description: i.description,
-          unit:        i.unit,
-          qty:         i.qty,
-          rate:        i.rate,
-        })),
+    // Work item descriptions sent for BOTH modes — rental vehicles also support real work
+    // and having the line item descriptions helps the AI describe what the vehicles were doing
+    work_item_descriptions: draft.line_items.map(i => i.description).filter(Boolean),
 
-    // Rental mode: send rental rows (only confirmed vehicle rows)
+    // Quantity mode only: vehicles explicitly marked for description inclusion
+    vehicles: isRental
+      ? []
+      : draft.vehicles
+          .filter(v => v.include_in_description)
+          .map(v => ({ reg_number: v.reg_number, vehicle_type: v.vehicle_type })),
+
+    // Rental mode: vehicle deployment info — no money fields
     rental_items: isRental
       ? draft.rental_items
           .filter(ri => ri.vehicle_id !== null)
@@ -73,12 +86,8 @@ function buildPayload(
             vehicle_type: ri.vehicle_type,
             billing_mode: ri.billing_mode,
             num_days:     ri.num_days,
-            monthly_rent: ri.monthly_rent,
-            subtotal:     ri.subtotal,
           }))
       : [],
-
-    vehicles: draft.vehicles,
 
     refinement_instruction: null,
     existing_description:   null,

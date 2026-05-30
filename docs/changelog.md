@@ -4,6 +4,24 @@
 
 ***
 
+## [2026-05-30] — Invoice Wizard Polish + AI Description Redesign
+
+### Added
+- `settings.logo_url` is now populated with a Supabase Storage-hosted company logo asset, ready to be consumed in Part 3 PDF rendering
+
+### Changed
+- `app/src/utils/generateInvoiceDescription.ts` — payload cleaned up to remove `client_name`, rates, quantities, and money values; `work_item_descriptions` now sent for **both** quantity and rental modes; quantity mode continues to send only vehicles explicitly marked `include_in_description`
+- `app/src/ui/invoices/Section3Description.tsx` — character limit aligned to **350**; refinement UX updated to better reflect real follow-up edits such as “Remove vehicle names” or “Shorten it”
+- `supabase/functions/generate-invoice-description/index.ts` — redesigned with separate system instructions for quantity generation, rental generation, and refinement; quantity generation always includes marked vehicles in initial output, but refinement now honours user instructions that remove them; rental generation now also considers work item descriptions to better explain what the rented vehicles were supporting; SAC description remains internal context only and must not appear in output; `temperature` lowered to `0.3`, `maxOutputTokens` raised to `800`, and date formatting uses UTC-safe parsing for date-only strings
+
+### Observations
+- Google Drive / Google Photos links are poor choices for logo rendering in generated PDFs because they commonly resolve to HTML viewer pages or authenticated redirects instead of raw PNG bytes
+- A public Supabase Storage URL is the safer `logo_url` source for PDF rendering because jsPDF / browser image loaders need a direct image asset URL
+- For quantity billing, the rule is now: **initial generation must mention marked vehicles; later refinement may remove them if the user explicitly asks**
+- Rental invoices also benefit from `work_item_descriptions` in the AI payload because the work order subject alone is often too vague to describe what the hired vehicles were actually doing
+
+***
+
 ## [2026-05-29] — Documentation Correction: Wizard Section Breakdown
 
 ### Changed

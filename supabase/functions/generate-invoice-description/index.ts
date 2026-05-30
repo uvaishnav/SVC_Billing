@@ -1,8 +1,20 @@
 // Edge Function: generate-invoice-description
-// Receives structured invoice context and returns a detailed GST-compliant
-// description paragraph (2-4 sentences, ~100-150 words).
-// Gemini 2.5 Flash (primary) — system_instruction separated from content.
-// Groq Llama 3.3 70B (fallback) on 429/503.
+// Receives structured invoice context and returns a concise GST invoice description
+// strictly under 350 characters.
+//
+// Design decisions (2026-05-30 redesign):
+//   - client_name removed from inputs — it appears on the invoice header, not in the description
+//   - rates, quantities, amounts removed — already in the bill table
+//   - sac_description sent as internal context only — AI must NOT mention SAC code or nickname
+//   - work_item_descriptions sent for BOTH quantity and rental modes
+//     (rental vehicles support real work; descriptions give the AI richer context)
+//   - quantity mode: vehicles marked include_in_description; always mentioned in output
+//   - rental mode: vehicle deployment info (no money fields)
+//   - separate system prompts per billing type for sharper output
+//   - maxOutputTokens raised to 800 to prevent cutoffs
+//   - temperature lowered to 0.3 for consistency on a legal document
+//
+// Gemini 2.5 Flash (primary) — Groq Llama 3.3 70B (fallback) on 429/503.
 // Requires Authorization: Bearer <jwt> — authenticated users only.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -18,11 +30,9 @@ const corsHeaders = {
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-interface LineItemContext {
-  description: string
-  unit: string | null
-  qty: number
-  rate: number
+interface VehicleContext {
+  reg_number:   string
+  vehicle_type: string | null
 }
 
 interface RentalItemContext {
@@ -30,100 +40,139 @@ interface RentalItemContext {
   vehicle_type: string | null
   billing_mode: 'full_month' | 'partial_days'
   num_days:     number | null
-  monthly_rent: number
-  subtotal:     number
-}
-
-interface VehicleContext {
-  reg_number: string
-  vehicle_type: string | null
-  include_in_description: boolean
+  // NOTE: monthly_rent and subtotal intentionally excluded — already in the bill
 }
 
 interface DescriptionRequest {
-  client_name:   string
   billing_from:  string
   billing_to:    string
   billing_type:  'quantity' | 'rental'
   wo_reference:  string | null
   wo_subject:    string | null
-  line_items:    LineItemContext[]
-  rental_items:  RentalItemContext[]
-  vehicles:      VehicleContext[]
+  // Internal context only — AI must NOT mention SAC code or its nickname in output
   sac_description:        string | null
+  // Work items — sent for BOTH quantity and rental modes
+  work_item_descriptions: string[]
+  // Quantity mode: vehicles marked for inclusion
+  vehicles:               VehicleContext[]
+  // Rental mode: vehicle deployment info
+  rental_items:           RentalItemContext[]
+  // Refinement
   refinement_instruction: string | null
   existing_description:   string | null
 }
 
-// ─── System instruction ───────────────────────────────────────────────────────
-const SYSTEM_INSTRUCTION = `You are an expert billing assistant for an Indian civil engineering and infrastructure services company.
-You write the "Description of Services" field that appears on GST tax invoices.
+// ─── System instructions — one per billing type ───────────────────────────────
 
-Your descriptions are:
-- Specific: mention work order reference, billing period, exact services performed
-- Professional: formal language appropriate for a B2B GST invoice submitted to government clients
-- Complete: 2 to 4 sentences, approximately 80 to 150 words
-- Accurate: only describe what is present in the provided invoice data — never invent details
-- GST-aware: you may reference the SAC code category naturally (e.g. "civil construction services", "transportation services")
+const SYSTEM_INSTRUCTION_QUANTITY = `You are a billing assistant for an Indian infrastructure and civil engineering services company.
+Your task is to write the "Description of Services" field for a GST tax invoice.
 
-For RENTAL invoices: describe the vehicle(s) deployed, their rental period, and the billing basis (full month or number of days). Do NOT write rate-per-day figures — describe the service in terms of the rental period and the total charge.
+Rules — follow every one without exception:
+1. Output a single grammatically correct, professional English paragraph.
+2. The paragraph must be STRICTLY UNDER 350 characters including spaces. This is a hard limit.
+3. Summarise what work was performed and in which billing period.
+4. Always mention the vehicles/equipment if they are provided — do not omit them.
+5. Do NOT mention: the client name, rates, quantities, amounts, SAC codes, or SAC nicknames.
+6. Do NOT include labels, headers, bullet points, quotes, or markdown — plain paragraph only.
+7. Do NOT invent any detail not present in the invoice data provided.
+8. The service category is given as internal context only — use it to understand the nature of work but never quote it directly.`
 
-Do NOT include: labels, headers, bullet points, quotes, markdown, or any text other than the description paragraph itself.`
+const SYSTEM_INSTRUCTION_RENTAL = `You are a billing assistant for an Indian infrastructure and civil engineering services company.
+Your task is to write the "Description of Services" field for a GST tax invoice.
 
-// ─── Content prompt builder ───────────────────────────────────────────────────
-function buildContentPrompt(req: DescriptionRequest): string {
-  const billingPeriod = `${formatDate(req.billing_from)} to ${formatDate(req.billing_to)}`
+Rules — follow every one without exception:
+1. Output a single grammatically correct, professional English paragraph.
+2. The paragraph must be STRICTLY UNDER 350 characters including spaces. This is a hard limit.
+3. Describe which vehicles were deployed, what work they supported (use the work order subject AND the work item descriptions if provided), and the billing period.
+4. If a vehicle was on partial days, mention it naturally (e.g. "deployed for X days during the period").
+5. Do NOT mention: the client name, rental rates, amounts, SAC codes, or SAC nicknames.
+6. Do NOT include labels, headers, bullet points, quotes, or markdown — plain paragraph only.
+7. Do NOT invent any detail not present in the invoice data provided.
+8. The service category is given as internal context only — use it to understand the nature of work but never quote it directly.`
 
+const SYSTEM_INSTRUCTION_REFINE = `You are a billing assistant for an Indian infrastructure and civil engineering services company.
+Your task is to edit an existing "Description of Services" paragraph from a GST tax invoice based on a user instruction.
+
+Rules — follow every one without exception:
+1. Apply the user's instruction faithfully (e.g. remove vehicles, shorten, change tense).
+2. Output a single grammatically correct, professional English paragraph.
+3. The paragraph must be STRICTLY UNDER 350 characters including spaces. This is a hard limit.
+4. Do NOT mention: the client name, rates, quantities, amounts, SAC codes, or SAC nicknames.
+5. Do NOT include labels, headers, bullet points, quotes, or markdown — plain paragraph only.
+6. Do NOT invent any detail not already present in the existing description or the invoice data.`
+
+// ─── Content prompt builders ──────────────────────────────────────────────────
+
+function formatDate(iso: string): string {
+  try {
+    // Use UTC to avoid timezone shift (date-only strings are UTC midnight)
+    const [y, m, d] = iso.split('-').map(Number)
+    const months = ['January','February','March','April','May','June',
+                    'July','August','September','October','November','December']
+    return `${String(d).padStart(2,'0')} ${months[m-1]} ${y}`
+  } catch { return iso }
+}
+
+function buildGeneratePrompt(req: DescriptionRequest): string {
+  const from = formatDate(req.billing_from)
+  const to   = formatDate(req.billing_to)
   const lines: string[] = [
     `INVOICE DATA:`,
-    `Client: ${req.client_name}`,
-    `Billing Period: ${billingPeriod}`,
+    `Billing Period: ${from} to ${to}`,
   ]
 
-  if (req.wo_reference)    lines.push(`Work Order No.: ${req.wo_reference}`)
-  if (req.wo_subject)      lines.push(`Work Order Subject: ${req.wo_subject}`)
-  if (req.sac_description) lines.push(`SAC / Service Category: ${req.sac_description}`)
+  if (req.wo_reference) lines.push(`Work Order Ref: ${req.wo_reference}`)
+  if (req.wo_subject)   lines.push(`Work Order Subject: ${req.wo_subject}`)
+  if (req.sac_description) {
+    lines.push(`Service Category (internal context only — do NOT mention this in output): ${req.sac_description}`)
+  }
 
-  if (req.billing_type === 'rental' && req.rental_items.length > 0) {
-    // ── Rental mode prompt ──
-    lines.push(`Billing Type: Monthly Vehicle Rental`, ``, `Vehicles Billed:`)
+  if (req.billing_type === 'rental') {
+    // ── Rental prompt ──
+    lines.push(``, `Vehicles on Rental:`)
     for (const ri of req.rental_items) {
-      const label    = ri.vehicle_type ? `${ri.vehicle_type} (${ri.reg_number})` : ri.reg_number
-      const period   = ri.billing_mode === 'full_month'
-        ? `Full month rental`
-        : `${ri.num_days} days out of 30`
-      const amount   = `₹${ri.subtotal.toLocaleString('en-IN')}`
-      lines.push(`  • ${label} — ${period} — ${amount}`)
+      const label  = ri.vehicle_type ? `${ri.vehicle_type} (${ri.reg_number})` : ri.reg_number
+      const period = ri.billing_mode === 'full_month'
+        ? `full month`
+        : `${ri.num_days} days`
+      lines.push(`  • ${label} — ${period}`)
+    }
+    // Also include work item descriptions for rental — gives the AI context
+    // about what work the rented vehicles were actually supporting
+    if (req.work_item_descriptions.length > 0) {
+      lines.push(``, `Work Supported (use to describe what the vehicles were doing):`)
+      for (const desc of req.work_item_descriptions) {
+        lines.push(`  • ${desc}`)
+      }
     }
   } else {
-    // ── Quantity mode prompt ──
-    lines.push(`Billing Type: Work Quantity / Services`, ``, `Services / Items Billed:`)
-    const itemLines = req.line_items
-      .map(i => {
-        const qty = i.qty > 0 ? `${i.qty} ${i.unit ?? 'units'}` : `(qty not specified)`
-        return `  • ${i.description} — ${qty} @ ₹${i.rate.toLocaleString('en-IN')} per ${i.unit ?? 'unit'}`
-      })
-      .join('\n')
-    lines.push(itemLines)
-
-    const vehiclesForDesc = req.vehicles.filter(v => v.include_in_description)
-    if (vehiclesForDesc.length > 0) {
-      const vehicleLines = vehiclesForDesc
-        .map(v => `${v.vehicle_type ?? 'Vehicle'} (${v.reg_number})`)
+    // ── Quantity prompt ──
+    if (req.work_item_descriptions.length > 0) {
+      lines.push(``, `Work Items Billed:`)
+      for (const desc of req.work_item_descriptions) {
+        lines.push(`  • ${desc}`)
+      }
+    }
+    if (req.vehicles.length > 0) {
+      const vehicleList = req.vehicles
+        .map(v => v.vehicle_type ? `${v.vehicle_type} (${v.reg_number})` : v.reg_number)
         .join(', ')
-      lines.push(``, `Vehicles / Equipment Deployed: ${vehicleLines}`)
+      lines.push(``, `Vehicles/Equipment Deployed (must be mentioned): ${vehicleList}`)
     }
   }
 
   lines.push(
     ``,
-    `Write the invoice description paragraph for the above. Be specific, professional, and complete (2–4 sentences, 80–150 words).`,
+    `Write the description paragraph now. Remember: strictly under 350 characters, no client name, no amounts, no SAC codes.`,
   )
 
   return lines.join('\n')
 }
 
 function buildRefinementPrompt(req: DescriptionRequest): string {
+  const from = formatDate(req.billing_from)
+  const to   = formatDate(req.billing_to)
+
   const lines: string[] = [
     `EXISTING DESCRIPTION:`,
     req.existing_description!,
@@ -131,51 +180,54 @@ function buildRefinementPrompt(req: DescriptionRequest): string {
     `USER INSTRUCTION: ${req.refinement_instruction}`,
     ``,
     `INVOICE DATA (for reference):`,
-    `Client: ${req.client_name}`,
-    `Billing Period: ${formatDate(req.billing_from)} to ${formatDate(req.billing_to)}`,
+    `Billing Period: ${from} to ${to}`,
   ]
 
-  if (req.wo_reference) lines.push(`Work Order No.: ${req.wo_reference}`)
+  if (req.wo_reference) lines.push(`Work Order Ref: ${req.wo_reference}`)
   if (req.wo_subject)   lines.push(`Work Order Subject: ${req.wo_subject}`)
 
   if (req.billing_type === 'rental' && req.rental_items.length > 0) {
-    lines.push(``, `Vehicles Billed:`)
+    lines.push(``, `Vehicles on Rental:`)
     for (const ri of req.rental_items) {
       const label  = ri.vehicle_type ? `${ri.vehicle_type} (${ri.reg_number})` : ri.reg_number
-      const period = ri.billing_mode === 'full_month' ? `Full month` : `${ri.num_days} days`
-      lines.push(`  • ${label} — ${period} — ₹${ri.subtotal.toLocaleString('en-IN')}`)
+      const period = ri.billing_mode === 'full_month' ? `full month` : `${ri.num_days} days`
+      lines.push(`  • ${label} — ${period}`)
     }
-  } else {
-    const itemLines = req.line_items
-      .map(i => `  • ${i.description} — ${i.qty} ${i.unit ?? 'units'}`)
-      .join('\n')
-    lines.push(``, `Services Billed:`, itemLines)
+  }
+
+  // Work items for reference in both modes
+  if (req.work_item_descriptions.length > 0) {
+    lines.push(``, `Work Items (for reference):`)
+    for (const desc of req.work_item_descriptions) {
+      lines.push(`  • ${desc}`)
+    }
+  }
+
+  if (req.billing_type !== 'rental' && req.vehicles.length > 0) {
+    const vehicleList = req.vehicles
+      .map(v => v.vehicle_type ? `${v.vehicle_type} (${v.reg_number})` : v.reg_number)
+      .join(', ')
+    lines.push(`Vehicles/Equipment: ${vehicleList}`)
   }
 
   lines.push(
     ``,
-    `Rewrite the description applying the user's instruction. Keep it professional, 2–4 sentences, 80–150 words.`,
+    `Rewrite the description applying the user's instruction. Strictly under 350 characters, no client name, no amounts, no SAC codes.`,
   )
 
   return lines.join('\n')
 }
 
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })
-  } catch { return iso }
-}
-
 // ─── Gemini call ──────────────────────────────────────────────────────────────
-async function callGemini(contentPrompt: string): Promise<string | null> {
+async function callGemini(systemInstruction: string, contentPrompt: string): Promise<string | null> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`
 
   const body = {
-    system_instruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+    system_instruction: { parts: [{ text: systemInstruction }] },
     contents: [{ parts: [{ text: contentPrompt }] }],
     generationConfig: {
-      temperature: 0.5,
-      maxOutputTokens: 600,
+      temperature: 0.3,
+      maxOutputTokens: 800,
     },
   }
 
@@ -202,17 +254,17 @@ async function callGemini(contentPrompt: string): Promise<string | null> {
 }
 
 // ─── Groq fallback ────────────────────────────────────────────────────────────
-async function callGroq(contentPrompt: string): Promise<string> {
+async function callGroq(systemInstruction: string, contentPrompt: string): Promise<string> {
   const url = 'https://api.groq.com/openai/v1/chat/completions'
 
   const body = {
     model: 'llama-3.3-70b-versatile',
     messages: [
-      { role: 'system', content: SYSTEM_INSTRUCTION },
+      { role: 'system', content: systemInstruction },
       { role: 'user',   content: contentPrompt },
     ],
-    temperature: 0.5,
-    max_tokens: 600,
+    temperature: 0.3,
+    max_tokens: 800,
   }
 
   const res = await fetch(url, {
@@ -267,41 +319,39 @@ Deno.serve(async (req: Request) => {
   try {
     reqBody = await req.json()
 
-    if (!reqBody.client_name || !reqBody.billing_from || !reqBody.billing_to) {
+    if (!reqBody.billing_from || !reqBody.billing_to) {
       return new Response(
-        JSON.stringify({ error: 'client_name, billing_from, and billing_to are required' }),
+        JSON.stringify({ error: 'billing_from and billing_to are required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       )
     }
 
-    // Validate that the request has at least some billable content
+    // Default empty arrays
+    reqBody.work_item_descriptions = reqBody.work_item_descriptions ?? []
+    reqBody.vehicles               = reqBody.vehicles               ?? []
+    reqBody.rental_items           = reqBody.rental_items           ?? []
+
     const isRental   = reqBody.billing_type === 'rental'
-    const hasItems   = Array.isArray(reqBody.line_items)   && reqBody.line_items.length   > 0
-    const hasRentals = Array.isArray(reqBody.rental_items) && reqBody.rental_items.length > 0
+    const hasItems   = reqBody.work_item_descriptions.length > 0
+    const hasRentals = reqBody.rental_items.length > 0
 
-    if (!hasItems && !hasRentals) {
-      return new Response(
-        JSON.stringify({ error: 'At least one line item or rental item is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      )
-    }
-    if (isRental && !hasRentals) {
-      return new Response(
-        JSON.stringify({ error: 'Rental invoice must include at least one rental item with a vehicle selected' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      )
-    }
-    if (!isRental && !hasItems) {
-      return new Response(
-        JSON.stringify({ error: 'Quantity invoice must include at least one line item' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      )
-    }
+    const isRefinement = !!(reqBody.refinement_instruction && reqBody.existing_description)
 
-    // Default empty arrays if not provided (safe fallback)
-    reqBody.line_items   = reqBody.line_items   ?? []
-    reqBody.rental_items = reqBody.rental_items ?? []
-    reqBody.vehicles     = reqBody.vehicles     ?? []
+    // For non-refinement calls: validate there's enough content to generate from
+    if (!isRefinement) {
+      if (isRental && !hasRentals) {
+        return new Response(
+          JSON.stringify({ error: 'Rental invoice must include at least one rental item with a vehicle selected' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        )
+      }
+      if (!isRental && !hasItems) {
+        return new Response(
+          JSON.stringify({ error: 'Quantity invoice must include at least one work item' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        )
+      }
+    }
 
   } catch {
     return new Response(
@@ -312,15 +362,26 @@ Deno.serve(async (req: Request) => {
 
   try {
     const isRefinement = !!(reqBody.refinement_instruction && reqBody.existing_description)
+
+    // Pick the right system instruction
+    let systemInstruction: string
+    if (isRefinement) {
+      systemInstruction = SYSTEM_INSTRUCTION_REFINE
+    } else if (reqBody.billing_type === 'rental') {
+      systemInstruction = SYSTEM_INSTRUCTION_RENTAL
+    } else {
+      systemInstruction = SYSTEM_INSTRUCTION_QUANTITY
+    }
+
     const contentPrompt = isRefinement
       ? buildRefinementPrompt(reqBody)
-      : buildContentPrompt(reqBody)
+      : buildGeneratePrompt(reqBody)
 
-    let description = await callGemini(contentPrompt)
+    let description = await callGemini(systemInstruction, contentPrompt)
     let provider = 'gemini'
 
     if (description === null) {
-      description = await callGroq(contentPrompt)
+      description = await callGroq(systemInstruction, contentPrompt)
       provider = 'groq'
     }
 
