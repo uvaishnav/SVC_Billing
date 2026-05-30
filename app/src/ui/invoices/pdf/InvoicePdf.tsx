@@ -1,998 +1,989 @@
 /**
  * InvoicePdf.tsx
+ * Complete GST invoice document using @react-pdf/renderer.
+ * Implements the final consolidated design spec (§3–§21).
  *
- * @react-pdf/renderer document component for GST-compliant A4 invoice.
- *
- * Supports 4 combinations:
- *   Quantity × CGST/SGST
- *   Quantity × IGST
- *   Rental   × CGST/SGST
- *   Rental   × IGST
- *
- * Layout order (per finalised spec, 2026-05-30):
+ * Layout order (per spec §18):
  *   1. Supplier header band
- *   2. TAX INVOICE heading + prominent invoice number box
- *   3. Two-column: Invoice Details (left) | Recipient details (right)
- *   4. SAC code strip
- *   5. Description of Services block
- *   6. Main billing table (quantity OR rental — never both)
- *   7. Work Items Covered block (rental invoices only, when distribution exists)
- *   8. Tax / totals summary (right-weighted)
- *   9. Amount in words
- *  10. Footer: bank details (left) | authorised signatory (right)
+ *   2. TAX INVOICE heading
+ *   3. Prominent invoice number callout box
+ *   4. Two-column block: INVOICE DETAILS | DETAILS OF RECIPIENT OF SERVICE
+ *   5. SAC code strip
+ *   6. Description of Services
+ *   7. Main table (quantity OR rental)
+ *   8. Work Items Covered block (rental only, conditional)
+ *   9. Tax / totals summary
+ *  10. Amount in words
+ *  11. Footer: bank details | signature
  */
 
-import React from 'react'
+import React from 'react';
 import {
-  Document, Page, View, Text, Image, StyleSheet, Font,
-} from '@react-pdf/renderer'
+  Document,
+  Page,
+  View,
+  Text,
+  Image,
+  StyleSheet,
+  Font,
+} from '@react-pdf/renderer';
+import {
+  ESPRESSO, BODY_TEXT, MUTED, FAINT,
+  CREAM, DIVIDER, WHITE,
+  GOLD_ACCENT, GOLD_CHIP_BG,
+  STEEL_ACCENT, STEEL_CHIP_BG,
+  QTY_TABLE_HEADER_BG, RENTAL_TABLE_HEADER_BG,
+  formatCurrency, formatDate,
+} from './pdfUtils';
+import type { InvoicePdfProps } from './invoicePayloadTypes';
 
-// ─── Data props ──────────────────────────────────────────────────────────────
+// ── Font registration ─────────────────────────────────────────────────────────
+// Serif for display headings; Sans for body
+Font.register({
+  family: 'Lora',
+  fonts: [
+    { src: 'https://fonts.gstatic.com/s/lora/v35/0QI6MX1D_JOxE7fSWQfn.woff2', fontWeight: 400 },
+    { src: 'https://fonts.gstatic.com/s/lora/v35/0QI6MX1D_JOxE7fSWQfn.woff2', fontWeight: 700 },
+  ],
+});
 
-export interface PdfSupplier {
-  business_name: string
-  address: string
-  gstin: string
-  pan: string | null
-  phone: string | null
-  email: string | null
-  state: string
-  state_code: string
-  authorized_signatory: string
-  logo_url: string | null
-}
+Font.register({
+  family: 'Inter',
+  fonts: [
+    { src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hiJ-Ek-_EeA.woff2', fontWeight: 400 },
+    { src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuI6fAZ9hiJ-Ek-_EeA.woff2', fontWeight: 500 },
+    { src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuGKYAZ9hiJ-Ek-_EeA.woff2', fontWeight: 600 },
+    { src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuFyYAZ9hiJ-Ek-_EeA.woff2', fontWeight: 700 },
+  ],
+});
 
-export interface PdfRecipient {
-  name: string
-  gstin: string
-  address: string
-  state: string
-  state_code: string
-}
+// ── Page constants ────────────────────────────────────────────────────────────
+const PAGE_MARGIN = 32; // points (~11mm)
+const BODY_FONT  = 'Inter';
+const HEAD_FONT  = 'Lora';
 
-export interface PdfLineItem {
-  sl_no: number
-  description: string
-  unit: string | null
-  qty: number
-  rate: number
-  amount: number          // taxable_value
-}
-
-export interface PdfRentalItem {
-  sl_no: number
-  reg_number: string
-  vehicle_type: string | null
-  billing_from: string    // ISO date
-  billing_to: string      // ISO date
-  billing_mode: 'full_month' | 'partial_days'
-  num_days: number | null
-  monthly_rent: number
-  amount: number          // subtotal
-}
-
-export interface PdfDistributionItem {
-  description: string
-  sub_work_ref: string | null
-  allocation_pct: number
-}
-
-export interface PdfBankAccount {
-  bank_name: string
-  account_name: string
-  account_number: string
-  ifsc: string
-  branch: string | null
-}
-
-export interface InvoicePdfProps {
-  // Identity
-  supplier: PdfSupplier
-  recipient: PdfRecipient | null
-  invoice_number: string
-  invoice_date: string          // ISO
-  billing_from: string          // ISO
-  billing_to: string            // ISO
-  place_of_supply: string
-  place_of_supply_code: string
-  reverse_charge: boolean
-  work_order_reference: string | null
-
-  // Billing type
-  billing_type: 'quantity' | 'rental'
-  tax_mode: 'cgst_sgst' | 'igst'
-
-  // SAC
-  sac_code: string | null
-
-  // Description
-  overall_description: string
-
-  // Line items (quantity invoices)
-  line_items: PdfLineItem[]
-
-  // Rental items (rental invoices)
-  rental_items: PdfRentalItem[]
-
-  // Work items distribution (rental invoices only)
-  item_distribution: PdfDistributionItem[]
-
-  // Totals
-  total_taxable: number
-  gst_rate: number
-  total_gst: number
-  total_amount: number
-  tds_rate: number
-  tds_amount: number
-  net_receivable: number
-  amount_in_words: string
-
-  // Bank
-  bank: PdfBankAccount | null
-}
-
-// ─── Color constants ──────────────────────────────────────────────────────────
-
-const C = {
-  pageBg:          '#FFFFFF',
-  headerBg:        '#FAF8F3',
-  heading:         '#3B2A1F',
-  text:            '#2A1F15',
-  muted:           '#7A6A58',
-  border:          '#D8D0C4',
-  // tax-mode accents
-  accentCgst:      '#C8A96A',
-  accentIgst:      '#4A7FA5',
-  sacBgCgst:       '#FFF8ED',
-  sacBgIgst:       '#EEF4FA',
-  // table headers
-  tableHdrQty:     '#EDE9DE',
-  tableHdrRental:  '#E8EEF2',
-  tableRowAlt:     '#F7F5F0',
-  tableFooterBg:   '#EDE9DE',
-  // totals highlight
-  highlightBg:     '#3B2A1F',
-  highlightText:   '#FAF8F3',
-} as const
-
-// ─── Formatting helpers ───────────────────────────────────────────────────────
-
-function fmt(n: number): string {
-  return new Intl.NumberFormat('en-IN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(n)
-}
-
-function fmtDate(iso: string): string {
-  const [y, m, d] = iso.split('-')
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  return `${d} ${months[parseInt(m) - 1]} ${y}`
-}
-
-function fmtPeriod(from: string, to: string): string {
-  return `${fmtDate(from)} – ${fmtDate(to)}`
-}
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
-const S = StyleSheet.create({
+// ── Styles ────────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
   page: {
-    backgroundColor: C.pageBg,
-    fontFamily: 'Helvetica',
-    fontSize: 9,
-    color: C.text,
-    paddingTop: 28,
-    paddingBottom: 32,
-    paddingHorizontal: 30,
+    fontFamily: BODY_FONT,
+    fontSize: 8,
+    color: BODY_TEXT,
+    backgroundColor: WHITE,
+    paddingTop: PAGE_MARGIN,
+    paddingBottom: PAGE_MARGIN + 12,
+    paddingHorizontal: PAGE_MARGIN,
+    lineHeight: 1.4,
   },
 
   // ── Header ──────────────────────────────────────────────────────────────────
-  headerBand: {
-    backgroundColor: C.headerBg,
+  header: {
+    backgroundColor: CREAM,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: C.border,
+    borderBottomColor: DIVIDER,
     marginBottom: 0,
   },
   headerLogo: {
-    width: 52,
-    height: 52,
-    marginRight: 14,
+    width: 48,
+    height: 48,
+    marginRight: 12,
     objectFit: 'contain',
+  },
+  headerLogoPlaceholder: {
+    width: 48,
+    height: 48,
+    marginRight: 12,
+    backgroundColor: '#E8E2D8',
+    borderRadius: 4,
   },
   headerTextBlock: {
     flex: 1,
   },
   headerBusinessName: {
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 16,
-    color: C.heading,
+    fontFamily: HEAD_FONT,
+    fontSize: 15,
+    fontWeight: 700,
+    color: ESPRESSO,
     marginBottom: 3,
-    letterSpacing: 0.4,
+  },
+  headerAddress: {
+    fontSize: 7.5,
+    color: BODY_TEXT,
+    marginBottom: 2,
   },
   headerMeta: {
-    fontSize: 8,
-    color: C.muted,
-    lineHeight: 1.55,
+    fontSize: 7,
+    color: MUTED,
+    marginBottom: 1,
   },
-  headerMetaValue: {
-    color: C.text,
+  headerMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 2,
+  },
+  headerMetaItem: {
+    fontSize: 7,
+    color: MUTED,
   },
 
-  // ── TAX INVOICE title band ───────────────────────────────────────────────────
-  titleBand: {
+  // ── TAX INVOICE identity band ────────────────────────────────────────────────
+  identityBand: {
     alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 0.5,
-    borderBottomColor: C.border,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: DIVIDER,
   },
-  titleText: {
-    fontFamily: 'Helvetica-Bold',
+  taxInvoiceHeading: {
+    fontFamily: HEAD_FONT,
     fontSize: 13,
-    color: C.heading,
-    letterSpacing: 2,
-    marginBottom: 5,
+    fontWeight: 700,
+    color: ESPRESSO,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    marginBottom: 6,
   },
   invoiceNumberBox: {
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderRadius: 4,
+    paddingVertical: 5,
     paddingHorizontal: 14,
-    paddingVertical: 6,
     alignItems: 'center',
     minWidth: 160,
   },
   invoiceNumberLabel: {
     fontSize: 7,
-    color: C.muted,
+    color: MUTED,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 2,
   },
   invoiceNumberValue: {
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 14,
+    fontFamily: HEAD_FONT,
+    fontSize: 12,
+    fontWeight: 700,
+    color: ESPRESSO,
     letterSpacing: 0.5,
   },
 
   // ── Two-column metadata ──────────────────────────────────────────────────────
-  metaRow: {
+  twoCol: {
     flexDirection: 'row',
-    borderBottomWidth: 0.5,
-    borderBottomColor: C.border,
+    borderBottomWidth: 1,
+    borderBottomColor: DIVIDER,
   },
-  metaCol: {
+  twoColLeft: {
     flex: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
+    paddingVertical: 10,
+    paddingRight: 10,
+    borderRightWidth: 1,
+    borderRightColor: DIVIDER,
   },
-  metaColDivider: {
-    borderLeftWidth: 0.5,
-    borderLeftColor: C.border,
+  twoColRight: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingLeft: 10,
   },
-  metaSectionLabel: {
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 7,
-    color: C.muted,
+  colSectionLabel: {
+    fontSize: 6.5,
+    fontWeight: 700,
+    color: MUTED,
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
-    letterSpacing: 0.9,
     marginBottom: 6,
+    borderBottomWidth: 0.5,
+    borderBottomColor: DIVIDER,
+    paddingBottom: 3,
   },
-  metaField: {
+  metaRow: {
     flexDirection: 'row',
     marginBottom: 3,
   },
   metaLabel: {
-    fontSize: 8,
-    color: C.muted,
+    fontSize: 7,
+    color: MUTED,
     width: 90,
+    flexShrink: 0,
   },
   metaValue: {
-    fontSize: 8,
-    color: C.text,
+    fontSize: 7,
+    color: BODY_TEXT,
     flex: 1,
   },
-  metaValueBold: {
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 9,
-    color: C.heading,
-    marginBottom: 3,
+  metaValueStrong: {
+    fontSize: 7.5,
+    fontWeight: 600,
+    color: ESPRESSO,
+    flex: 1,
   },
 
-  // ── SAC strip ───────────────────────────────────────────────────────────────
+  // ── SAC strip ──────────────────────────────────────────────────────────────
   sacStrip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
     paddingVertical: 6,
-    borderWidth: 0.5,
-    borderColor: C.border,
+    paddingHorizontal: 10,
+    borderWidth: 0.75,
     borderRadius: 3,
-    marginVertical: 6,
+    marginTop: 8,
+    marginBottom: 6,
   },
   sacLabel: {
-    fontSize: 7.5,
-    color: C.muted,
-    marginRight: 6,
+    fontSize: 7,
+    color: MUTED,
+    marginRight: 8,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
   sacValue: {
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 9,
+    fontSize: 8.5,
+    fontWeight: 700,
+    color: ESPRESSO,
     letterSpacing: 1,
   },
 
-  // ── Description block ───────────────────────────────────────────────────────
+  // ── Description block ──────────────────────────────────────────────────────
   descBlock: {
-    paddingHorizontal: 10,
     paddingVertical: 8,
-    borderWidth: 0.5,
-    borderColor: C.border,
-    borderRadius: 3,
-    marginBottom: 6,
+    paddingHorizontal: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: DIVIDER,
+    marginBottom: 8,
   },
   descLabel: {
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 7,
-    color: C.muted,
+    fontSize: 6.5,
+    fontWeight: 700,
+    color: MUTED,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 4,
   },
   descText: {
-    fontSize: 8.5,
-    color: C.text,
+    fontSize: 7.5,
+    color: BODY_TEXT,
     lineHeight: 1.5,
   },
 
-  // ── Table shared ─────────────────────────────────────────────────────────────
+  // ── Table shared ────────────────────────────────────────────────────────────
   table: {
-    borderWidth: 0.5,
-    borderColor: C.border,
-    borderRadius: 3,
-    marginBottom: 4,
-    overflow: 'hidden',
+    width: '100%',
+    marginBottom: 8,
   },
-  tableHdrRow: {
+  tableHeaderRow: {
     flexDirection: 'row',
-    borderBottomWidth: 0.5,
-    borderBottomColor: C.border,
+    paddingVertical: 5,
+    paddingHorizontal: 4,
+  },
+  tableHeaderCell: {
+    fontSize: 7,
+    fontWeight: 700,
+    color: ESPRESSO,
   },
   tableRow: {
     flexDirection: 'row',
-    borderBottomWidth: 0.3,
-    borderBottomColor: C.border,
-    minHeight: 18,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    borderBottomWidth: 0.5,
+    borderBottomColor: DIVIDER,
   },
-  tableRowLast: {
-    flexDirection: 'row',
-    minHeight: 18,
+  tableRowAlt: {
+    backgroundColor: '#F9F7F3',
   },
-  tableFooterRow: {
-    flexDirection: 'row',
-    borderTopWidth: 0.5,
-    borderTopColor: C.border,
-    backgroundColor: C.tableFooterBg,
-    minHeight: 18,
-  },
-  cellBase: {
-    paddingHorizontal: 6,
-    paddingVertical: 5,
-    fontSize: 8,
-  },
-  cellHdr: {
-    fontFamily: 'Helvetica-Bold',
+  tableCell: {
     fontSize: 7.5,
-    color: C.heading,
-    paddingHorizontal: 6,
-    paddingVertical: 5,
+    color: BODY_TEXT,
   },
-  cellNum: {
+  tableCellRight: {
+    fontSize: 7.5,
+    color: BODY_TEXT,
     textAlign: 'right',
   },
-  cellCenter: {
-    textAlign: 'center',
+  tableCellMuted: {
+    fontSize: 7,
+    color: MUTED,
   },
-  cellFooterLabel: {
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 8,
-    color: C.heading,
-    textAlign: 'right',
-    paddingHorizontal: 6,
+  tableTaxableRow: {
+    flexDirection: 'row',
     paddingVertical: 5,
-    flex: 1,
+    paddingHorizontal: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#C8B89A',
+    marginTop: 2,
   },
-  cellFooterValue: {
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 8,
-    color: C.heading,
+  tableTaxableLabel: {
+    fontSize: 7.5,
+    fontWeight: 600,
+    color: ESPRESSO,
+  },
+  tableTaxableAmount: {
+    fontSize: 7.5,
+    fontWeight: 600,
+    color: ESPRESSO,
     textAlign: 'right',
-    paddingHorizontal: 6,
-    paddingVertical: 5,
   },
 
-  // ── Work items distribution block ────────────────────────────────────────────
+  // ── Quantity table column widths ─────────────────────────────────────────────
+  qColSl:     { width: '6%' },
+  qColDesc:   { width: '40%' },
+  qColUnit:   { width: '12%', textAlign: 'center' },
+  qColQty:    { width: '12%', textAlign: 'right' },
+  qColRate:   { width: '15%', textAlign: 'right' },
+  qColAmt:    { width: '15%', textAlign: 'right' },
+
+  // ── Rental table column widths ───────────────────────────────────────────────
+  rColSl:     { width: '5%' },
+  rColVeh:    { width: '14%' },
+  rColType:   { width: '10%' },
+  rColPeriod: { width: '20%' },
+  rColMode:   { width: '13%' },
+  rColDays:   { width: '7%', textAlign: 'right' },
+  rColRent:   { width: '16%', textAlign: 'right' },
+  rColAmt:    { width: '15%', textAlign: 'right' },
+
+  // ── Work items block ─────────────────────────────────────────────────────────
   workItemsBlock: {
-    paddingHorizontal: 10,
-    paddingVertical: 7,
     backgroundColor: '#F7F5F0',
-    borderWidth: 0.5,
-    borderColor: C.border,
+    borderWidth: 0.75,
+    borderColor: DIVIDER,
     borderRadius: 3,
-    marginBottom: 6,
+    padding: 8,
+    marginBottom: 8,
   },
-  workItemsTitle: {
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 7,
-    color: C.muted,
+  workItemsLabel: {
+    fontSize: 6.5,
+    fontWeight: 700,
+    color: MUTED,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 5,
   },
   workItemRow: {
     flexDirection: 'row',
-    marginBottom: 2.5,
+    marginBottom: 2,
   },
   workItemBullet: {
-    fontSize: 8,
-    color: C.muted,
-    width: 10,
+    fontSize: 7.5,
+    color: MUTED,
+    marginRight: 5,
   },
-  workItemDesc: {
-    fontSize: 8,
-    color: C.text,
+  workItemText: {
+    fontSize: 7.5,
+    color: BODY_TEXT,
     flex: 1,
   },
-  workItemPct: {
-    fontSize: 8,
-    color: C.muted,
-    width: 36,
-    textAlign: 'right',
-  },
 
-  // ── Totals ───────────────────────────────────────────────────────────────────
-  totalsOuter: {
-    marginBottom: 4,
+  // ── Totals section ────────────────────────────────────────────────────────────
+  totalsSection: {
+    marginBottom: 8,
+    marginLeft: '50%',
   },
   totalsRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingVertical: 3,
-    borderBottomWidth: 0.3,
-    borderBottomColor: C.border,
-  },
-  totalsRowPlain: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderBottomWidth: 0.5,
+    borderBottomColor: DIVIDER,
   },
   totalsLabel: {
-    fontSize: 8,
-    color: C.muted,
-    width: 160,
-    textAlign: 'right',
-    paddingRight: 12,
+    fontSize: 7.5,
+    color: MUTED,
   },
   totalsValue: {
-    fontSize: 8,
-    color: C.text,
-    width: 80,
+    fontSize: 7.5,
+    color: BODY_TEXT,
     textAlign: 'right',
-    fontFamily: 'Helvetica-Bold',
   },
-  totalsHighlightRow: {
+  totalsLabelStrong: {
+    fontSize: 7.5,
+    fontWeight: 600,
+    color: ESPRESSO,
+  },
+  totalsValueStrong: {
+    fontSize: 7.5,
+    fontWeight: 600,
+    color: ESPRESSO,
+    textAlign: 'right',
+  },
+  netReceivableRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    backgroundColor: C.highlightBg,
+    justifyContent: 'space-between',
     paddingVertical: 5,
     paddingHorizontal: 8,
+    backgroundColor: ESPRESSO,
     borderRadius: 3,
     marginTop: 2,
-    marginBottom: 2,
   },
-  totalsHighlightLabel: {
-    fontSize: 9,
-    color: C.highlightText,
-    fontFamily: 'Helvetica-Bold',
-    flex: 1,
-    textAlign: 'right',
-    paddingRight: 12,
+  netReceivableLabel: {
+    fontSize: 8,
+    fontWeight: 700,
+    color: CREAM,
   },
-  totalsHighlightValue: {
-    fontSize: 11,
-    color: C.highlightText,
-    fontFamily: 'Helvetica-Bold',
-    width: 90,
-    textAlign: 'right',
-  },
-  totalsSubRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingVertical: 2,
-  },
-  totalsSubLabel: {
-    fontSize: 7.5,
-    color: C.muted,
-    width: 160,
-    textAlign: 'right',
-    paddingRight: 12,
-    fontStyle: 'italic',
-  },
-  totalsSubValue: {
-    fontSize: 7.5,
-    color: C.muted,
-    width: 80,
-    textAlign: 'right',
-    fontStyle: 'italic',
-  },
-  tdsLabel: {
-    fontSize: 7.5,
-    color: C.muted,
-    width: 160,
-    textAlign: 'right',
-    paddingRight: 12,
-  },
-  tdsValue: {
-    fontSize: 7.5,
-    color: C.muted,
-    width: 80,
+  netReceivableValue: {
+    fontSize: 8,
+    fontWeight: 700,
+    color: CREAM,
     textAlign: 'right',
   },
 
-  // ── Amount in words ──────────────────────────────────────────────────────────
-  amountWordsRow: {
+  // ── Amount in words ────────────────────────────────────────────────────────
+  amountInWords: {
     flexDirection: 'row',
-    paddingHorizontal: 10,
     paddingVertical: 7,
-    borderWidth: 0.5,
-    borderColor: C.border,
+    paddingHorizontal: 10,
+    backgroundColor: '#F4F1EC',
+    borderWidth: 0.75,
+    borderColor: DIVIDER,
     borderRadius: 3,
-    marginBottom: 6,
+    marginBottom: 10,
+    flexWrap: 'wrap',
   },
-  amountWordsLabel: {
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 7.5,
-    color: C.muted,
-    marginRight: 6,
+  amountInWordsLabel: {
+    fontSize: 7,
+    fontWeight: 700,
+    color: MUTED,
+    marginRight: 4,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    flexShrink: 0,
   },
-  amountWordsText: {
-    fontSize: 8.5,
-    color: C.text,
-    fontFamily: 'Helvetica-Bold',
+  amountInWordsValue: {
+    fontSize: 7.5,
+    color: ESPRESSO,
+    fontStyle: 'italic',
     flex: 1,
-    lineHeight: 1.4,
   },
 
-  // ── Footer ───────────────────────────────────────────────────────────────────
+  // ── Footer ────────────────────────────────────────────────────────────────
   footer: {
     flexDirection: 'row',
-    borderTopWidth: 0.5,
-    borderTopColor: C.border,
+    borderTopWidth: 1,
+    borderTopColor: DIVIDER,
     paddingTop: 10,
     marginTop: 4,
   },
   footerLeft: {
     flex: 1,
     paddingRight: 12,
+    borderRightWidth: 0.75,
+    borderRightColor: DIVIDER,
   },
   footerRight: {
-    width: 170,
-    borderLeftWidth: 0.5,
-    borderLeftColor: C.border,
-    paddingLeft: 14,
+    flex: 1,
+    paddingLeft: 12,
+    alignItems: 'flex-start',
   },
   footerSectionLabel: {
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 7,
-    color: C.muted,
+    fontSize: 6.5,
+    fontWeight: 700,
+    color: MUTED,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 6,
+    borderBottomWidth: 0.5,
+    borderBottomColor: DIVIDER,
+    paddingBottom: 3,
   },
-  footerField: {
+  footerBankRow: {
     flexDirection: 'row',
     marginBottom: 3,
   },
-  footerLabel: {
-    fontSize: 7.5,
-    color: C.muted,
-    width: 88,
+  footerBankLabel: {
+    fontSize: 7,
+    color: MUTED,
+    width: 72,
+    flexShrink: 0,
   },
-  footerValue: {
-    fontSize: 7.5,
-    color: C.text,
+  footerBankValue: {
+    fontSize: 7,
+    color: BODY_TEXT,
     flex: 1,
+    fontWeight: 500,
   },
-  sigForName: {
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 8.5,
-    color: C.heading,
-    marginBottom: 30,
-  },
-  sigLine: {
-    borderTopWidth: 0.5,
-    borderTopColor: C.muted,
-    marginBottom: 4,
-    width: 120,
-  },
-  sigLabel: {
+  footerForText: {
     fontSize: 7.5,
-    color: C.muted,
+    fontWeight: 600,
+    color: ESPRESSO,
+    marginBottom: 32,
   },
-
-  divider: {
-    borderTopWidth: 0.5,
-    borderTopColor: C.border,
-    marginVertical: 5,
+  footerSignatureLine: {
+    borderTopWidth: 0.75,
+    borderTopColor: DIVIDER,
+    width: 100,
+    marginBottom: 3,
   },
-})
+  footerSignatoryLabel: {
+    fontSize: 7,
+    color: MUTED,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+});
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-function MetaField({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={S.metaField}>
-      <Text style={S.metaLabel}>{label}</Text>
-      <Text style={S.metaValue}>{value}</Text>
-    </View>
-  )
+function accentColor(taxMode: 'cgst_sgst' | 'igst') {
+  return taxMode === 'igst' ? STEEL_ACCENT : GOLD_ACCENT;
 }
 
-function QuantityTable({ items, total_taxable }: { items: PdfLineItem[]; total_taxable: number }) {
-  const colWidths = { sl: '6%', desc: '38%', unit: '10%', qty: '12%', rate: '17%', amt: '17%' }
+function chipBg(taxMode: 'cgst_sgst' | 'igst') {
+  return taxMode === 'igst' ? STEEL_CHIP_BG : GOLD_CHIP_BG;
+}
+
+function formatBillingPeriod(from: string, to: string): string {
+  return `${formatDate(from)} – ${formatDate(to)}`;
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function HeaderBand({ supplier }: { supplier: InvoicePdfProps['supplier'] }) {
   return (
-    <View style={S.table}>
-      {/* Header */}
-      <View style={[S.tableHdrRow, { backgroundColor: C.tableHdrQty }]}>
-        <Text style={[S.cellHdr, { width: colWidths.sl, textAlign: 'center' }]}>Sl.</Text>
-        <Text style={[S.cellHdr, { width: colWidths.desc }]}>Description of Service</Text>
-        <Text style={[S.cellHdr, { width: colWidths.unit, textAlign: 'center' }]}>Unit</Text>
-        <Text style={[S.cellHdr, { width: colWidths.qty, textAlign: 'right' }]}>Quantity</Text>
-        <Text style={[S.cellHdr, { width: colWidths.rate, textAlign: 'right' }]}>Rate (₹)</Text>
-        <Text style={[S.cellHdr, { width: colWidths.amt, textAlign: 'right' }]}>Amount (₹)</Text>
-      </View>
-      {/* Rows */}
-      {items.map((item, i) => (
-        <View
-          key={i}
-          style={i === items.length - 1 ? S.tableRowLast : S.tableRow}
-        >
-          <Text style={[S.cellBase, { width: colWidths.sl, textAlign: 'center' }]}>{item.sl_no}</Text>
-          <Text style={[S.cellBase, { width: colWidths.desc }]}>{item.description}</Text>
-          <Text style={[S.cellBase, { width: colWidths.unit, textAlign: 'center' }]}>{item.unit ?? ''}</Text>
-          <Text style={[S.cellBase, S.cellNum, { width: colWidths.qty }]}>{fmt(item.qty)}</Text>
-          <Text style={[S.cellBase, S.cellNum, { width: colWidths.rate }]}>{fmt(item.rate)}</Text>
-          <Text style={[S.cellBase, S.cellNum, { width: colWidths.amt }]}>{fmt(item.amount)}</Text>
+    <View style={s.header}>
+      {supplier.logo_url ? (
+        <Image src={supplier.logo_url} style={s.headerLogo} />
+      ) : (
+        <View style={s.headerLogoPlaceholder} />
+      )}
+      <View style={s.headerTextBlock}>
+        <Text style={s.headerBusinessName}>{supplier.business_name}</Text>
+        <Text style={s.headerAddress}>{supplier.address}</Text>
+        <View style={s.headerMetaRow}>
+          <Text style={s.headerMetaItem}>GSTIN: {supplier.gstin}</Text>
+          <Text style={s.headerMetaItem}>PAN: {supplier.pan}</Text>
         </View>
-      ))}
-      {/* Footer */}
-      <View style={S.tableFooterRow}>
-        <Text style={S.cellFooterLabel}>Taxable Value</Text>
-        <Text style={[S.cellFooterValue, { width: colWidths.amt }]}>{fmt(total_taxable)}</Text>
+        <View style={s.headerMetaRow}>
+          <Text style={s.headerMetaItem}>Ph: {supplier.phone}</Text>
+          <Text style={s.headerMetaItem}>{supplier.email}</Text>
+        </View>
+        <Text style={[s.headerMetaItem, { marginTop: 2 }]}>
+          State: {supplier.state} ({supplier.state_code})
+        </Text>
       </View>
     </View>
-  )
+  );
 }
 
-function RentalTable({ items, billing_from, billing_to, total_taxable }: {
-  items: PdfRentalItem[]
-  billing_from: string
-  billing_to: string
-  total_taxable: number
+function IdentityBand({
+  invoiceNumber,
+  taxMode,
+}: {
+  invoiceNumber: string;
+  taxMode: 'cgst_sgst' | 'igst';
 }) {
-  const col = { sl: '5%', vno: '14%', type: '12%', period: '20%', mode: '14%', days: '7%', rent: '14%', amt: '14%' }
+  const accent = accentColor(taxMode);
   return (
-    <View style={S.table}>
-      <View style={[S.tableHdrRow, { backgroundColor: C.tableHdrRental }]}>
-        <Text style={[S.cellHdr, { width: col.sl, textAlign: 'center' }]}>Sl.</Text>
-        <Text style={[S.cellHdr, { width: col.vno }]}>Vehicle No</Text>
-        <Text style={[S.cellHdr, { width: col.type }]}>Type</Text>
-        <Text style={[S.cellHdr, { width: col.period }]}>Billing Period</Text>
-        <Text style={[S.cellHdr, { width: col.mode, textAlign: 'center' }]}>Mode</Text>
-        <Text style={[S.cellHdr, { width: col.days, textAlign: 'center' }]}>Days</Text>
-        <Text style={[S.cellHdr, { width: col.rent, textAlign: 'right' }]}>Monthly Rent (₹)</Text>
-        <Text style={[S.cellHdr, { width: col.amt, textAlign: 'right' }]}>Amount (₹)</Text>
-      </View>
-      {items.map((item, i) => {
-        const period = item.billing_mode === 'full_month'
-          ? fmtPeriod(billing_from, billing_to)
-          : fmtPeriod(item.billing_from, item.billing_to)
-        const modeLabel = item.billing_mode === 'full_month' ? 'Full Month' : 'Partial'
-        const daysStr   = item.billing_mode === 'partial_days' && item.num_days ? String(item.num_days) : '—'
-        return (
-          <View key={i} style={i === items.length - 1 ? S.tableRowLast : S.tableRow}>
-            <Text style={[S.cellBase, { width: col.sl, textAlign: 'center' }]}>{item.sl_no}</Text>
-            <Text style={[S.cellBase, { width: col.vno }]}>{item.reg_number}</Text>
-            <Text style={[S.cellBase, { width: col.type }]}>{item.vehicle_type ?? ''}</Text>
-            <Text style={[S.cellBase, { width: col.period, fontSize: 7.5 }]}>{period}</Text>
-            <Text style={[S.cellBase, { width: col.mode, textAlign: 'center' }]}>{modeLabel}</Text>
-            <Text style={[S.cellBase, { width: col.days, textAlign: 'center' }]}>{daysStr}</Text>
-            <Text style={[S.cellBase, S.cellNum, { width: col.rent }]}>{fmt(item.monthly_rent)}</Text>
-            <Text style={[S.cellBase, S.cellNum, { width: col.amt }]}>{fmt(item.amount)}</Text>
-          </View>
-        )
-      })}
-      <View style={S.tableFooterRow}>
-        <Text style={S.cellFooterLabel}>Taxable Value</Text>
-        <Text style={[S.cellFooterValue, { width: col.amt }]}>{fmt(total_taxable)}</Text>
+    <View style={s.identityBand}>
+      <Text style={s.taxInvoiceHeading}>Tax Invoice</Text>
+      <View style={[s.invoiceNumberBox, { borderColor: accent }]}>
+        <Text style={s.invoiceNumberLabel}>Invoice No.</Text>
+        <Text style={s.invoiceNumberValue}>{invoiceNumber}</Text>
       </View>
     </View>
-  )
+  );
 }
 
-function WorkItemsBlock({ items }: { items: PdfDistributionItem[] }) {
-  if (items.length === 0) return null
+function TwoColumnMeta({
+  props,
+}: {
+  props: InvoicePdfProps;
+}) {
+  const { invoice_date, billing_from, billing_to, place_of_supply, place_of_supply_code,
+    reverse_charge, work_order_reference, recipient } = props;
   return (
-    <View style={S.workItemsBlock}>
-      <Text style={S.workItemsTitle}>Work Items Covered Under This Billing Period</Text>
-      {items.map((d, i) => (
-        <View key={i} style={S.workItemRow}>
-          <Text style={S.workItemBullet}>–</Text>
-          <Text style={S.workItemDesc}>
-            {d.description}
-            {d.sub_work_ref ? ` (Sub-ref: ${d.sub_work_ref})` : ''}
+    <View style={s.twoCol}>
+      {/* Left: invoice details */}
+      <View style={s.twoColLeft}>
+        <Text style={s.colSectionLabel}>Invoice Details</Text>
+        <View style={s.metaRow}>
+          <Text style={s.metaLabel}>Invoice Date</Text>
+          <Text style={s.metaValue}>{formatDate(invoice_date)}</Text>
+        </View>
+        <View style={s.metaRow}>
+          <Text style={s.metaLabel}>Billing Period</Text>
+          <Text style={s.metaValue}>{formatBillingPeriod(billing_from, billing_to)}</Text>
+        </View>
+        <View style={s.metaRow}>
+          <Text style={s.metaLabel}>Place of Supply</Text>
+          <Text style={s.metaValue}>{place_of_supply}</Text>
+        </View>
+        <View style={s.metaRow}>
+          <Text style={s.metaLabel}>State Code</Text>
+          <Text style={s.metaValue}>{place_of_supply_code}</Text>
+        </View>
+        <View style={s.metaRow}>
+          <Text style={s.metaLabel}>Reverse Charge</Text>
+          <Text style={s.metaValue}>{reverse_charge ? 'Yes' : 'No'}</Text>
+        </View>
+        {work_order_reference && (
+          <View style={s.metaRow}>
+            <Text style={s.metaLabel}>Work Order Ref</Text>
+            <Text style={s.metaValue}>{work_order_reference}</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Right: recipient */}
+      <View style={s.twoColRight}>
+        <Text style={s.colSectionLabel}>Details of Recipient of Service</Text>
+        {recipient ? (
+          <>
+            <View style={s.metaRow}>
+              <Text style={s.metaLabel}>Name</Text>
+              <Text style={s.metaValueStrong}>{recipient.name}</Text>
+            </View>
+            {recipient.gstin && (
+              <View style={s.metaRow}>
+                <Text style={s.metaLabel}>GSTIN</Text>
+                <Text style={s.metaValue}>{recipient.gstin}</Text>
+              </View>
+            )}
+            <View style={s.metaRow}>
+              <Text style={s.metaLabel}>Address</Text>
+              <Text style={s.metaValue}>{recipient.address}</Text>
+            </View>
+            <View style={s.metaRow}>
+              <Text style={s.metaLabel}>State</Text>
+              <Text style={s.metaValue}>
+                {recipient.state} ({recipient.state_code})
+              </Text>
+            </View>
+          </>
+        ) : (
+          <Text style={s.tableCellMuted}>Unregistered Recipient</Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function SacStrip({
+  sacCode,
+  taxMode,
+}: {
+  sacCode: string;
+  taxMode: 'cgst_sgst' | 'igst';
+}) {
+  return (
+    <View style={[s.sacStrip, { backgroundColor: chipBg(taxMode), borderColor: accentColor(taxMode) }]}>
+      <Text style={s.sacLabel}>SAC Code :</Text>
+      <Text style={s.sacValue}>{sacCode}</Text>
+    </View>
+  );
+}
+
+function DescriptionBlock({ description }: { description: string }) {
+  return (
+    <View style={s.descBlock}>
+      <Text style={s.descLabel}>Description of Services</Text>
+      <Text style={s.descText}>{description}</Text>
+    </View>
+  );
+}
+
+function QuantityTable({
+  lineItems,
+  totalTaxable,
+}: {
+  lineItems: InvoicePdfProps['line_items'];
+  totalTaxable: number;
+}) {
+  return (
+    <View style={s.table}>
+      {/* Header */}
+      <View style={[s.tableHeaderRow, { backgroundColor: QTY_TABLE_HEADER_BG }]}>
+        <Text style={[s.tableHeaderCell, s.qColSl]}>Sl.</Text>
+        <Text style={[s.tableHeaderCell, s.qColDesc]}>Description of Service</Text>
+        <Text style={[s.tableHeaderCell, s.qColUnit, { textAlign: 'center' }]}>Unit</Text>
+        <Text style={[s.tableHeaderCell, s.qColQty, { textAlign: 'right' }]}>Qty</Text>
+        <Text style={[s.tableHeaderCell, s.qColRate, { textAlign: 'right' }]}>Rate (₹)</Text>
+        <Text style={[s.tableHeaderCell, s.qColAmt, { textAlign: 'right' }]}>Amount (₹)</Text>
+      </View>
+
+      {/* Rows */}
+      {lineItems.map((item, idx) => (
+        <View
+          key={item.sl_no}
+          style={[s.tableRow, idx % 2 === 1 ? s.tableRowAlt : {}]}
+        >
+          <Text style={[s.tableCell, s.qColSl]}>{item.sl_no}</Text>
+          <Text style={[s.tableCell, s.qColDesc]}>{item.description}</Text>
+          <Text style={[s.tableCell, s.qColUnit, { textAlign: 'center' }]}>{item.unit}</Text>
+          <Text style={[s.tableCellRight, s.qColQty]}>{item.qty.toFixed(2)}</Text>
+          <Text style={[s.tableCellRight, s.qColRate]}>{formatCurrency(item.rate)}</Text>
+          <Text style={[s.tableCellRight, s.qColAmt]}>{formatCurrency(item.amount)}</Text>
+        </View>
+      ))}
+
+      {/* Taxable value footer row */}
+      <View style={s.tableTaxableRow}>
+        <Text style={[s.tableTaxableLabel, s.qColSl]}></Text>
+        <Text style={[s.tableTaxableLabel, s.qColDesc]}>Taxable Value</Text>
+        <Text style={[s.tableTaxableLabel, s.qColUnit]}></Text>
+        <Text style={[s.tableTaxableLabel, s.qColQty]}></Text>
+        <Text style={[s.tableTaxableLabel, s.qColRate]}></Text>
+        <Text style={[s.tableTaxableAmount, s.qColAmt]}>{formatCurrency(totalTaxable)}</Text>
+      </View>
+    </View>
+  );
+}
+
+function RentalTable({
+  rentalItems,
+  totalTaxable,
+}: {
+  rentalItems: InvoicePdfProps['rental_items'];
+  totalTaxable: number;
+}) {
+  return (
+    <View style={s.table}>
+      {/* Header */}
+      <View style={[s.tableHeaderRow, { backgroundColor: RENTAL_TABLE_HEADER_BG }]}>
+        <Text style={[s.tableHeaderCell, s.rColSl]}>Sl.</Text>
+        <Text style={[s.tableHeaderCell, s.rColVeh]}>Vehicle No</Text>
+        <Text style={[s.tableHeaderCell, s.rColType]}>Type</Text>
+        <Text style={[s.tableHeaderCell, s.rColPeriod]}>Billing Period</Text>
+        <Text style={[s.tableHeaderCell, s.rColMode]}>Billing Mode</Text>
+        <Text style={[s.tableHeaderCell, s.rColDays, { textAlign: 'right' }]}>Days</Text>
+        <Text style={[s.tableHeaderCell, s.rColRent, { textAlign: 'right' }]}>Monthly Rent (₹)</Text>
+        <Text style={[s.tableHeaderCell, s.rColAmt, { textAlign: 'right' }]}>Amount (₹)</Text>
+      </View>
+
+      {/* Rows */}
+      {rentalItems.map((item, idx) => (
+        <View
+          key={item.sl_no}
+          style={[s.tableRow, idx % 2 === 1 ? s.tableRowAlt : {}]}
+        >
+          <Text style={[s.tableCell, s.rColSl]}>{item.sl_no}</Text>
+          <Text style={[s.tableCell, s.rColVeh]}>{item.reg_number}</Text>
+          <Text style={[s.tableCell, s.rColType]}>{item.vehicle_type}</Text>
+          <Text style={[s.tableCell, s.rColPeriod]}>
+            {formatDate(item.billing_from)} –{' '}{formatDate(item.billing_to)}
           </Text>
-          <Text style={S.workItemPct}>{d.allocation_pct.toFixed(1)}%</Text>
+          <Text style={[s.tableCell, s.rColMode]}>{item.billing_mode}</Text>
+          <Text style={[s.tableCellRight, s.rColDays]}>{item.num_days}</Text>
+          <Text style={[s.tableCellRight, s.rColRent]}>{formatCurrency(item.monthly_rent)}</Text>
+          <Text style={[s.tableCellRight, s.rColAmt]}>{formatCurrency(item.amount)}</Text>
+        </View>
+      ))}
+
+      {/* Taxable value footer row */}
+      <View style={s.tableTaxableRow}>
+        <Text style={[s.tableTaxableLabel, s.rColSl]}></Text>
+        <Text style={[s.tableTaxableLabel, s.rColVeh]}>Taxable Value</Text>
+        <Text style={[s.tableTaxableLabel, s.rColType]}></Text>
+        <Text style={[s.tableTaxableLabel, s.rColPeriod]}></Text>
+        <Text style={[s.tableTaxableLabel, s.rColMode]}></Text>
+        <Text style={[s.tableTaxableLabel, s.rColDays]}></Text>
+        <Text style={[s.tableTaxableLabel, s.rColRent]}></Text>
+        <Text style={[s.tableTaxableAmount, s.rColAmt]}>{formatCurrency(totalTaxable)}</Text>
+      </View>
+    </View>
+  );
+}
+
+function WorkItemsBlock({ items }: { items: InvoicePdfProps['item_distribution'] }) {
+  if (!items || items.length === 0) return null;
+  return (
+    <View style={s.workItemsBlock}>
+      <Text style={s.workItemsLabel}>Work Items Covered Under This Billing Period</Text>
+      {items.map((item, idx) => (
+        <View key={idx} style={s.workItemRow}>
+          <Text style={s.workItemBullet}>–</Text>
+          <Text style={s.workItemText}>
+            {item.description}
+            {item.sub_work_ref ? ` (Sub-ref: ${item.sub_work_ref})` : ''}
+            {' '}— {item.allocation_pct}%
+          </Text>
         </View>
       ))}
     </View>
-  )
+  );
 }
 
-function TotalsBlock({
-  tax_mode, gst_rate, total_taxable, total_gst, total_amount,
-  tds_rate, tds_amount, net_receivable,
-}: Pick<InvoicePdfProps,
-  'tax_mode' | 'gst_rate' | 'total_taxable' | 'total_gst' | 'total_amount' |
-  'tds_rate' | 'tds_amount' | 'net_receivable'
->) {
-  const halfGst   = total_gst / 2
-  const halfRate  = gst_rate / 2
+function TotalsSection({
+  props,
+}: {
+  props: InvoicePdfProps;
+}) {
+  const {
+    total_taxable, gst_rate, tax_mode,
+    total_gst, total_amount, tds_rate, tds_amount, net_receivable,
+  } = props;
+
+  const halfRate = gst_rate / 2;
+
   return (
-    <View style={S.totalsOuter}>
-      {/* Taxable */}
-      <View style={S.totalsRow}>
-        <Text style={S.totalsLabel}>Taxable Amount</Text>
-        <Text style={S.totalsValue}>₹ {fmt(total_taxable)}</Text>
+    <View style={s.totalsSection}>
+      <View style={s.totalsRow}>
+        <Text style={s.totalsLabel}>Taxable Amount</Text>
+        <Text style={s.totalsValue}>₹ {formatCurrency(total_taxable)}</Text>
       </View>
-      {/* GST */}
+
       {tax_mode === 'cgst_sgst' ? (
         <>
-          <View style={S.totalsRow}>
-            <Text style={S.totalsLabel}>CGST @ {halfRate}%</Text>
-            <Text style={S.totalsValue}>₹ {fmt(halfGst)}</Text>
+          <View style={s.totalsRow}>
+            <Text style={s.totalsLabel}>CGST @ {halfRate}%</Text>
+            <Text style={s.totalsValue}>₹ {formatCurrency(total_gst / 2)}</Text>
           </View>
-          <View style={S.totalsRow}>
-            <Text style={S.totalsLabel}>SGST @ {halfRate}%</Text>
-            <Text style={S.totalsValue}>₹ {fmt(halfGst)}</Text>
+          <View style={s.totalsRow}>
+            <Text style={s.totalsLabel}>SGST @ {halfRate}%</Text>
+            <Text style={s.totalsValue}>₹ {formatCurrency(total_gst / 2)}</Text>
           </View>
         </>
       ) : (
-        <View style={S.totalsRow}>
-          <Text style={S.totalsLabel}>IGST @ {gst_rate}%</Text>
-          <Text style={S.totalsValue}>₹ {fmt(total_gst)}</Text>
+        <View style={s.totalsRow}>
+          <Text style={s.totalsLabel}>IGST @ {gst_rate}%</Text>
+          <Text style={s.totalsValue}>₹ {formatCurrency(total_gst)}</Text>
         </View>
       )}
-      {/* Total */}
-      <View style={S.totalsRow}>
-        <Text style={S.totalsLabel}>Total Amount</Text>
-        <Text style={S.totalsValue}>₹ {fmt(total_amount)}</Text>
+
+      <View style={[s.totalsRow, { borderTopWidth: 0.75, borderTopColor: DIVIDER }]}>
+        <Text style={s.totalsLabelStrong}>Total Amount</Text>
+        <Text style={s.totalsValueStrong}>₹ {formatCurrency(total_amount)}</Text>
       </View>
-      {/* TDS informational line */}
-      {tds_rate > 0 && (
-        <View style={S.totalsSubRow}>
-          <Text style={S.tdsLabel}>Less: TDS @ {tds_rate}% (deducted by client)</Text>
-          <Text style={S.tdsValue}>₹ {fmt(tds_amount)}</Text>
-        </View>
-      )}
-      {/* Net Receivable — highlighted */}
-      <View style={S.totalsHighlightRow}>
-        <Text style={S.totalsHighlightLabel}>Net Receivable</Text>
-        <Text style={S.totalsHighlightValue}>₹ {fmt(net_receivable)}</Text>
+
+      <View style={s.totalsRow}>
+        <Text style={s.totalsLabel}>Less: TDS @ {tds_rate}%</Text>
+        <Text style={s.totalsValue}>- ₹ {formatCurrency(tds_amount)}</Text>
+      </View>
+
+      <View style={s.netReceivableRow}>
+        <Text style={s.netReceivableLabel}>Net Receivable</Text>
+        <Text style={s.netReceivableValue}>₹ {formatCurrency(net_receivable)}</Text>
       </View>
     </View>
-  )
+  );
 }
 
-// ─── Main document component ──────────────────────────────────────────────────
+function AmountInWords({ text }: { text: string }) {
+  return (
+    <View style={s.amountInWords}>
+      <Text style={s.amountInWordsLabel}>Amount in Words:</Text>
+      <Text style={s.amountInWordsValue}>{text}</Text>
+    </View>
+  );
+}
+
+function FooterSection({
+  bank,
+  businessName,
+  authorizedSignatory,
+}: {
+  bank: InvoicePdfProps['bank'];
+  businessName: string;
+  authorizedSignatory: string;
+}) {
+  return (
+    <View style={s.footer}>
+      {/* Left: bank details */}
+      <View style={s.footerLeft}>
+        <Text style={s.footerSectionLabel}>Bank Details</Text>
+        {bank ? (
+          <>
+            <View style={s.footerBankRow}>
+              <Text style={s.footerBankLabel}>Bank Name</Text>
+              <Text style={s.footerBankValue}>{bank.bank_name}</Text>
+            </View>
+            <View style={s.footerBankRow}>
+              <Text style={s.footerBankLabel}>Account Name</Text>
+              <Text style={s.footerBankValue}>{bank.account_name}</Text>
+            </View>
+            <View style={s.footerBankRow}>
+              <Text style={s.footerBankLabel}>Account No.</Text>
+              <Text style={s.footerBankValue}>{bank.account_number}</Text>
+            </View>
+            <View style={s.footerBankRow}>
+              <Text style={s.footerBankLabel}>IFSC</Text>
+              <Text style={s.footerBankValue}>{bank.ifsc}</Text>
+            </View>
+            {bank.branch && (
+              <View style={s.footerBankRow}>
+                <Text style={s.footerBankLabel}>Branch</Text>
+                <Text style={s.footerBankValue}>{bank.branch}</Text>
+              </View>
+            )}
+          </>
+        ) : (
+          <Text style={s.tableCellMuted}>No bank details on file</Text>
+        )}
+      </View>
+
+      {/* Right: signature */}
+      <View style={s.footerRight}>
+        <Text style={s.footerSectionLabel}>For {businessName}</Text>
+        <Text style={s.footerForText}> </Text>
+        {/* Whitespace for physical signature */}
+        <View style={{ height: 30 }} />
+        <View style={s.footerSignatureLine} />
+        <Text style={s.footerSignatoryLabel}>Authorised Signatory: {authorizedSignatory}</Text>
+      </View>
+    </View>
+  );
+}
+
+// ── Main Document ─────────────────────────────────────────────────────────────
 
 export function InvoicePdf(props: InvoicePdfProps) {
   const {
-    supplier, recipient,
-    invoice_number, invoice_date, billing_from, billing_to,
-    place_of_supply, place_of_supply_code, reverse_charge, work_order_reference,
-    billing_type, tax_mode,
+    supplier, invoice_number, tax_mode, billing_type,
     sac_code, overall_description,
     line_items, rental_items, item_distribution,
-    total_taxable, gst_rate, total_gst, total_amount,
-    tds_rate, tds_amount, net_receivable, amount_in_words,
-    bank,
-  } = props
+    total_taxable, amount_in_words, bank,
+  } = props;
 
-  const accent    = tax_mode === 'igst' ? C.accentIgst   : C.accentCgst
-  const sacBg     = tax_mode === 'igst' ? C.sacBgIgst    : C.sacBgCgst
+  const isRental = billing_type === 'rental';
+  const hasWorkItems = isRental && item_distribution && item_distribution.length > 0;
 
   return (
-    <Document>
-      <Page size="A4" style={S.page}>
+    <Document
+      title={`Tax Invoice – ${invoice_number}`}
+      author={supplier.business_name}
+      subject="GST Tax Invoice"
+    >
+      <Page size="A4" style={s.page}>
+        {/* 1. Supplier header */}
+        <HeaderBand supplier={supplier} />
 
-        {/* ─── 1. Supplier Header ─── */}
-        <View style={S.headerBand} fixed>
-          {supplier.logo_url && (
-            <Image style={S.headerLogo} src={supplier.logo_url} />
-          )}
-          <View style={S.headerTextBlock}>
-            <Text style={S.headerBusinessName}>{supplier.business_name}</Text>
-            <Text style={S.headerMeta}>{supplier.address}</Text>
-            <Text style={S.headerMeta}>
-              <Text style={S.headerMeta}>GSTIN: </Text>
-              <Text style={[S.headerMeta, S.headerMetaValue]}>{supplier.gstin}</Text>
-              {supplier.pan ? (
-                <Text style={S.headerMeta}>{'  |  PAN: '}<Text style={[S.headerMeta, S.headerMetaValue]}>{supplier.pan}</Text></Text>
-              ) : null}
-            </Text>
-            {(supplier.phone || supplier.email) && (
-              <Text style={S.headerMeta}>
-                {[supplier.phone, supplier.email].filter(Boolean).join('  |  ')}
-              </Text>
-            )}
-            <Text style={S.headerMeta}>
-              State: <Text style={[S.headerMeta, S.headerMetaValue]}>{supplier.state} ({supplier.state_code})</Text>
-            </Text>
-          </View>
-        </View>
+        {/* 2 + 3. TAX INVOICE heading + invoice number callout */}
+        <IdentityBand invoiceNumber={invoice_number} taxMode={tax_mode} />
 
-        {/* ─── 2. TAX INVOICE title + Invoice Number ─── */}
-        <View style={S.titleBand}>
-          <Text style={S.titleText}>TAX INVOICE</Text>
-          <View style={[S.invoiceNumberBox, { borderColor: accent }]}>
-            <Text style={S.invoiceNumberLabel}>Invoice No.</Text>
-            <Text style={[S.invoiceNumberValue, { color: accent }]}>{invoice_number || 'PENDING'}</Text>
-          </View>
-        </View>
+        {/* 4. Two-column metadata */}
+        <TwoColumnMeta props={props} />
 
-        {/* ─── 3. Two-column metadata: Invoice Details | Recipient ─── */}
-        <View style={S.metaRow}>
-          {/* Left: Invoice Details */}
-          <View style={S.metaCol}>
-            <Text style={S.metaSectionLabel}>Invoice Details</Text>
-            <MetaField label="Invoice Date"      value={fmtDate(invoice_date)} />
-            <MetaField label="Billing Period"    value={fmtPeriod(billing_from, billing_to)} />
-            <MetaField label="Place of Supply"   value={`${place_of_supply} (${place_of_supply_code})`} />
-            <MetaField label="Reverse Charge"    value={reverse_charge ? 'Yes' : 'No'} />
-            {work_order_reference && (
-              <MetaField label="W.O. Reference" value={work_order_reference} />
-            )}
-          </View>
-
-          {/* Right: Recipient */}
-          <View style={[S.metaCol, S.metaColDivider]}>
-            <Text style={S.metaSectionLabel}>Details of Recipient of Service</Text>
-            {recipient ? (
-              <>
-                <Text style={S.metaValueBold}>{recipient.name}</Text>
-                {recipient.gstin ? <MetaField label="GSTIN" value={recipient.gstin} /> : null}
-                <View style={S.metaField}>
-                  <Text style={S.metaLabel}>Address</Text>
-                  <Text style={[S.metaValue, { lineHeight: 1.5 }]}>{recipient.address}</Text>
-                </View>
-                <MetaField label="State" value={`${recipient.state} (${recipient.state_code})`} />
-              </>
-            ) : (
-              <Text style={{ fontSize: 8, color: C.muted }}>Recipient details not available</Text>
-            )}
-          </View>
-        </View>
-
-        {/* ─── 4. SAC Code strip ─── */}
-        {sac_code && (
-          <View style={[S.sacStrip, { backgroundColor: sacBg, borderColor: accent }]}>
-            <Text style={[S.sacLabel, { color: accent }]}>SAC Code</Text>
-            <Text style={[S.sacValue, { color: C.heading }]}>{sac_code}</Text>
-          </View>
-        )}
-
-        {/* ─── 5. Description of Services ─── */}
-        {overall_description ? (
-          <View style={S.descBlock}>
-            <Text style={S.descLabel}>Description of Services</Text>
-            <Text style={S.descText}>{overall_description}</Text>
-          </View>
+        {/* 5. SAC strip */}
+        {sac_code ? (
+          <SacStrip sacCode={sac_code} taxMode={tax_mode} />
         ) : null}
 
-        {/* ─── 6. Main billing table ─── */}
-        {billing_type === 'quantity' ? (
-          <QuantityTable items={line_items} total_taxable={total_taxable} />
+        {/* 6. Description of services */}
+        <DescriptionBlock description={overall_description} />
+
+        {/* 7. Main table */}
+        {isRental ? (
+          <RentalTable rentalItems={rental_items} totalTaxable={total_taxable} />
         ) : (
-          <RentalTable
-            items={rental_items}
-            billing_from={billing_from}
-            billing_to={billing_to}
-            total_taxable={total_taxable}
-          />
+          <QuantityTable lineItems={line_items} totalTaxable={total_taxable} />
         )}
 
-        {/* ─── 7. Work Items Covered (rental only) ─── */}
-        {billing_type === 'rental' && (
-          <WorkItemsBlock items={item_distribution} />
-        )}
+        {/* 8. Work items covered (rental only) */}
+        {hasWorkItems && <WorkItemsBlock items={item_distribution} />}
 
-        {/* ─── 8. Totals ─── */}
-        <TotalsBlock
-          tax_mode={tax_mode}
-          gst_rate={gst_rate}
-          total_taxable={total_taxable}
-          total_gst={total_gst}
-          total_amount={total_amount}
-          tds_rate={tds_rate}
-          tds_amount={tds_amount}
-          net_receivable={net_receivable}
+        {/* 9. Totals */}
+        <TotalsSection props={props} />
+
+        {/* 10. Amount in words */}
+        <AmountInWords text={amount_in_words} />
+
+        {/* 11. Footer */}
+        <FooterSection
+          bank={bank}
+          businessName={supplier.business_name}
+          authorizedSignatory={supplier.authorized_signatory}
         />
-
-        {/* ─── 9. Amount in words ─── */}
-        {amount_in_words && (
-          <View style={S.amountWordsRow}>
-            <Text style={S.amountWordsLabel}>Amount in Words:</Text>
-            <Text style={S.amountWordsText}>{amount_in_words}</Text>
-          </View>
-        )}
-
-        {/* ─── 10. Footer: Bank Details | Authorised Signatory ─── */}
-        <View style={S.footer}>
-          {/* Left: Bank Details */}
-          <View style={S.footerLeft}>
-            <Text style={S.footerSectionLabel}>Bank Details</Text>
-            {bank ? (
-              <>
-                <View style={S.footerField}>
-                  <Text style={S.footerLabel}>Bank Name</Text>
-                  <Text style={S.footerValue}>{bank.bank_name}</Text>
-                </View>
-                <View style={S.footerField}>
-                  <Text style={S.footerLabel}>Account Name</Text>
-                  <Text style={S.footerValue}>{bank.account_name}</Text>
-                </View>
-                <View style={S.footerField}>
-                  <Text style={S.footerLabel}>Account Number</Text>
-                  <Text style={S.footerValue}>{bank.account_number}</Text>
-                </View>
-                <View style={S.footerField}>
-                  <Text style={S.footerLabel}>IFSC</Text>
-                  <Text style={S.footerValue}>{bank.ifsc}</Text>
-                </View>
-                {bank.branch && (
-                  <View style={S.footerField}>
-                    <Text style={S.footerLabel}>Branch</Text>
-                    <Text style={S.footerValue}>{bank.branch}</Text>
-                  </View>
-                )}
-              </>
-            ) : (
-              <Text style={{ fontSize: 8, color: C.muted }}>No bank account selected</Text>
-            )}
-          </View>
-
-          {/* Right: Authorised Signatory */}
-          <View style={S.footerRight}>
-            <Text style={S.footerSectionLabel}>For {supplier.business_name}</Text>
-            <Text style={S.sigForName}> </Text>
-            <View style={S.sigLine} />
-            <Text style={S.sigLabel}>{supplier.authorized_signatory}</Text>
-            <Text style={[S.sigLabel, { marginTop: 2 }]}>Authorised Signatory</Text>
-          </View>
-        </View>
-
       </Page>
     </Document>
-  )
+  );
 }
