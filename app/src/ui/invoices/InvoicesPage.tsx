@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react'
 import type { InvoiceWithDetails } from '../../db/types'
 import { getInvoices } from '../../db/invoicesDb'
 import InvoiceWizard from './InvoiceWizard'
+import { InvoiceActions } from './InvoiceActions'
 import { cardStyle } from '../settings/_components'
 
 function fmt(n: number): string {
@@ -91,7 +92,7 @@ export default function InvoicesPage() {
         {!loading && invoices.length === 0 && (
           <div style={{ textAlign: 'center', padding: '48px 16px' }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>📄</div>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: 15 }}>No invoices yet. Tap “+ New Invoice” to get started.</p>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: 15 }}>No invoices yet. Tap "+ New Invoice" to get started.</p>
           </div>
         )}
 
@@ -116,7 +117,7 @@ export default function InvoicesPage() {
             <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 6 }}>
               {inv.invoice_date} • {inv.billing_from} → {inv.billing_to}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <span style={{ fontSize: 12, color: 'var(--color-text-faint)' }}>
                 {inv.work_order_reference ? `W.O. ${inv.work_order_reference}` : 'No WO linked'}
               </span>
@@ -124,6 +125,12 @@ export default function InvoicesPage() {
                 ₹{fmt(inv.total_amount)}
               </span>
             </div>
+            {/* PDF action — only shows for final/cancelled invoices */}
+            <InvoiceActions
+              invoiceId={inv.id}
+              invoiceNumber={inv.invoice_number}
+              status={inv.status}
+            />
           </div>
         ))}
       </div>
