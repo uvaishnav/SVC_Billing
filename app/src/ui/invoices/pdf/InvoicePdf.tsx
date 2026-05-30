@@ -28,7 +28,7 @@ import {
   Font,
 } from '@react-pdf/renderer';
 import {
-  ESPRESSO, BODY_TEXT, MUTED, FAINT,
+  ESPRESSO, BODY_TEXT, MUTED,
   CREAM, DIVIDER, WHITE,
   GOLD_ACCENT, GOLD_CHIP_BG,
   STEEL_ACCENT, STEEL_CHIP_BG,
@@ -38,29 +38,57 @@ import {
 import type { InvoicePdfProps } from './invoicePayloadTypes';
 
 // ── Font registration ─────────────────────────────────────────────────────────
-// Serif for display headings; Sans for body
+// NOTE: react-pdf requires direct font file URLs (woff/woff2/ttf).
+// We use the Google Fonts API CSS URL trick: fetch the @font-face src from
+// googleapis.com at build time. To keep things reliable, we use ttf static
+// links from the google-fonts GitHub releases which are stable CDN URLs.
+
 Font.register({
   family: 'Lora',
   fonts: [
-    { src: 'https://fonts.gstatic.com/s/lora/v35/0QI6MX1D_JOxE7fSWQfn.woff2', fontWeight: 400 },
-    { src: 'https://fonts.gstatic.com/s/lora/v35/0QI6MX1D_JOxE7fSWQfn.woff2', fontWeight: 700 },
+    {
+      src: 'https://fonts.gstatic.com/s/lora/v35/0QI6MX1D_JOxE7fSWQfn.ttf',
+      fontWeight: 400,
+      fontStyle: 'normal',
+    },
+    {
+      src: 'https://fonts.gstatic.com/s/lora/v35/0QIuMX1D_JOxE7fSWQfn.ttf',
+      fontWeight: 700,
+      fontStyle: 'normal',
+    },
   ],
 });
 
 Font.register({
   family: 'Inter',
   fonts: [
-    { src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hiJ-Ek-_EeA.woff2', fontWeight: 400 },
-    { src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuI6fAZ9hiJ-Ek-_EeA.woff2', fontWeight: 500 },
-    { src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuGKYAZ9hiJ-Ek-_EeA.woff2', fontWeight: 600 },
-    { src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuFyYAZ9hiJ-Ek-_EeA.woff2', fontWeight: 700 },
+    {
+      src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hiJ-Ek-_EeA.ttf',
+      fontWeight: 400,
+      fontStyle: 'normal',
+    },
+    {
+      src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuI6fAZ9hiJ-Ek-_EeA.ttf',
+      fontWeight: 500,
+      fontStyle: 'normal',
+    },
+    {
+      src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuGKYAZ9hiJ-Ek-_EeA.ttf',
+      fontWeight: 600,
+      fontStyle: 'normal',
+    },
+    {
+      src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuFyYAZ9hiJ-Ek-_EeA.ttf',
+      fontWeight: 700,
+      fontStyle: 'normal',
+    },
   ],
 });
 
 // ── Page constants ────────────────────────────────────────────────────────────
-const PAGE_MARGIN = 32; // points (~11mm)
-const BODY_FONT  = 'Inter';
-const HEAD_FONT  = 'Lora';
+const PAGE_MARGIN = 32;
+const BODY_FONT   = 'Inter';
+const HEAD_FONT   = 'Lora';
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
@@ -75,7 +103,7 @@ const s = StyleSheet.create({
     lineHeight: 1.4,
   },
 
-  // ── Header ──────────────────────────────────────────────────────────────────
+  // ── Header
   header: {
     backgroundColor: CREAM,
     paddingVertical: 12,
@@ -84,7 +112,6 @@ const s = StyleSheet.create({
     alignItems: 'flex-start',
     borderBottomWidth: 1,
     borderBottomColor: DIVIDER,
-    marginBottom: 0,
   },
   headerLogo: {
     width: 48,
@@ -114,14 +141,8 @@ const s = StyleSheet.create({
     color: BODY_TEXT,
     marginBottom: 2,
   },
-  headerMeta: {
-    fontSize: 7,
-    color: MUTED,
-    marginBottom: 1,
-  },
   headerMetaRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 8,
     marginTop: 2,
   },
@@ -130,7 +151,7 @@ const s = StyleSheet.create({
     color: MUTED,
   },
 
-  // ── TAX INVOICE identity band ────────────────────────────────────────────────
+  // ── TAX INVOICE identity band
   identityBand: {
     alignItems: 'center',
     paddingVertical: 10,
@@ -143,7 +164,6 @@ const s = StyleSheet.create({
     fontWeight: 700,
     color: ESPRESSO,
     letterSpacing: 1.5,
-    textTransform: 'uppercase',
     marginBottom: 6,
   },
   invoiceNumberBox: {
@@ -157,7 +177,6 @@ const s = StyleSheet.create({
   invoiceNumberLabel: {
     fontSize: 7,
     color: MUTED,
-    textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 2,
   },
@@ -169,7 +188,7 @@ const s = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  // ── Two-column metadata ──────────────────────────────────────────────────────
+  // ── Two-column metadata
   twoCol: {
     flexDirection: 'row',
     borderBottomWidth: 1,
@@ -192,7 +211,6 @@ const s = StyleSheet.create({
     fontWeight: 700,
     color: MUTED,
     letterSpacing: 0.8,
-    textTransform: 'uppercase',
     marginBottom: 6,
     borderBottomWidth: 0.5,
     borderBottomColor: DIVIDER,
@@ -220,7 +238,7 @@ const s = StyleSheet.create({
     flex: 1,
   },
 
-  // ── SAC strip ──────────────────────────────────────────────────────────────
+  // ── SAC strip
   sacStrip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -235,7 +253,6 @@ const s = StyleSheet.create({
     fontSize: 7,
     color: MUTED,
     marginRight: 8,
-    textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
   sacValue: {
@@ -245,7 +262,7 @@ const s = StyleSheet.create({
     letterSpacing: 1,
   },
 
-  // ── Description block ──────────────────────────────────────────────────────
+  // ── Description block
   descBlock: {
     paddingVertical: 8,
     paddingHorizontal: 10,
@@ -257,7 +274,6 @@ const s = StyleSheet.create({
     fontSize: 6.5,
     fontWeight: 700,
     color: MUTED,
-    textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 4,
   },
@@ -267,7 +283,7 @@ const s = StyleSheet.create({
     lineHeight: 1.5,
   },
 
-  // ── Table shared ────────────────────────────────────────────────────────────
+  // ── Table shared
   table: {
     width: '100%',
     marginBottom: 8,
@@ -325,25 +341,25 @@ const s = StyleSheet.create({
     textAlign: 'right',
   },
 
-  // ── Quantity table column widths ─────────────────────────────────────────────
-  qColSl:     { width: '6%' },
-  qColDesc:   { width: '40%' },
-  qColUnit:   { width: '12%', textAlign: 'center' },
-  qColQty:    { width: '12%', textAlign: 'right' },
-  qColRate:   { width: '15%', textAlign: 'right' },
-  qColAmt:    { width: '15%', textAlign: 'right' },
+  // ── Quantity table column widths
+  qColSl:   { width: '6%' },
+  qColDesc: { width: '40%' },
+  qColUnit: { width: '12%', textAlign: 'center' },
+  qColQty:  { width: '12%', textAlign: 'right' },
+  qColRate: { width: '15%', textAlign: 'right' },
+  qColAmt:  { width: '15%', textAlign: 'right' },
 
-  // ── Rental table column widths ───────────────────────────────────────────────
+  // ── Rental table column widths
   rColSl:     { width: '5%' },
   rColVeh:    { width: '14%' },
   rColType:   { width: '10%' },
   rColPeriod: { width: '20%' },
   rColMode:   { width: '13%' },
-  rColDays:   { width: '7%', textAlign: 'right' },
+  rColDays:   { width: '7%',  textAlign: 'right' },
   rColRent:   { width: '16%', textAlign: 'right' },
   rColAmt:    { width: '15%', textAlign: 'right' },
 
-  // ── Work items block ─────────────────────────────────────────────────────────
+  // ── Work items block
   workItemsBlock: {
     backgroundColor: '#F7F5F0',
     borderWidth: 0.75,
@@ -356,7 +372,6 @@ const s = StyleSheet.create({
     fontSize: 6.5,
     fontWeight: 700,
     color: MUTED,
-    textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 5,
   },
@@ -375,7 +390,7 @@ const s = StyleSheet.create({
     flex: 1,
   },
 
-  // ── Totals section ────────────────────────────────────────────────────────────
+  // ── Totals section
   totalsSection: {
     marginBottom: 8,
     marginLeft: '50%',
@@ -429,7 +444,7 @@ const s = StyleSheet.create({
     textAlign: 'right',
   },
 
-  // ── Amount in words ────────────────────────────────────────────────────────
+  // ── Amount in words
   amountInWords: {
     flexDirection: 'row',
     paddingVertical: 7,
@@ -439,24 +454,22 @@ const s = StyleSheet.create({
     borderColor: DIVIDER,
     borderRadius: 3,
     marginBottom: 10,
-    flexWrap: 'wrap',
   },
   amountInWordsLabel: {
     fontSize: 7,
     fontWeight: 700,
     color: MUTED,
     marginRight: 4,
-    textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   amountInWordsValue: {
     fontSize: 7.5,
     color: ESPRESSO,
-    fontStyle: 'italic',
+    // NOTE: no fontStyle italic — italic variant not registered for Inter
     flex: 1,
   },
 
-  // ── Footer ────────────────────────────────────────────────────────────────
+  // ── Footer
   footer: {
     flexDirection: 'row',
     borderTopWidth: 1,
@@ -479,7 +492,6 @@ const s = StyleSheet.create({
     fontSize: 6.5,
     fontWeight: 700,
     color: MUTED,
-    textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 6,
     borderBottomWidth: 0.5,
@@ -499,14 +511,14 @@ const s = StyleSheet.create({
   footerBankValue: {
     fontSize: 7,
     color: BODY_TEXT,
-    flex: 1,
     fontWeight: 500,
+    flex: 1,
   },
   footerForText: {
     fontSize: 7.5,
     fontWeight: 600,
     color: ESPRESSO,
-    marginBottom: 32,
+    marginBottom: 4,
   },
   footerSignatureLine: {
     borderTopWidth: 0.75,
@@ -517,7 +529,6 @@ const s = StyleSheet.create({
   footerSignatoryLabel: {
     fontSize: 7,
     color: MUTED,
-    textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
 });
@@ -527,11 +538,9 @@ const s = StyleSheet.create({
 function accentColor(taxMode: 'cgst_sgst' | 'igst') {
   return taxMode === 'igst' ? STEEL_ACCENT : GOLD_ACCENT;
 }
-
 function chipBg(taxMode: 'cgst_sgst' | 'igst') {
   return taxMode === 'igst' ? STEEL_CHIP_BG : GOLD_CHIP_BG;
 }
-
 function formatBillingPeriod(from: string, to: string): string {
   return `${formatDate(from)} – ${formatDate(to)}`;
 }
@@ -551,11 +560,11 @@ function HeaderBand({ supplier }: { supplier: InvoicePdfProps['supplier'] }) {
         <Text style={s.headerAddress}>{supplier.address}</Text>
         <View style={s.headerMetaRow}>
           <Text style={s.headerMetaItem}>GSTIN: {supplier.gstin}</Text>
-          <Text style={s.headerMetaItem}>PAN: {supplier.pan}</Text>
+          <Text style={s.headerMetaItem}>  PAN: {supplier.pan}</Text>
         </View>
         <View style={s.headerMetaRow}>
           <Text style={s.headerMetaItem}>Ph: {supplier.phone}</Text>
-          <Text style={s.headerMetaItem}>{supplier.email}</Text>
+          <Text style={s.headerMetaItem}>  {supplier.email}</Text>
         </View>
         <Text style={[s.headerMetaItem, { marginTop: 2 }]}>
           State: {supplier.state} ({supplier.state_code})
@@ -572,11 +581,10 @@ function IdentityBand({
   invoiceNumber: string;
   taxMode: 'cgst_sgst' | 'igst';
 }) {
-  const accent = accentColor(taxMode);
   return (
     <View style={s.identityBand}>
-      <Text style={s.taxInvoiceHeading}>Tax Invoice</Text>
-      <View style={[s.invoiceNumberBox, { borderColor: accent }]}>
+      <Text style={s.taxInvoiceHeading}>TAX INVOICE</Text>
+      <View style={[s.invoiceNumberBox, { borderColor: accentColor(taxMode) }]}>
         <Text style={s.invoiceNumberLabel}>Invoice No.</Text>
         <Text style={s.invoiceNumberValue}>{invoiceNumber}</Text>
       </View>
@@ -584,18 +592,16 @@ function IdentityBand({
   );
 }
 
-function TwoColumnMeta({
-  props,
-}: {
-  props: InvoicePdfProps;
-}) {
-  const { invoice_date, billing_from, billing_to, place_of_supply, place_of_supply_code,
-    reverse_charge, work_order_reference, recipient } = props;
+function TwoColumnMeta({ props }: { props: InvoicePdfProps }) {
+  const {
+    invoice_date, billing_from, billing_to,
+    place_of_supply, place_of_supply_code,
+    reverse_charge, work_order_reference, recipient,
+  } = props;
   return (
     <View style={s.twoCol}>
-      {/* Left: invoice details */}
       <View style={s.twoColLeft}>
-        <Text style={s.colSectionLabel}>Invoice Details</Text>
+        <Text style={s.colSectionLabel}>INVOICE DETAILS</Text>
         <View style={s.metaRow}>
           <Text style={s.metaLabel}>Invoice Date</Text>
           <Text style={s.metaValue}>{formatDate(invoice_date)}</Text>
@@ -616,40 +622,37 @@ function TwoColumnMeta({
           <Text style={s.metaLabel}>Reverse Charge</Text>
           <Text style={s.metaValue}>{reverse_charge ? 'Yes' : 'No'}</Text>
         </View>
-        {work_order_reference && (
+        {work_order_reference ? (
           <View style={s.metaRow}>
             <Text style={s.metaLabel}>Work Order Ref</Text>
             <Text style={s.metaValue}>{work_order_reference}</Text>
           </View>
-        )}
+        ) : null}
       </View>
 
-      {/* Right: recipient */}
       <View style={s.twoColRight}>
-        <Text style={s.colSectionLabel}>Details of Recipient of Service</Text>
+        <Text style={s.colSectionLabel}>DETAILS OF RECIPIENT OF SERVICE</Text>
         {recipient ? (
-          <>
+          <View>
             <View style={s.metaRow}>
               <Text style={s.metaLabel}>Name</Text>
               <Text style={s.metaValueStrong}>{recipient.name}</Text>
             </View>
-            {recipient.gstin && (
+            {recipient.gstin ? (
               <View style={s.metaRow}>
                 <Text style={s.metaLabel}>GSTIN</Text>
                 <Text style={s.metaValue}>{recipient.gstin}</Text>
               </View>
-            )}
+            ) : null}
             <View style={s.metaRow}>
               <Text style={s.metaLabel}>Address</Text>
               <Text style={s.metaValue}>{recipient.address}</Text>
             </View>
             <View style={s.metaRow}>
               <Text style={s.metaLabel}>State</Text>
-              <Text style={s.metaValue}>
-                {recipient.state} ({recipient.state_code})
-              </Text>
+              <Text style={s.metaValue}>{recipient.state} ({recipient.state_code})</Text>
             </View>
-          </>
+          </View>
         ) : (
           <Text style={s.tableCellMuted}>Unregistered Recipient</Text>
         )}
@@ -658,13 +661,7 @@ function TwoColumnMeta({
   );
 }
 
-function SacStrip({
-  sacCode,
-  taxMode,
-}: {
-  sacCode: string;
-  taxMode: 'cgst_sgst' | 'igst';
-}) {
+function SacStrip({ sacCode, taxMode }: { sacCode: string; taxMode: 'cgst_sgst' | 'igst' }) {
   return (
     <View style={[s.sacStrip, { backgroundColor: chipBg(taxMode), borderColor: accentColor(taxMode) }]}>
       <Text style={s.sacLabel}>SAC Code :</Text>
@@ -676,7 +673,7 @@ function SacStrip({
 function DescriptionBlock({ description }: { description: string }) {
   return (
     <View style={s.descBlock}>
-      <Text style={s.descLabel}>Description of Services</Text>
+      <Text style={s.descLabel}>DESCRIPTION OF SERVICES</Text>
       <Text style={s.descText}>{description}</Text>
     </View>
   );
@@ -691,38 +688,30 @@ function QuantityTable({
 }) {
   return (
     <View style={s.table}>
-      {/* Header */}
       <View style={[s.tableHeaderRow, { backgroundColor: QTY_TABLE_HEADER_BG }]}>
         <Text style={[s.tableHeaderCell, s.qColSl]}>Sl.</Text>
         <Text style={[s.tableHeaderCell, s.qColDesc]}>Description of Service</Text>
-        <Text style={[s.tableHeaderCell, s.qColUnit, { textAlign: 'center' }]}>Unit</Text>
-        <Text style={[s.tableHeaderCell, s.qColQty, { textAlign: 'right' }]}>Qty</Text>
-        <Text style={[s.tableHeaderCell, s.qColRate, { textAlign: 'right' }]}>Rate (₹)</Text>
-        <Text style={[s.tableHeaderCell, s.qColAmt, { textAlign: 'right' }]}>Amount (₹)</Text>
+        <Text style={[s.tableHeaderCell, s.qColUnit]}>Unit</Text>
+        <Text style={[s.tableHeaderCell, s.qColQty]}>Qty</Text>
+        <Text style={[s.tableHeaderCell, s.qColRate]}>Rate (₹)</Text>
+        <Text style={[s.tableHeaderCell, s.qColAmt]}>Amount (₹)</Text>
       </View>
-
-      {/* Rows */}
       {lineItems.map((item, idx) => (
-        <View
-          key={item.sl_no}
-          style={[s.tableRow, idx % 2 === 1 ? s.tableRowAlt : {}]}
-        >
+        <View key={item.sl_no} style={[s.tableRow, idx % 2 === 1 ? s.tableRowAlt : {}]}>
           <Text style={[s.tableCell, s.qColSl]}>{item.sl_no}</Text>
           <Text style={[s.tableCell, s.qColDesc]}>{item.description}</Text>
-          <Text style={[s.tableCell, s.qColUnit, { textAlign: 'center' }]}>{item.unit}</Text>
+          <Text style={[s.tableCell, s.qColUnit]}>{item.unit}</Text>
           <Text style={[s.tableCellRight, s.qColQty]}>{item.qty.toFixed(2)}</Text>
           <Text style={[s.tableCellRight, s.qColRate]}>{formatCurrency(item.rate)}</Text>
           <Text style={[s.tableCellRight, s.qColAmt]}>{formatCurrency(item.amount)}</Text>
         </View>
       ))}
-
-      {/* Taxable value footer row */}
       <View style={s.tableTaxableRow}>
-        <Text style={[s.tableTaxableLabel, s.qColSl]}></Text>
+        <Text style={[s.tableTaxableLabel, s.qColSl]} />
         <Text style={[s.tableTaxableLabel, s.qColDesc]}>Taxable Value</Text>
-        <Text style={[s.tableTaxableLabel, s.qColUnit]}></Text>
-        <Text style={[s.tableTaxableLabel, s.qColQty]}></Text>
-        <Text style={[s.tableTaxableLabel, s.qColRate]}></Text>
+        <Text style={[s.tableTaxableLabel, s.qColUnit]} />
+        <Text style={[s.tableTaxableLabel, s.qColQty]} />
+        <Text style={[s.tableTaxableLabel, s.qColRate]} />
         <Text style={[s.tableTaxableAmount, s.qColAmt]}>{formatCurrency(totalTaxable)}</Text>
       </View>
     </View>
@@ -738,29 +727,23 @@ function RentalTable({
 }) {
   return (
     <View style={s.table}>
-      {/* Header */}
       <View style={[s.tableHeaderRow, { backgroundColor: RENTAL_TABLE_HEADER_BG }]}>
         <Text style={[s.tableHeaderCell, s.rColSl]}>Sl.</Text>
         <Text style={[s.tableHeaderCell, s.rColVeh]}>Vehicle No</Text>
         <Text style={[s.tableHeaderCell, s.rColType]}>Type</Text>
         <Text style={[s.tableHeaderCell, s.rColPeriod]}>Billing Period</Text>
         <Text style={[s.tableHeaderCell, s.rColMode]}>Billing Mode</Text>
-        <Text style={[s.tableHeaderCell, s.rColDays, { textAlign: 'right' }]}>Days</Text>
-        <Text style={[s.tableHeaderCell, s.rColRent, { textAlign: 'right' }]}>Monthly Rent (₹)</Text>
-        <Text style={[s.tableHeaderCell, s.rColAmt, { textAlign: 'right' }]}>Amount (₹)</Text>
+        <Text style={[s.tableHeaderCell, s.rColDays]}>Days</Text>
+        <Text style={[s.tableHeaderCell, s.rColRent]}>Monthly Rent (₹)</Text>
+        <Text style={[s.tableHeaderCell, s.rColAmt]}>Amount (₹)</Text>
       </View>
-
-      {/* Rows */}
       {rentalItems.map((item, idx) => (
-        <View
-          key={item.sl_no}
-          style={[s.tableRow, idx % 2 === 1 ? s.tableRowAlt : {}]}
-        >
+        <View key={item.sl_no} style={[s.tableRow, idx % 2 === 1 ? s.tableRowAlt : {}]}>
           <Text style={[s.tableCell, s.rColSl]}>{item.sl_no}</Text>
           <Text style={[s.tableCell, s.rColVeh]}>{item.reg_number}</Text>
           <Text style={[s.tableCell, s.rColType]}>{item.vehicle_type}</Text>
           <Text style={[s.tableCell, s.rColPeriod]}>
-            {formatDate(item.billing_from)} –{' '}{formatDate(item.billing_to)}
+            {formatDate(item.billing_from)} – {formatDate(item.billing_to)}
           </Text>
           <Text style={[s.tableCell, s.rColMode]}>{item.billing_mode}</Text>
           <Text style={[s.tableCellRight, s.rColDays]}>{item.num_days}</Text>
@@ -768,16 +751,14 @@ function RentalTable({
           <Text style={[s.tableCellRight, s.rColAmt]}>{formatCurrency(item.amount)}</Text>
         </View>
       ))}
-
-      {/* Taxable value footer row */}
       <View style={s.tableTaxableRow}>
-        <Text style={[s.tableTaxableLabel, s.rColSl]}></Text>
+        <Text style={[s.tableTaxableLabel, s.rColSl]} />
         <Text style={[s.tableTaxableLabel, s.rColVeh]}>Taxable Value</Text>
-        <Text style={[s.tableTaxableLabel, s.rColType]}></Text>
-        <Text style={[s.tableTaxableLabel, s.rColPeriod]}></Text>
-        <Text style={[s.tableTaxableLabel, s.rColMode]}></Text>
-        <Text style={[s.tableTaxableLabel, s.rColDays]}></Text>
-        <Text style={[s.tableTaxableLabel, s.rColRent]}></Text>
+        <Text style={[s.tableTaxableLabel, s.rColType]} />
+        <Text style={[s.tableTaxableLabel, s.rColPeriod]} />
+        <Text style={[s.tableTaxableLabel, s.rColMode]} />
+        <Text style={[s.tableTaxableLabel, s.rColDays]} />
+        <Text style={[s.tableTaxableLabel, s.rColRent]} />
         <Text style={[s.tableTaxableAmount, s.rColAmt]}>{formatCurrency(totalTaxable)}</Text>
       </View>
     </View>
@@ -788,7 +769,7 @@ function WorkItemsBlock({ items }: { items: InvoicePdfProps['item_distribution']
   if (!items || items.length === 0) return null;
   return (
     <View style={s.workItemsBlock}>
-      <Text style={s.workItemsLabel}>Work Items Covered Under This Billing Period</Text>
+      <Text style={s.workItemsLabel}>WORK ITEMS COVERED UNDER THIS BILLING PERIOD</Text>
       {items.map((item, idx) => (
         <View key={idx} style={s.workItemRow}>
           <Text style={s.workItemBullet}>–</Text>
@@ -803,27 +784,20 @@ function WorkItemsBlock({ items }: { items: InvoicePdfProps['item_distribution']
   );
 }
 
-function TotalsSection({
-  props,
-}: {
-  props: InvoicePdfProps;
-}) {
+function TotalsSection({ props }: { props: InvoicePdfProps }) {
   const {
     total_taxable, gst_rate, tax_mode,
     total_gst, total_amount, tds_rate, tds_amount, net_receivable,
   } = props;
-
   const halfRate = gst_rate / 2;
-
   return (
     <View style={s.totalsSection}>
       <View style={s.totalsRow}>
         <Text style={s.totalsLabel}>Taxable Amount</Text>
         <Text style={s.totalsValue}>₹ {formatCurrency(total_taxable)}</Text>
       </View>
-
       {tax_mode === 'cgst_sgst' ? (
-        <>
+        <View>
           <View style={s.totalsRow}>
             <Text style={s.totalsLabel}>CGST @ {halfRate}%</Text>
             <Text style={s.totalsValue}>₹ {formatCurrency(total_gst / 2)}</Text>
@@ -832,24 +806,21 @@ function TotalsSection({
             <Text style={s.totalsLabel}>SGST @ {halfRate}%</Text>
             <Text style={s.totalsValue}>₹ {formatCurrency(total_gst / 2)}</Text>
           </View>
-        </>
+        </View>
       ) : (
         <View style={s.totalsRow}>
           <Text style={s.totalsLabel}>IGST @ {gst_rate}%</Text>
           <Text style={s.totalsValue}>₹ {formatCurrency(total_gst)}</Text>
         </View>
       )}
-
       <View style={[s.totalsRow, { borderTopWidth: 0.75, borderTopColor: DIVIDER }]}>
         <Text style={s.totalsLabelStrong}>Total Amount</Text>
         <Text style={s.totalsValueStrong}>₹ {formatCurrency(total_amount)}</Text>
       </View>
-
       <View style={s.totalsRow}>
         <Text style={s.totalsLabel}>Less: TDS @ {tds_rate}%</Text>
         <Text style={s.totalsValue}>- ₹ {formatCurrency(tds_amount)}</Text>
       </View>
-
       <View style={s.netReceivableRow}>
         <Text style={s.netReceivableLabel}>Net Receivable</Text>
         <Text style={s.netReceivableValue}>₹ {formatCurrency(net_receivable)}</Text>
@@ -861,7 +832,7 @@ function TotalsSection({
 function AmountInWords({ text }: { text: string }) {
   return (
     <View style={s.amountInWords}>
-      <Text style={s.amountInWordsLabel}>Amount in Words:</Text>
+      <Text style={s.amountInWordsLabel}>Amount in Words: </Text>
       <Text style={s.amountInWordsValue}>{text}</Text>
     </View>
   );
@@ -878,11 +849,10 @@ function FooterSection({
 }) {
   return (
     <View style={s.footer}>
-      {/* Left: bank details */}
       <View style={s.footerLeft}>
-        <Text style={s.footerSectionLabel}>Bank Details</Text>
+        <Text style={s.footerSectionLabel}>BANK DETAILS</Text>
         {bank ? (
-          <>
+          <View>
             <View style={s.footerBankRow}>
               <Text style={s.footerBankLabel}>Bank Name</Text>
               <Text style={s.footerBankValue}>{bank.bank_name}</Text>
@@ -899,32 +869,34 @@ function FooterSection({
               <Text style={s.footerBankLabel}>IFSC</Text>
               <Text style={s.footerBankValue}>{bank.ifsc}</Text>
             </View>
-            {bank.branch && (
+            {bank.branch ? (
               <View style={s.footerBankRow}>
                 <Text style={s.footerBankLabel}>Branch</Text>
                 <Text style={s.footerBankValue}>{bank.branch}</Text>
               </View>
-            )}
-          </>
+            ) : null}
+          </View>
         ) : (
           <Text style={s.tableCellMuted}>No bank details on file</Text>
         )}
       </View>
 
-      {/* Right: signature */}
       <View style={s.footerRight}>
         <Text style={s.footerSectionLabel}>For {businessName}</Text>
-        <Text style={s.footerForText}> </Text>
-        {/* Whitespace for physical signature */}
-        <View style={{ height: 30 }} />
+        <View style={{ height: 40 }} />
         <View style={s.footerSignatureLine} />
-        <Text style={s.footerSignatoryLabel}>Authorised Signatory: {authorizedSignatory}</Text>
+        <Text style={s.footerSignatoryLabel}>Authorised Signatory</Text>
+        {authorizedSignatory ? (
+          <Text style={[s.footerSignatoryLabel, { marginTop: 2, fontWeight: 500, color: BODY_TEXT }]}>
+            {authorizedSignatory}
+          </Text>
+        ) : null}
       </View>
     </View>
   );
 }
 
-// ── Main Document ─────────────────────────────────────────────────────────────
+// ── Main export ───────────────────────────────────────────────────────────────
 
 export function InvoicePdf(props: InvoicePdfProps) {
   const {
@@ -934,7 +906,7 @@ export function InvoicePdf(props: InvoicePdfProps) {
     total_taxable, amount_in_words, bank,
   } = props;
 
-  const isRental = billing_type === 'rental';
+  const isRental    = billing_type === 'rental';
   const hasWorkItems = isRental && item_distribution && item_distribution.length > 0;
 
   return (
@@ -944,40 +916,18 @@ export function InvoicePdf(props: InvoicePdfProps) {
       subject="GST Tax Invoice"
     >
       <Page size="A4" style={s.page}>
-        {/* 1. Supplier header */}
         <HeaderBand supplier={supplier} />
-
-        {/* 2 + 3. TAX INVOICE heading + invoice number callout */}
         <IdentityBand invoiceNumber={invoice_number} taxMode={tax_mode} />
-
-        {/* 4. Two-column metadata */}
         <TwoColumnMeta props={props} />
-
-        {/* 5. SAC strip */}
-        {sac_code ? (
-          <SacStrip sacCode={sac_code} taxMode={tax_mode} />
-        ) : null}
-
-        {/* 6. Description of services */}
+        {sac_code ? <SacStrip sacCode={sac_code} taxMode={tax_mode} /> : null}
         <DescriptionBlock description={overall_description} />
-
-        {/* 7. Main table */}
-        {isRental ? (
-          <RentalTable rentalItems={rental_items} totalTaxable={total_taxable} />
-        ) : (
-          <QuantityTable lineItems={line_items} totalTaxable={total_taxable} />
-        )}
-
-        {/* 8. Work items covered (rental only) */}
-        {hasWorkItems && <WorkItemsBlock items={item_distribution} />}
-
-        {/* 9. Totals */}
+        {isRental
+          ? <RentalTable rentalItems={rental_items} totalTaxable={total_taxable} />
+          : <QuantityTable lineItems={line_items} totalTaxable={total_taxable} />
+        }
+        {hasWorkItems ? <WorkItemsBlock items={item_distribution} /> : null}
         <TotalsSection props={props} />
-
-        {/* 10. Amount in words */}
         <AmountInWords text={amount_in_words} />
-
-        {/* 11. Footer */}
         <FooterSection
           bank={bank}
           businessName={supplier.business_name}
