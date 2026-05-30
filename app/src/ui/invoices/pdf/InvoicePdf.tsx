@@ -38,30 +38,29 @@ import {
 import type { InvoicePdfProps } from './invoicePayloadTypes';
 
 // ── Font registration ─────────────────────────────────────────────────────────
-// jsDelivr mirrors @fontsource packages — URLs follow a predictable pattern
-// and never change between Google Font version bumps:
-// https://cdn.jsdelivr.net/npm/@fontsource/{family}/files/{family}-{subset}-{weight}-normal.ttf
+// Using @fontsource/inter@4.5.15 — all weights (400/500/600/700) confirmed
+// present on jsDelivr for this version.
 
 Font.register({
   family: 'Inter',
   fonts: [
     {
-      src: 'https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.18/files/inter-latin-400-normal.ttf',
+      src: 'https://cdn.jsdelivr.net/npm/@fontsource/inter@4.5.15/files/inter-latin-400-normal.ttf',
       fontWeight: 400,
       fontStyle: 'normal',
     },
     {
-      src: 'https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.18/files/inter-latin-500-normal.ttf',
+      src: 'https://cdn.jsdelivr.net/npm/@fontsource/inter@4.5.15/files/inter-latin-500-normal.ttf',
       fontWeight: 500,
       fontStyle: 'normal',
     },
     {
-      src: 'https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.18/files/inter-latin-600-normal.ttf',
+      src: 'https://cdn.jsdelivr.net/npm/@fontsource/inter@4.5.15/files/inter-latin-600-normal.ttf',
       fontWeight: 600,
       fontStyle: 'normal',
     },
     {
-      src: 'https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.18/files/inter-latin-700-normal.ttf',
+      src: 'https://cdn.jsdelivr.net/npm/@fontsource/inter@4.5.15/files/inter-latin-700-normal.ttf',
       fontWeight: 700,
       fontStyle: 'normal',
     },
@@ -72,12 +71,12 @@ Font.register({
   family: 'Lora',
   fonts: [
     {
-      src: 'https://cdn.jsdelivr.net/npm/@fontsource/lora@5.0.16/files/lora-latin-400-normal.ttf',
+      src: 'https://cdn.jsdelivr.net/npm/@fontsource/lora@4.5.10/files/lora-latin-400-normal.ttf',
       fontWeight: 400,
       fontStyle: 'normal',
     },
     {
-      src: 'https://cdn.jsdelivr.net/npm/@fontsource/lora@5.0.16/files/lora-latin-700-normal.ttf',
+      src: 'https://cdn.jsdelivr.net/npm/@fontsource/lora@4.5.10/files/lora-latin-700-normal.ttf',
       fontWeight: 700,
       fontStyle: 'normal',
     },
