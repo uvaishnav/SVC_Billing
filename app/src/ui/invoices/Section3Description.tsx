@@ -7,9 +7,11 @@ import type { InvoiceDraft, Vehicle, InvoiceVehicleDraft } from '../../db/types'
 import { getVehicles } from '../../db/vehiclesDb'
 import { generateInvoiceDescription, refineInvoiceDescription } from '../../utils/generateInvoiceDescription'
 import { cardStyle, labelStyle, inputStyle } from '../settings/_components'
-import { getClients } from '../../db/clientsDb'
 import { getWorkOrders } from '../../db/workOrdersDb'
 import { getSacCodes } from '../../db/settingsDb'
+
+// Character limit for the description field
+const CHAR_LIMIT = 350
 
 export default function Section3Description({
   draft, setVehicles, patch,
@@ -29,8 +31,7 @@ export default function Section3Description({
   const [genError, setGenError]             = useState<string | null>(null)
   const descRef = useRef<HTMLTextAreaElement>(null)
 
-  // Context needed for AI call
-  const [clientName, setClientName]         = useState('')
+  // Context needed for AI call — client_name intentionally excluded
   const [woRef, setWoRef]                   = useState<string | null>(null)
   const [woSubject, setWoSubject]           = useState<string | null>(null)
   const [sacDesc, setSacDesc]               = useState<string | null>(null)
@@ -40,14 +41,12 @@ export default function Section3Description({
     if (!isRental) getVehicles().then(vs => setAllVehicles(vs.filter(v => v.is_active)))
   }, [isRental])
 
-  // Load AI context (client name, WO ref, SAC desc)
+  // Load AI context (WO ref, SAC desc — no client name)
   useEffect(() => {
     async function loadContext() {
-      const [clients, wos, sacs] = await Promise.all([
-        getClients(), getWorkOrders(), getSacCodes(),
+      const [wos, sacs] = await Promise.all([
+        getWorkOrders(), getSacCodes(),
       ])
-      const client = clients.find(c => c.id === draft.client_id)
-      setClientName(client?.name ?? '')
       const wo = wos.find(w => w.id === draft.work_order_id)
       setWoRef(wo?.wo_reference ?? null)
       setWoSubject(wo?.subject ?? null)
@@ -55,17 +54,16 @@ export default function Section3Description({
       setSacDesc(sac ? `${sac.sac_code} - ${sac.nickname}` : null)
     }
     loadContext()
-  }, [draft.client_id, draft.work_order_id, draft.sac_id])
+  }, [draft.work_order_id, draft.sac_id])
 
   // Auto-generate when section first loads with enough context.
   // Trigger condition differs by billing type:
   //   quantity: wait for at least one line item
   //   rental:   wait for at least one confirmed rental item
   const hasGenerated = useRef(false)
-  const quantityReady = !isRental && draft.line_items.length > 0 && !!clientName
+  const quantityReady = !isRental && draft.line_items.length > 0
   const rentalReady   =  isRental
     && draft.rental_items.filter(ri => ri.vehicle_id !== null).length > 0
-    && !!clientName
 
   useEffect(() => {
     if (!hasGenerated.current && (quantityReady || rentalReady)) {
@@ -76,13 +74,14 @@ export default function Section3Description({
   }, [quantityReady, rentalReady])
 
   async function handleGenerate() {
-    if (!clientName) return
     setGenerating(true)
     setGenError(null)
     try {
       const desc = await generateInvoiceDescription({
-        draft, client_name: clientName,
-        wo_reference: woRef, wo_subject: woSubject, sac_description: sacDesc,
+        draft,
+        wo_reference: woRef,
+        wo_subject: woSubject,
+        sac_description: sacDesc,
       })
       patch({ overall_description: desc })
       setCharCount(desc.length)
@@ -99,7 +98,7 @@ export default function Section3Description({
     setGenError(null)
     try {
       const desc = await refineInvoiceDescription(
-        { draft, client_name: clientName, wo_reference: woRef, wo_subject: woSubject, sac_description: sacDesc },
+        { draft, wo_reference: woRef, wo_subject: woSubject, sac_description: sacDesc },
         draft.overall_description,
         refinement.trim(),
       )
@@ -137,6 +136,8 @@ export default function Section3Description({
       v.vehicle_id === vehicleId ? { ...v, include_in_description: !v.include_in_description } : v
     ))
   }
+
+  const charOverLimit = charCount > CHAR_LIMIT
 
   return (
     <div style={{ padding: '16px', paddingBottom: 24 }}>
@@ -187,7 +188,7 @@ export default function Section3Description({
 
           {draft.vehicles.length === 0 && !showPicker && (
             <p style={{ fontSize: 13, color: 'var(--color-text-faint)', margin: 0 }}>
-              No vehicles added. Optional — vehicles can be mentioned in the description.
+              No vehicles added. Optional — vehicles marked "Include" will be mentioned in the description.
             </p>
           )}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
@@ -288,10 +289,20 @@ export default function Section3Description({
                 setCharCount(e.target.value.length)
               }}
               placeholder="AI-generated description will appear here. You can edit it directly."
-              style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6, marginBottom: 4 }}
+              style={{
+                ...inputStyle,
+                resize: 'vertical',
+                lineHeight: 1.6,
+                marginBottom: 4,
+                borderColor: charOverLimit ? 'var(--color-warning)' : undefined,
+              }}
             />
-            <div style={{ textAlign: 'right', fontSize: 11, color: charCount > 300 ? 'var(--color-warning)' : 'var(--color-text-faint)', marginBottom: 12 }}>
-              {charCount}/300 chars{charCount > 300 ? ' — consider shortening' : ''}
+            <div style={{
+              textAlign: 'right', fontSize: 11, marginBottom: 12,
+              color: charOverLimit ? 'var(--color-warning)' : 'var(--color-text-faint)',
+              fontWeight: charOverLimit ? 600 : 400,
+            }}>
+              {charCount}/{CHAR_LIMIT} chars{charOverLimit ? ' — please shorten or ask AI to trim' : ''}
             </div>
           </>
         )}
@@ -308,7 +319,7 @@ export default function Section3Description({
               type="text"
               value={refinement}
               onChange={e => setRefinement(e.target.value)}
-              placeholder="e.g. Make it more formal / Add vehicle count / Remove dates"
+              placeholder="e.g. Make it more formal / Remove vehicle names / Shorten it"
               style={{ ...inputStyle, flex: 1 }}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleRefine() } }}
             />
@@ -324,6 +335,9 @@ export default function Section3Description({
               {refining ? '...' : 'Apply'}
             </button>
           </div>
+          <p style={{ fontSize: 11, color: 'var(--color-text-faint)', marginTop: 6 }}>
+            Tip: description should be under {CHAR_LIMIT} characters. Ask AI to "trim to under {CHAR_LIMIT} characters" if needed.
+          </p>
         </div>
       </div>
     </div>
