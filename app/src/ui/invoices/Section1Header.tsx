@@ -20,6 +20,12 @@ function formatISODate(iso: string): string {
   return `${String(d).padStart(2, '0')} ${months[m - 1]} ${y}`
 }
 
+// Returns SAC codes valid for the given billing type.
+// 'both' SACs are always included regardless of billing type.
+function filterSacsByBillingType(sacs: SacCode[], billingType: InvoiceBillingType): SacCode[] {
+  return sacs.filter(s => s.applicable_billing_type === billingType || s.applicable_billing_type === 'both')
+}
+
 // ─── Local primitives ─────────────────────────────────────────
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -193,7 +199,9 @@ export default function Section1Header({
 }) {
   const [clients, setClients]           = useState<ClientWithGstins[]>([])
   const [workOrders, setWorkOrders]     = useState<WorkOrder[]>([])
-  const [sacCodes, setSacCodes]         = useState<SacCode[]>([])
+  // allSacCodes holds every active SAC loaded from DB.
+  // filteredSacCodes is derived from allSacCodes + current billing type — never persisted.
+  const [allSacCodes, setAllSacCodes]   = useState<SacCode[]>([])
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
   const [myStateCode, setMyStateCode]   = useState('')
   const [loading, setLoading]           = useState(true)
@@ -204,7 +212,8 @@ export default function Section1Header({
         getClients(), getSacCodes(), getBankAccounts(), getSettings(),
       ])
       setClients(cls)
-      setSacCodes(sacs.filter(s => s.is_active))
+      // Store ALL active SACs — filtering happens at render time based on billing type
+      setAllSacCodes(sacs.filter(s => s.is_active))
       setBankAccounts(banks.filter(b => b.is_active))
       setMyStateCode(settings?.state_code ?? '')
 
@@ -237,12 +246,17 @@ export default function Section1Header({
     }
   }, [draft.client_id, draft.client_gstin_id, clients, myStateCode])
 
+  // Derive filtered SAC list from current billing type.
+  // Re-computed on every render — no extra state needed.
+  const filteredSacCodes = filterSacsByBillingType(allSacCodes, draft.line_item_billing_type)
+
   const selectedClient = clients.find(c => c.id === draft.client_id)
   const selectedBank   = bankAccounts.find(b => b.id === draft.bank_account_id)
   const isLocked       = !!draft.invoice_number && !draft.invoice_number.startsWith('DRAFT') && draft.invoice_number !== 'DRAFT'
 
-  // When switching billing type, clear the opposing data arrays so
-  // totals don't bleed across modes. Show a confirmation if data exists.
+  // When switching billing type:
+  // 1. Clear opposing data arrays so totals don't bleed across modes.
+  // 2. If currently selected SAC is not valid for the new billing type, clear it.
   function handleBillingTypeChange(newType: InvoiceBillingType) {
     if (newType === draft.line_item_billing_type) return
 
@@ -259,12 +273,22 @@ export default function Section1Header({
       if (!ok) return
     }
 
+    // Check if currently selected SAC is compatible with the new billing type.
+    // If not, clear it so the user is forced to pick a valid one.
+    const currentSac = allSacCodes.find(s => s.id === draft.sac_id)
+    const sacBecomesInvalid =
+      currentSac &&
+      currentSac.applicable_billing_type !== 'both' &&
+      currentSac.applicable_billing_type !== newType
+
     patch({
       line_item_billing_type: newType,
-      // Clear the opposing arrays so totals are clean
-      line_items:         newType === 'rental'   ? [] : draft.line_items,
-      rental_items:       newType === 'quantity' ? [] : draft.rental_items,
-      item_distribution:  newType === 'quantity' ? [] : draft.item_distribution,
+      // Clear SAC if it is incompatible with the new billing type
+      ...(sacBecomesInvalid ? { sac_id: null } : {}),
+      // Clear the opposing item arrays so totals are clean
+      line_items:        newType === 'rental'   ? [] : draft.line_items,
+      rental_items:      newType === 'quantity' ? [] : draft.rental_items,
+      item_distribution: newType === 'quantity' ? [] : draft.item_distribution,
     })
   }
 
@@ -421,9 +445,13 @@ export default function Section1Header({
             onChange={handleBillingTypeChange}
             disabled={isLocked}
           />
-          {isLocked && (
+          {isLocked ? (
             <p style={{ fontSize: 12, color: 'var(--color-text-faint)', marginTop: 6 }}>
               🔒 Billing type cannot be changed on a finalized invoice.
+            </p>
+          ) : (
+            <p style={{ fontSize: 12, color: 'var(--color-text-faint)', marginTop: 8 }}>
+              SAC codes below are filtered to match the selected billing type.
             </p>
           )}
         </div>
@@ -434,10 +462,15 @@ export default function Section1Header({
             onChange={v => patch({ sac_id: Number(v) || null })}
           >
             <option value="">Select SAC code…</option>
-            {sacCodes.map(s => (
+            {filteredSacCodes.map(s => (
               <option key={s.id} value={s.id}>{s.sac_code} — {s.nickname}</option>
             ))}
           </StyledSelect>
+          {filteredSacCodes.length === 0 && (
+            <p style={{ fontSize: 12, color: 'var(--color-warning)', marginTop: 6 }}>
+              ⚠️ No active SAC codes for this billing type. Add one in Settings → SAC Codes.
+            </p>
+          )}
         </FieldWrap>
 
         <FieldWrap label="Bank Account" required>
