@@ -1,7 +1,7 @@
 /**
  * InvoicePdf.tsx
  * Complete GST invoice document using @react-pdf/renderer.
- * Implements the final consolidated design spec (§3–§21).
+ * Implements the final consolidated design spec.
  *
  * Layout order (per spec §18):
  *   1. Supplier header band
@@ -38,21 +38,30 @@ import {
 import type { InvoicePdfProps } from './invoicePayloadTypes';
 
 // ── Font registration ─────────────────────────────────────────────────────────
-// NOTE: react-pdf requires direct font file URLs (woff/woff2/ttf).
-// We use the Google Fonts API CSS URL trick: fetch the @font-face src from
-// googleapis.com at build time. To keep things reliable, we use ttf static
-// links from the google-fonts GitHub releases which are stable CDN URLs.
+// jsDelivr mirrors @fontsource packages — URLs follow a predictable pattern
+// and never change between Google Font version bumps:
+// https://cdn.jsdelivr.net/npm/@fontsource/{family}/files/{family}-{subset}-{weight}-normal.ttf
 
 Font.register({
-  family: 'Lora',
+  family: 'Inter',
   fonts: [
     {
-      src: 'https://fonts.gstatic.com/s/lora/v35/0QI6MX1D_JOxE7fSWQfn.ttf',
+      src: 'https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.18/files/inter-latin-400-normal.ttf',
       fontWeight: 400,
       fontStyle: 'normal',
     },
     {
-      src: 'https://fonts.gstatic.com/s/lora/v35/0QIuMX1D_JOxE7fSWQfn.ttf',
+      src: 'https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.18/files/inter-latin-500-normal.ttf',
+      fontWeight: 500,
+      fontStyle: 'normal',
+    },
+    {
+      src: 'https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.18/files/inter-latin-600-normal.ttf',
+      fontWeight: 600,
+      fontStyle: 'normal',
+    },
+    {
+      src: 'https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.18/files/inter-latin-700-normal.ttf',
       fontWeight: 700,
       fontStyle: 'normal',
     },
@@ -60,25 +69,15 @@ Font.register({
 });
 
 Font.register({
-  family: 'Inter',
+  family: 'Lora',
   fonts: [
     {
-      src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hiJ-Ek-_EeA.ttf',
+      src: 'https://cdn.jsdelivr.net/npm/@fontsource/lora@5.0.16/files/lora-latin-400-normal.ttf',
       fontWeight: 400,
       fontStyle: 'normal',
     },
     {
-      src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuI6fAZ9hiJ-Ek-_EeA.ttf',
-      fontWeight: 500,
-      fontStyle: 'normal',
-    },
-    {
-      src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuGKYAZ9hiJ-Ek-_EeA.ttf',
-      fontWeight: 600,
-      fontStyle: 'normal',
-    },
-    {
-      src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuFyYAZ9hiJ-Ek-_EeA.ttf',
+      src: 'https://cdn.jsdelivr.net/npm/@fontsource/lora@5.0.16/files/lora-latin-700-normal.ttf',
       fontWeight: 700,
       fontStyle: 'normal',
     },
@@ -465,7 +464,6 @@ const s = StyleSheet.create({
   amountInWordsValue: {
     fontSize: 7.5,
     color: ESPRESSO,
-    // NOTE: no fontStyle italic — italic variant not registered for Inter
     flex: 1,
   },
 
@@ -906,7 +904,7 @@ export function InvoicePdf(props: InvoicePdfProps) {
     total_taxable, amount_in_words, bank,
   } = props;
 
-  const isRental    = billing_type === 'rental';
+  const isRental     = billing_type === 'rental';
   const hasWorkItems = isRental && item_distribution && item_distribution.length > 0;
 
   return (
