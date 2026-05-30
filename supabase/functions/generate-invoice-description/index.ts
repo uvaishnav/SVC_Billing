@@ -6,8 +6,10 @@
 //   - client_name removed from inputs — it appears on the invoice header, not in the description
 //   - rates, quantities, amounts removed — already in the bill table
 //   - sac_description sent as internal context only — AI must NOT mention SAC code or nickname
-//   - quantity mode: sends work item descriptions + vehicles marked for inclusion
-//   - rental mode: sends vehicle deployment info (no money fields)
+//   - work_item_descriptions sent for BOTH quantity and rental modes
+//     (rental vehicles support real work; descriptions give the AI richer context)
+//   - quantity mode: vehicles marked include_in_description; always mentioned in output
+//   - rental mode: vehicle deployment info (no money fields)
 //   - separate system prompts per billing type for sharper output
 //   - maxOutputTokens raised to 800 to prevent cutoffs
 //   - temperature lowered to 0.3 for consistency on a legal document
@@ -49,10 +51,11 @@ interface DescriptionRequest {
   wo_subject:    string | null
   // Internal context only — AI must NOT mention SAC code or its nickname in output
   sac_description:        string | null
-  // Quantity mode
+  // Work items — sent for BOTH quantity and rental modes
   work_item_descriptions: string[]
+  // Quantity mode: vehicles marked for inclusion
   vehicles:               VehicleContext[]
-  // Rental mode
+  // Rental mode: vehicle deployment info
   rental_items:           RentalItemContext[]
   // Refinement
   refinement_instruction: string | null
@@ -80,7 +83,7 @@ Your task is to write the "Description of Services" field for a GST tax invoice.
 Rules — follow every one without exception:
 1. Output a single grammatically correct, professional English paragraph.
 2. The paragraph must be STRICTLY UNDER 350 characters including spaces. This is a hard limit.
-3. Describe which vehicles were deployed, what work they supported (from the work order subject), and the billing period (from date to date).
+3. Describe which vehicles were deployed, what work they supported (use the work order subject AND the work item descriptions if provided), and the billing period.
 4. If a vehicle was on partial days, mention it naturally (e.g. "deployed for X days during the period").
 5. Do NOT mention: the client name, rental rates, amounts, SAC codes, or SAC nicknames.
 6. Do NOT include labels, headers, bullet points, quotes, or markdown — plain paragraph only.
@@ -134,6 +137,14 @@ function buildGeneratePrompt(req: DescriptionRequest): string {
         : `${ri.num_days} days`
       lines.push(`  • ${label} — ${period}`)
     }
+    // Also include work item descriptions for rental — gives the AI context
+    // about what work the rented vehicles were actually supporting
+    if (req.work_item_descriptions.length > 0) {
+      lines.push(``, `Work Supported (use to describe what the vehicles were doing):`)
+      for (const desc of req.work_item_descriptions) {
+        lines.push(`  • ${desc}`)
+      }
+    }
   } else {
     // ── Quantity prompt ──
     if (req.work_item_descriptions.length > 0) {
@@ -182,17 +193,21 @@ function buildRefinementPrompt(req: DescriptionRequest): string {
       const period = ri.billing_mode === 'full_month' ? `full month` : `${ri.num_days} days`
       lines.push(`  • ${label} — ${period}`)
     }
-  } else if (req.work_item_descriptions.length > 0) {
-    lines.push(``, `Work Items Billed:`)
+  }
+
+  // Work items for reference in both modes
+  if (req.work_item_descriptions.length > 0) {
+    lines.push(``, `Work Items (for reference):`)
     for (const desc of req.work_item_descriptions) {
       lines.push(`  • ${desc}`)
     }
-    if (req.vehicles.length > 0) {
-      const vehicleList = req.vehicles
-        .map(v => v.vehicle_type ? `${v.vehicle_type} (${v.reg_number})` : v.reg_number)
-        .join(', ')
-      lines.push(`Vehicles/Equipment: ${vehicleList}`)
-    }
+  }
+
+  if (req.billing_type !== 'rental' && req.vehicles.length > 0) {
+    const vehicleList = req.vehicles
+      .map(v => v.vehicle_type ? `${v.vehicle_type} (${v.reg_number})` : v.reg_number)
+      .join(', ')
+    lines.push(`Vehicles/Equipment: ${vehicleList}`)
   }
 
   lines.push(

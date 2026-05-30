@@ -4,7 +4,8 @@
 // What we send to the AI (intentionally minimal):
 //   - billing period, WO reference, WO subject, billing type
 //   - sac_description: internal context only (AI must NOT mention it in output)
-//   - quantity mode: line item descriptions only (no rates, no qty)
+//   - work_item_descriptions: sent for BOTH quantity and rental modes
+//     (rental vehicles support some work — describing it makes the description richer)
 //   - quantity mode: vehicles marked include_in_description
 //   - rental mode: rental items with reg_number, vehicle_type, billing_mode, num_days (no money)
 //
@@ -65,12 +66,11 @@ function buildPayload(
     // Sent as internal context only — AI is instructed not to mention SAC code or nickname
     sac_description,
 
-    // Quantity mode: descriptions of billed work items only (no rates, no qty)
-    work_item_descriptions: isRental
-      ? []
-      : draft.line_items.map(i => i.description).filter(Boolean),
+    // Work item descriptions sent for BOTH modes — rental vehicles also support real work
+    // and having the line item descriptions helps the AI describe what the vehicles were doing
+    work_item_descriptions: draft.line_items.map(i => i.description).filter(Boolean),
 
-    // Quantity mode: vehicles explicitly marked for description inclusion
+    // Quantity mode only: vehicles explicitly marked for description inclusion
     vehicles: isRental
       ? []
       : draft.vehicles
