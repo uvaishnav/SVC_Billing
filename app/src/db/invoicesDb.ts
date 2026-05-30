@@ -8,18 +8,15 @@ import { generateInvoiceNumber } from '../utils/invoiceNumbering'
 
 // ─── Helpers ─────────────────────────────────────────────────
 
-/** Derives financial year string (e.g. '25-26') from a date string.
- *  FY runs Apr 1 – Mar 31. */
 function getFY(dateStr: string): string {
   const d = new Date(dateStr)
   const year = d.getFullYear()
-  const month = d.getMonth() + 1  // 1-based
+  const month = d.getMonth() + 1
   const fyStart = month >= 4 ? year : year - 1
   const fyEnd = fyStart + 1
   return `${String(fyStart).slice(2)}-${String(fyEnd).slice(2)}`
 }
 
-/** Derives billing month string (e.g. '2026-05') from a date string. */
 function getBillingMonth(dateStr: string): string {
   const d = new Date(dateStr)
   const y = d.getFullYear()
@@ -79,6 +76,25 @@ export async function getInvoices(): Promise<InvoiceWithDetails[]> {
   return (data ?? []).map(mapInvoiceRow)
 }
 
+export async function getInvoiceById(id: number): Promise<InvoiceWithDetails | null> {
+  const { data, error } = await supabase
+    .from('invoices')
+    .select(`
+      *,
+      clients(name),
+      client_gstins(gstin, address),
+      work_orders(wo_reference),
+      invoice_line_items(*),
+      invoice_vehicles(*, vehicles(reg_number, vehicle_type)),
+      invoice_rental_items(*, vehicles(reg_number, vehicle_type)),
+      invoice_item_distribution(*)
+    `)
+    .eq('id', id)
+    .single()
+  if (error) { console.error('getInvoiceById:', error); return null }
+  return mapInvoiceRow(data)
+}
+
 export async function getInvoiceByNumber(invoiceNumber: string): Promise<InvoiceWithDetails | null> {
   const { data, error } = await supabase
     .from('invoices')
@@ -118,16 +134,82 @@ function mapInvoiceRow(row: any): InvoiceWithDetails {
       vehicles: undefined,
     })),
     item_distribution: (row.invoice_item_distribution ?? []) as InvoiceItemDistribution[],
-    // clean up joined sub-objects
     clients: undefined, client_gstins: undefined, work_orders: undefined,
     invoice_line_items: undefined, invoice_vehicles: undefined,
     invoice_rental_items: undefined, invoice_item_distribution: undefined,
   }
 }
 
+/**
+ * Converts a saved InvoiceWithDetails back into an InvoiceDraft
+ * so it can be loaded into the wizard for editing.
+ */
+export function mapInvoiceWithDetailsToDraft(inv: InvoiceWithDetails): InvoiceDraft {
+  return {
+    invoice_number:          inv.invoice_number,
+    invoice_date:            inv.invoice_date,
+    billing_from:            inv.billing_from,
+    billing_to:              inv.billing_to,
+    client_id:               inv.client_id,
+    client_gstin_id:         inv.client_gstin_id,
+    work_order_id:           inv.work_order_id,
+    sac_id:                  inv.sac_id,
+    bank_account_id:         inv.bank_account_id,
+    tax_mode:                inv.tax_mode,
+    place_of_supply:         inv.place_of_supply,
+    place_of_supply_code:    inv.place_of_supply_code,
+    reverse_charge:          inv.reverse_charge,
+    line_item_billing_type:  inv.line_item_billing_type,
+    overall_description:     inv.overall_description ?? '',
+    // Quantity invoice children
+    line_items: inv.line_items.map(li => ({
+      work_order_item_id: li.work_order_item_id,
+      sl_no:              li.sl_no,
+      description:        li.description,
+      sac_id:             li.sac_id,
+      unit:               li.unit,
+      qty:                li.qty,
+      rate:               li.rate,
+      taxable_value:      li.taxable_value,
+      rate_overridden:    li.rate_overridden,
+    })),
+    vehicles: inv.vehicles.map(v => ({
+      vehicle_id:             v.vehicle_id,
+      reg_number:             v.reg_number,
+      vehicle_type:           v.vehicle_type,
+      include_in_description: v.include_in_description,
+    })),
+    // Rental invoice children
+    rental_items: inv.rental_items.map(ri => ({
+      vehicle_id:   ri.vehicle_id,
+      reg_number:   ri.reg_number ?? '',
+      vehicle_type: ri.vehicle_type,
+      billing_mode: ri.billing_mode,
+      num_days:     ri.num_days,
+      monthly_rent: ri.monthly_rent,
+      subtotal:     ri.subtotal,
+      sort_order:   ri.sort_order,
+    })),
+    item_distribution: inv.item_distribution.map(d => ({
+      work_order_item_id: d.work_order_item_id,
+      description:        '',   // not stored on InvoiceItemDistribution; will be empty
+      sub_work_ref:       null,
+      allocation_pct:     d.allocation_pct,
+      allocated_amount:   d.allocated_amount,
+    })),
+    // Totals
+    total_taxable:   inv.total_taxable,
+    gst_rate:        inv.gst_rate,
+    total_gst:       inv.total_gst,
+    total_amount:    inv.total_amount,
+    tds_rate:        inv.tds_rate,
+    tds_amount:      inv.tds_amount,
+    net_receivable:  inv.net_receivable,
+    amount_in_words: inv.amount_in_words ?? '',
+  }
+}
+
 // ─── Save Draft ───────────────────────────────────────────────
-// Upserts invoice header + replaces all child rows.
-// Works for both billing types.
 
 export async function saveDraftInvoice(draft: InvoiceDraft): Promise<Invoice | null> {
   const row = draftToRow(draft, 'draft')
@@ -152,16 +234,12 @@ export async function saveDraftInvoice(draft: InvoiceDraft): Promise<Invoice | n
 }
 
 // ─── Finalize Invoice ─────────────────────────────────────────
-// INVOICE NUMBER RULES:
-//   - Already final: keep existing number — NEVER reassign
-//   - Draft / new:   generate real number NOW (only moment we call the RPC)
 
 export async function finalizeInvoice(
   draft: InvoiceDraft,
   currentStatus?: InvoiceStatus,
 ): Promise<{ invoice: Invoice; invoiceNumber: string } | null> {
 
-  // ── Step 1: Determine invoice number ──────────────────────
   let invoiceNumber = draft.invoice_number
   const isAlreadyFinal = currentStatus === 'final' ||
     (!!invoiceNumber && !invoiceNumber.startsWith('DRAFT') && invoiceNumber !== 'DRAFT')
@@ -172,7 +250,6 @@ export async function finalizeInvoice(
     invoiceNumber = generated
   }
 
-  // ── Step 2: Save header ────────────────────────────────────
   const draftWithNumber: InvoiceDraft = { ...draft, invoice_number: invoiceNumber }
   const row = draftToRow(draftWithNumber, 'final')
 
@@ -184,11 +261,8 @@ export async function finalizeInvoice(
   if (invErr) { console.error('finalizeInvoice upsert:', invErr); return null }
 
   const invoiceId = inv.id
-
-  // ── Step 3: Replace all child rows ────────────────────────
   await _replaceChildren(invoiceId, draft)
 
-  // ── Step 4: Post-finalize side effects (new finalizations only) ──
   if (!isAlreadyFinal) {
     await _updateBilledQty(draft)
     await _writeVehicleLedger(invoiceId, draft, inv)
@@ -198,8 +272,6 @@ export async function finalizeInvoice(
 }
 
 // ─── Cancel Invoice ───────────────────────────────────────────
-// Sets status = 'cancelled'.
-// vehicle_billing_ledger rows are auto-deleted via ON DELETE CASCADE on invoice_id.
 
 export async function cancelInvoice(invoiceId: number): Promise<void> {
   const { error } = await supabase
@@ -207,20 +279,15 @@ export async function cancelInvoice(invoiceId: number): Promise<void> {
     .update({ status: 'cancelled' })
     .eq('id', invoiceId)
   if (error) console.error('cancelInvoice:', error)
-  // NOTE: vehicle_billing_ledger has ON DELETE CASCADE on invoice_id,
-  // so ledger rows are removed automatically when invoice is deleted.
-  // For status=cancelled (not deleted), we manually clean up the ledger:
   await supabase.from('vehicle_billing_ledger').delete().eq('invoice_id', invoiceId)
 }
 
 // ─── Private helpers ──────────────────────────────────────────
 
-/** Replaces all child rows for an invoice (works for both billing types). */
 async function _replaceChildren(invoiceId: number, draft: InvoiceDraft): Promise<void> {
   const billingType = draft.line_item_billing_type
 
   if (billingType === 'quantity') {
-    // ── Quantity: replace line_items + vehicles ──────────────
     await supabase.from('invoice_line_items').delete().eq('invoice_id', invoiceId)
     if (draft.line_items.length > 0) {
       const { error } = await supabase.from('invoice_line_items').insert(
@@ -253,9 +320,6 @@ async function _replaceChildren(invoiceId: number, draft: InvoiceDraft): Promise
     }
 
   } else {
-    // ── Rental: replace rental_items + item_distribution ────
-    // invoice_vehicles is NOT populated for rental invoices —
-    // vehicle info lives in invoice_rental_items.
     await supabase.from('invoice_rental_items').delete().eq('invoice_id', invoiceId)
     if (draft.rental_items.length > 0) {
       const { error } = await supabase.from('invoice_rental_items').insert(
@@ -287,14 +351,6 @@ async function _replaceChildren(invoiceId: number, draft: InvoiceDraft): Promise
   }
 }
 
-/**
- * Updates cumulative_billed_qty on WO items after finalization.
- *
- * QUANTITY: increment by qty per line item (existing RPC).
- * RENTAL:   increment by (allocated_amount / item.rate) per distribution row.
- *           This converts a ₹ amount back to an equivalent quantity for
- *           utilisation bar tracking in the Work Orders detail sheet.
- */
 async function _updateBilledQty(draft: InvoiceDraft): Promise<void> {
   if (draft.line_item_billing_type === 'quantity') {
     for (const item of draft.line_items) {
@@ -306,11 +362,8 @@ async function _updateBilledQty(draft: InvoiceDraft): Promise<void> {
       if (error) console.error('increment_billed_qty (quantity):', error)
     }
   } else {
-    // Rental: use distribution rows to derive qty equivalent
     for (const dist of draft.item_distribution) {
       if (!dist.work_order_item_id || dist.allocated_amount <= 0) continue
-      // We need the rate of this WO item to compute qty equivalent.
-      // Fetch it from the DB (one call per distribution row — small count in practice).
       const { data: woItem } = await supabase
         .from('work_order_items')
         .select('rate')
@@ -327,15 +380,6 @@ async function _updateBilledQty(draft: InvoiceDraft): Promise<void> {
   }
 }
 
-/**
- * Writes vehicle_billing_ledger rows after finalization.
- *
- * RENTAL:   one row per vehicle, amount = rental_item.subtotal (exact).
- * QUANTITY: one row per vehicle in invoice_vehicles,
- *           amount = total_taxable / num_vehicles (equal split).
- *
- * Uses ON CONFLICT DO NOTHING so re-finalizing a final invoice is safe.
- */
 async function _writeVehicleLedger(
   invoiceId: number,
   draft: InvoiceDraft,
@@ -349,7 +393,6 @@ async function _writeVehicleLedger(
   const ledgerRows: object[] = []
 
   if (billingType === 'rental') {
-    // Exact amount per vehicle from rental items
     for (const ri of draft.rental_items) {
       if (!ri.vehicle_id) continue
       ledgerRows.push({
@@ -363,7 +406,6 @@ async function _writeVehicleLedger(
       })
     }
   } else {
-    // Equal split across vehicles in invoice_vehicles
     const vehicles = draft.vehicles.filter(v => v.vehicle_id)
     if (vehicles.length === 0) return
     const equalShare = Math.round((inv.total_taxable / vehicles.length) * 100) / 100

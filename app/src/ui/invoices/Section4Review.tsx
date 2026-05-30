@@ -1,4 +1,4 @@
-// Wizard Section 4: Review + Save Draft / Finalize
+// Wizard Section 4: Review + Save Draft / Preview PDF / Finalize
 // Finalize calls invoicesDb.finalizeInvoice which assigns the
 // invoice number at this moment only — never earlier.
 import React, { useEffect } from 'react'
@@ -31,7 +31,7 @@ function Row({ label, value, bold, accent, faint }: {
   )
 }
 
-// ─── Rental items summary (used when line_item_billing_type === 'rental') ───
+// ─── Rental items summary ─────────────────────────────────────
 function RentalItemsSummary({ draft }: { draft: InvoiceDraft }) {
   if (draft.rental_items.length === 0) {
     return (
@@ -76,7 +76,6 @@ function RentalItemsSummary({ draft }: { draft: InvoiceDraft }) {
         </div>
       ))}
 
-      {/* Distribution summary — only when WO items are assigned */}
       {draft.item_distribution.length > 0 && (
         <>
           <p style={{
@@ -110,7 +109,7 @@ function RentalItemsSummary({ draft }: { draft: InvoiceDraft }) {
   )
 }
 
-// ─── Quantity items summary (existing behaviour) ────────────────────────────
+// ─── Quantity items summary ───────────────────────────────────
 function QuantityItemsSummary({ draft }: { draft: InvoiceDraft }) {
   if (draft.line_items.length === 0) {
     return (
@@ -157,9 +156,10 @@ export default function Section4Review({
   onFinalized: (invoiceNumber: string) => void
   existingStatus?: InvoiceStatus
 }) {
-  const [finalizing, setFinalizing] = React.useState(false)
-  const [error, setError]           = React.useState<string | null>(null)
-  const [doneNumber, setDoneNumber] = React.useState<string | null>(null)
+  const [finalizing, setFinalizing]   = React.useState(false)
+  const [previewing, setPreviewing]   = React.useState(false)
+  const [error, setError]             = React.useState<string | null>(null)
+  const [doneNumber, setDoneNumber]   = React.useState<string | null>(null)
 
   useEffect(() => {
     const updated = recomputeTotals(draft, draft.gst_rate, draft.tds_rate)
@@ -188,6 +188,36 @@ export default function Section4Review({
     }
   }
 
+  /**
+   * Preview PDF — generates a PDF blob without saving or assigning an invoice number.
+   * Uses a temporary placeholder label "DRAFT PREVIEW" in place of the invoice number.
+   * The actual generatePdf() function will be implemented in the PDF rendering feature.
+   * This wiring is ready for that implementation.
+   */
+  async function handlePreviewPdf() {
+    setPreviewing(true)
+    setError(null)
+    try {
+      // Dynamically import the PDF generator (tree-shakes jsPDF in production)
+      const { generatePdf } = await import('./pdf/generatePdf')
+      const previewDraft: InvoiceDraft = {
+        ...draft,
+        invoice_number: draft.invoice_number.startsWith('DRAFT-')
+          ? 'DRAFT PREVIEW'
+          : draft.invoice_number,
+      }
+      const pdfBlob = await generatePdf(previewDraft)
+      const url = URL.createObjectURL(pdfBlob)
+      window.open(url, '_blank')
+      // Revoke after a short delay to allow the tab to load
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (e: any) {
+      setError(e.message ?? 'PDF preview failed')
+    } finally {
+      setPreviewing(false)
+    }
+  }
+
   const isEditingFinal = existingStatus === 'final'
 
   if (doneNumber) return (
@@ -206,7 +236,6 @@ export default function Section4Review({
   return (
     <div style={{ padding: '16px', paddingBottom: 32 }}>
 
-      {/* Finalize notice for already-final invoices */}
       {isEditingFinal && (
         <div style={{
           background: 'var(--color-surface-offset)',
@@ -246,7 +275,7 @@ export default function Section4Review({
         </span>
       </div>
 
-      {/* Items summary — branches on billing type */}
+      {/* Items summary */}
       {draft.line_item_billing_type === 'rental'
         ? <RentalItemsSummary draft={draft} />
         : <QuantityItemsSummary draft={draft} />
@@ -283,10 +312,12 @@ export default function Section4Review({
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+        {/* Primary: Finalize / Save Changes */}
         <button
           type="button"
           onClick={handleFinalize}
-          disabled={finalizing || saving}
+          disabled={finalizing || saving || previewing}
           style={{
             padding: '16px', borderRadius: 12, border: 'none',
             background: finalizing ? 'var(--color-text-faint)' : 'var(--color-primary)',
@@ -301,11 +332,30 @@ export default function Section4Review({
               : '📄 Finalize Invoice'
           }
         </button>
+
+        {/* Preview PDF — available for both draft and final */}
+        <button
+          type="button"
+          onClick={handlePreviewPdf}
+          disabled={previewing || finalizing || saving}
+          style={{
+            padding: '14px', borderRadius: 12,
+            border: '1.5px solid var(--color-primary)',
+            background: 'transparent',
+            color: previewing ? 'var(--color-text-faint)' : 'var(--color-primary)',
+            fontWeight: 600, fontSize: 15,
+            cursor: previewing ? 'not-allowed' : 'pointer', width: '100%',
+          }}
+        >
+          {previewing ? 'Generating PDF…' : '👁 Preview PDF'}
+        </button>
+
+        {/* Save Draft — only for non-finalized invoices */}
         {!isEditingFinal && (
           <button
             type="button"
             onClick={saveDraft}
-            disabled={saving || finalizing}
+            disabled={saving || finalizing || previewing}
             style={{
               padding: '14px', borderRadius: 12,
               border: '1.5px solid var(--color-border)',
