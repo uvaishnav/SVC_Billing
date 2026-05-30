@@ -6,8 +6,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from '@react-pdf/renderer';
 import type { RentalLineItemPayload, DistributionItemPayload } from './invoicePayloadTypes';
-import { formatCurrency } from './pdfUtils';
-import { BODY_TEXT, MUTED, ESPRESSO, DIVIDER, FAINT } from './InvoiceDocument';
+import { formatCurrency, BODY_TEXT, MUTED, ESPRESSO, DIVIDER, FAINT } from './pdfUtils';
 
 const CREAM = '#FAF8F3';
 

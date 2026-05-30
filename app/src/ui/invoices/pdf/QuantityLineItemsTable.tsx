@@ -6,8 +6,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from '@react-pdf/renderer';
 import type { QuantityLineItemPayload } from './invoicePayloadTypes';
-import { formatCurrency } from './pdfUtils';
-import { BODY_TEXT, MUTED, ESPRESSO, DIVIDER } from './InvoiceDocument';
+import { formatCurrency, BODY_TEXT, MUTED, ESPRESSO, DIVIDER } from './pdfUtils';
 
 const CREAM = '#FAF8F3';
 const WHITE = '#FFFFFF';

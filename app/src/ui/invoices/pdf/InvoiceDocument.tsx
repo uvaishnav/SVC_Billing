@@ -16,9 +16,26 @@ import {
 import type { InvoicePayload } from './invoicePayloadTypes';
 import { QuantityLineItemsTable } from './QuantityLineItemsTable';
 import { RentalLineItemsTable } from './RentalLineItemsTable';
-import { formatCurrency, toWords, formatDate } from './pdfUtils';
+import {
+  formatCurrency,
+  toWords,
+  formatDate,
+  ESPRESSO,
+  BODY_TEXT,
+  MUTED,
+  FAINT,
+  CREAM,
+  DIVIDER,
+  WHITE,
+  GOLD_ACCENT,
+  GOLD_CHIP_BG,
+  STEEL_ACCENT,
+  STEEL_CHIP_BG,
+  QTY_TABLE_HEADER_BG,
+  RENTAL_TABLE_HEADER_BG,
+} from './pdfUtils';
 
-// ── Font registration ─────────────────────────────────────────────────────────
+// ── Font registration ───────────────────────────────────────────────────────────────
 Font.register({
   family: 'PlayfairDisplay',
   fonts: [
@@ -49,27 +66,6 @@ Font.register({
     },
   ],
 });
-
-// ── Brand tokens ─────────────────────────────────────────────────────────────
-const ESPRESSO = '#3B2A1F';
-const BODY_TEXT = '#2A1F15';
-const MUTED = '#6B5C4E';
-const FAINT = '#9A8E84';
-const CREAM = '#FAF8F3';
-const DIVIDER = '#DDD5CC';
-const WHITE = '#FFFFFF';
-
-// Axis 1 — Tax mode accent
-const GOLD_ACCENT = '#C8A96A';
-const GOLD_CHIP_BG = '#FFF8ED';
-const STEEL_ACCENT = '#4A7FA5';
-const STEEL_CHIP_BG = '#EEF4FA';
-
-// Axis 2 — Billing type table header
-const QTY_TABLE_HEADER_BG = '#EDE9DE';
-const RENTAL_TABLE_HEADER_BG = '#E8EEF2';
-
-export { QTY_TABLE_HEADER_BG, RENTAL_TABLE_HEADER_BG, BODY_TEXT, MUTED, FAINT, ESPRESSO, DIVIDER };
 
 // ── Styles ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
@@ -277,18 +273,11 @@ function taxModeColors(taxMode: string) {
     : { accent: GOLD_ACCENT, chipBg: GOLD_CHIP_BG };
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+// ── Main component ────────────────────────────────────────────────────────────────
 export function InvoiceDocument({ payload }: { payload: InvoicePayload }) {
   const { inv, supplier, client, bank, lineItems, rentalItems, distributionItems } = payload;
   const { accent, chipBg } = taxModeColors(inv.tax_mode);
   const tableHeaderBg = inv.line_item_billing_type === 'rental' ? RENTAL_TABLE_HEADER_BG : QTY_TABLE_HEADER_BG;
-
-  const taxLabel = inv.tax_mode === 'igst' ? 'IGST' : 'CGST + SGST';
-  const taxAmount =
-    inv.tax_mode === 'igst'
-      ? inv.igst_amount ?? 0
-      : (inv.cgst_amount ?? 0) + (inv.sgst_amount ?? 0);
-  const taxRate = inv.tax_mode === 'igst' ? '18%' : '9% + 9%';
 
   return (
     <Document title={`Invoice ${inv.invoice_number}`} author={supplier.business_name}>
@@ -337,8 +326,7 @@ export function InvoiceDocument({ payload }: { payload: InvoicePayload }) {
             <DetailRow label="Billing Period" value={`${formatDate(inv.billing_from)} – ${formatDate(inv.billing_to)}`} />
             <DetailRow label="Tax Mode" value={inv.tax_mode === 'igst' ? 'IGST (Inter-state)' : 'CGST + SGST (Intra-state)'} />
             <DetailRow label="Reverse Charge" value={inv.reverse_charge ? 'Yes' : 'No'} />
-            {inv.wo_reference && <DetailRow label="W.O. Ref" value={inv.wo_reference} muted />
-            }
+            {inv.wo_reference && <DetailRow label="W.O. Ref" value={inv.wo_reference} muted />}
           </View>
 
           {/* Bill To */}
@@ -468,7 +456,7 @@ export function InvoiceDocument({ payload }: { payload: InvoicePayload }) {
   );
 }
 
-// ── Sub-components ─────────────────────────────────────────────────────────────
+// ── Sub-components ─────────────────────────────────────────────────────────────────────
 function DetailRow({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
   const valueStyle = muted ? s.detailValueMuted : s.detailValue;
   return (
