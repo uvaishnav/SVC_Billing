@@ -14,6 +14,16 @@
 //   - maxOutputTokens raised to 800 to prevent cutoffs
 //   - temperature lowered to 0.3 for consistency on a legal document
 //
+// 2026-05-31 fix — rental description quality:
+//   - SYSTEM_INSTRUCTION_RENTAL rewritten to be narrative-first:
+//     explicit rule to write as a flowing sentence (not a list),
+//     weave deployment duration naturally, derive work context from
+//     wo_subject when work_item_descriptions is absent.
+//   - buildGeneratePrompt() rental branch: added explicit fallback
+//     instruction when work_item_descriptions is empty, directing the
+//     AI to use the Work Order Subject for work context rather than
+//     producing a generic vehicle-listing output.
+//
 // Gemini 2.5 Flash (primary) — Groq Llama 3.3 70B (fallback) on 429/503.
 // Requires Authorization: Bearer <jwt> — authenticated users only.
 
@@ -83,12 +93,13 @@ Your task is to write the "Description of Services" field for a GST tax invoice.
 Rules — follow every one without exception:
 1. Output a single grammatically correct, professional English paragraph.
 2. The paragraph must be STRICTLY UNDER 350 characters including spaces. This is a hard limit.
-3. Describe which vehicles were deployed, what work they supported (use the work order subject AND the work item descriptions if provided), and the billing period.
-4. If a vehicle was on partial days, mention it naturally (e.g. "deployed for X days during the period").
-5. Do NOT mention: the client name, rental rates, amounts, SAC codes, or SAC nicknames.
-6. Do NOT include labels, headers, bullet points, quotes, or markdown — plain paragraph only.
-7. Do NOT invent any detail not present in the invoice data provided.
-8. The service category is given as internal context only — use it to understand the nature of work but never quote it directly.`
+3. Write as a flowing professional sentence — NOT a list. Mention the vehicles by type and registration number, weave in what work they were supporting (from the work order subject and any work descriptions provided), and close with the billing period.
+4. For partial-day deployments, say "deployed for X days during the period" naturally within the sentence. For full-month deployments, say "deployed throughout the period" or "deployed for the full month".
+5. If no work item descriptions are available, derive the nature of work from the Work Order Subject — do NOT produce a generic vehicle-listing output. Always make the description specific to the actual work context.
+6. Do NOT mention: the client name, rental rates, amounts, SAC codes, or SAC nicknames.
+7. Do NOT include labels, headers, bullet points, quotes, or markdown — plain paragraph only.
+8. Do NOT invent any detail not present in the invoice data provided.
+9. The service category is given as internal context only — use it to understand the nature of work but never quote it directly.`
 
 const SYSTEM_INSTRUCTION_REFINE = `You are a billing assistant for an Indian infrastructure and civil engineering services company.
 Your task is to edit an existing "Description of Services" paragraph from a GST tax invoice based on a user instruction.
@@ -137,13 +148,22 @@ function buildGeneratePrompt(req: DescriptionRequest): string {
         : `${ri.num_days} days`
       lines.push(`  • ${label} — ${period}`)
     }
-    // Also include work item descriptions for rental — gives the AI context
-    // about what work the rented vehicles were actually supporting
+
+    // Work item descriptions give the AI context about what work the vehicles were supporting.
+    // For rental invoices, draft.line_items is always empty — so work_item_descriptions will
+    // typically be []. In that case, fall back to instructing the AI to use the wo_subject.
     if (req.work_item_descriptions.length > 0) {
       lines.push(``, `Work Supported (use to describe what the vehicles were doing):`)
       for (const desc of req.work_item_descriptions) {
         lines.push(`  • ${desc}`)
       }
+    } else if (req.wo_subject) {
+      lines.push(
+        ``,
+        `Work Context: No separate work item descriptions are available. Derive the nature of work ` +
+        `from the Work Order Subject above. Do NOT produce a generic vehicle-listing output — ` +
+        `write a specific, professional sentence that describes what these vehicles were deployed for.`,
+      )
     }
   } else {
     // ── Quantity prompt ──
