@@ -72,9 +72,9 @@ const HEAD_FONT    = 'Lora';
  * FIX (prev commit): lineHeight: 1.0 on headerBusinessName prevents Lora ascender
  * bleed that was causing the name and address to visually overlap.
  */
-const HEADER_PADDING_V = 4;    // ↓ from 6 — removes excess band height
-const LOGO_SIZE        = 88;   // ↑ from 80 — slightly larger logo
-const LOGO_MARGIN      = 5;    // ↓ from 6  — proportionally tighter to match padding
+const HEADER_PADDING_V = 0;    // ↓ from 6 — removes excess band height
+const LOGO_SIZE        = 100;   // ↑ from 80 — slightly larger logo
+const LOGO_MARGIN      = 0;    // ↓ from 6  — proportionally tighter to match padding
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
@@ -93,7 +93,7 @@ const s = StyleSheet.create({
   header: {
     backgroundColor: CREAM,
     paddingVertical: HEADER_PADDING_V,
-    paddingHorizontal: 14,
+    paddingHorizontal: 5,
     flexDirection: 'row',
     alignItems: 'center',          // vertically centre logo column vs text column
     borderBottomWidth: 1,
@@ -108,7 +108,7 @@ const s = StyleSheet.create({
    */
   headerLogoWrap: {
     margin: LOGO_MARGIN,
-    marginRight: LOGO_MARGIN + 10,  // a little extra gutter before text
+    marginRight: 0,  // a little extra gutter before text
     width: LOGO_SIZE,
     height: LOGO_SIZE,
     alignItems: 'center',
@@ -149,7 +149,7 @@ const s = StyleSheet.create({
    */
   headerBusinessName: {
     fontFamily: HEAD_FONT,
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: 700,
     color: ESPRESSO,
     lineHeight: 1.0,    // ← prevents inherited 1.4 line-height overlap bug
