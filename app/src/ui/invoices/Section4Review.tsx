@@ -1,10 +1,11 @@
-// Wizard Section 4: Review + Save Draft / Finalize
+// Wizard Section 4: Review + Preview PDF + Save Draft / Finalize
 // Finalize calls invoicesDb.finalizeInvoice which assigns the
 // invoice number at this moment only — never earlier.
 import React, { useEffect } from 'react'
 import type { InvoiceDraft, InvoiceStatus } from '../../db/types'
 import { recomputeTotals } from './useInvoiceDraft'
 import { finalizeInvoice } from '../../db/invoicesDb'
+import { usePdfPreview } from './pdf/usePdfPreview'
 
 function fmt(n: number): string {
   return new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
@@ -31,7 +32,93 @@ function Row({ label, value, bold, accent, faint }: {
   )
 }
 
-// ─── Rental items summary (used when line_item_billing_type === 'rental') ───
+// ─── PDF Preview Modal ────────────────────────────────────────────────────────
+function PdfPreviewModal({ url, onClose }: { url: string; onClose: () => void }) {
+  // Close on Escape key
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose])
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        background: 'rgba(0,0,0,0.72)',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+      }}
+    >
+      {/* Header bar */}
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: 780,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '10px 14px',
+          background: 'var(--color-surface)',
+          borderRadius: '10px 10px 0 0',
+          borderBottom: '1px solid var(--color-border)',
+        }}
+      >
+        <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--color-text)' }}>
+          📄 Invoice Preview
+        </span>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <a
+            href={url}
+            download="invoice.pdf"
+            style={{
+              padding: '7px 14px', borderRadius: 8,
+              background: 'var(--color-primary)',
+              color: 'var(--color-bg)',
+              fontWeight: 600, fontSize: 13,
+              textDecoration: 'none', display: 'inline-block',
+            }}
+          >
+            ⬇ Download
+          </a>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: '7px 12px', borderRadius: 8,
+              border: '1px solid var(--color-border)',
+              background: 'transparent',
+              color: 'var(--color-text-muted)',
+              fontWeight: 600, fontSize: 13,
+              cursor: 'pointer',
+            }}
+          >
+            ✕ Close
+          </button>
+        </div>
+      </div>
+
+      {/* iframe */}
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: 780,
+          height: '82vh',
+          background: 'white',
+          borderRadius: '0 0 10px 10px',
+          overflow: 'hidden',
+        }}
+      >
+        <iframe
+          src={url}
+          style={{ width: '100%', height: '100%', border: 'none' }}
+          title="Invoice PDF Preview"
+        />
+      </div>
+    </div>
+  )
+}
+
+// ─── Rental items summary ─────────────────────────────────────────────────────
 function RentalItemsSummary({ draft }: { draft: InvoiceDraft }) {
   if (draft.rental_items.length === 0) {
     return (
@@ -76,7 +163,6 @@ function RentalItemsSummary({ draft }: { draft: InvoiceDraft }) {
         </div>
       ))}
 
-      {/* Distribution summary — only when WO items are assigned */}
       {draft.item_distribution.length > 0 && (
         <>
           <p style={{
@@ -110,7 +196,7 @@ function RentalItemsSummary({ draft }: { draft: InvoiceDraft }) {
   )
 }
 
-// ─── Quantity items summary (existing behaviour) ────────────────────────────
+// ─── Quantity items summary ───────────────────────────────────────────────────
 function QuantityItemsSummary({ draft }: { draft: InvoiceDraft }) {
   if (draft.line_items.length === 0) {
     return (
@@ -147,6 +233,7 @@ function QuantityItemsSummary({ draft }: { draft: InvoiceDraft }) {
   )
 }
 
+// ─── Main component ───────────────────────────────────────────────────────────
 export default function Section4Review({
   draft, patch, saving, saveDraft, onFinalized, existingStatus,
 }: {
@@ -160,6 +247,8 @@ export default function Section4Review({
   const [finalizing, setFinalizing] = React.useState(false)
   const [error, setError]           = React.useState<string | null>(null)
   const [doneNumber, setDoneNumber] = React.useState<string | null>(null)
+
+  const { open: openPreview, close: closePreview, pdfUrl, loading: pdfLoading, error: pdfError } = usePdfPreview(draft)
 
   useEffect(() => {
     const updated = recomputeTotals(draft, draft.gst_rate, draft.tds_rate)
@@ -205,6 +294,9 @@ export default function Section4Review({
 
   return (
     <div style={{ padding: '16px', paddingBottom: 32 }}>
+
+      {/* PDF Preview Modal */}
+      {pdfUrl && <PdfPreviewModal url={pdfUrl} onClose={closePreview} />}
 
       {/* Finalize notice for already-final invoices */}
       {isEditingFinal && (
@@ -278,15 +370,43 @@ export default function Section4Review({
         </div>
       )}
 
+      {/* PDF error */}
+      {pdfError && (
+        <div style={{ color: 'var(--color-error)', fontSize: 13, marginBottom: 12 }}>⚠️ PDF Error: {pdfError}</div>
+      )}
+
       {error && (
         <div style={{ color: 'var(--color-error)', fontSize: 13, marginBottom: 16 }}>⚠️ {error}</div>
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* Preview PDF button — always visible in Section 4 */}
+        <button
+          type="button"
+          onClick={openPreview}
+          disabled={pdfLoading || finalizing || saving}
+          style={{
+            padding: '14px', borderRadius: 12,
+            border: '1.5px solid var(--color-primary)',
+            background: 'transparent',
+            color: pdfLoading ? 'var(--color-text-faint)' : 'var(--color-primary)',
+            fontWeight: 600, fontSize: 15,
+            cursor: pdfLoading ? 'not-allowed' : 'pointer',
+            width: '100%',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}
+        >
+          {pdfLoading ? (
+            <><span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⏳</span> Generating Preview…</>
+          ) : (
+            '👁 Preview PDF'
+          )}
+        </button>
+
         <button
           type="button"
           onClick={handleFinalize}
-          disabled={finalizing || saving}
+          disabled={finalizing || saving || pdfLoading}
           style={{
             padding: '16px', borderRadius: 12, border: 'none',
             background: finalizing ? 'var(--color-text-faint)' : 'var(--color-primary)',
@@ -305,7 +425,7 @@ export default function Section4Review({
           <button
             type="button"
             onClick={saveDraft}
-            disabled={saving || finalizing}
+            disabled={saving || finalizing || pdfLoading}
             style={{
               padding: '14px', borderRadius: 12,
               border: '1.5px solid var(--color-border)',
