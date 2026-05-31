@@ -62,14 +62,18 @@ const HEAD_FONT    = 'Lora';
 
 /**
  * Header geometry constants.
- * HEADER_PADDING_V  — vertical padding inside the cream band
- * LOGO_SIZE         — logo renders at exactly this square (≈80% of band height)
- *   Band inner height ≈ LOGO_SIZE + 2 × LOGO_MARGIN, so the logo fills 80% visually.
+ *
+ * LOGO_SIZE         — logo renders at exactly this square (~2× the original 52px)
  * LOGO_MARGIN       — equal whitespace on all four sides of the logo
+ * HEADER_PADDING_V  — vertical padding inside the cream band (increased to fit larger logo)
+ *
+ * FIX: lineHeight is explicitly set to 1.0 on the business name Text node so that
+ * Lora's tall ascenders/descenders do NOT inherit the page lineHeight: 1.4, which
+ * was causing the name to visually bleed into / overlap the address line below it.
  */
-const HEADER_PADDING_V = 8;
-const LOGO_SIZE        = 52;   // px — logo image square
-const LOGO_MARGIN      = 6;    // px — equal breathing room around logo on all sides
+const HEADER_PADDING_V = 10;   // increased from 8 to accommodate larger logo
+const LOGO_SIZE        = 72;   // px — ≈2× original 52px for a more prominent presence
+const LOGO_MARGIN      = 8;    // px — proportional breathing room around logo
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
@@ -131,17 +135,30 @@ const s = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
   },
+
+  /**
+   * FIX: lineHeight: 1.0 — critical override.
+   * @react-pdf/renderer Text nodes inherit lineHeight from the Page style (1.4).
+   * Lora at 15pt with lineHeight 1.4 produces a computed line box of ~21pt,
+   * which pushes the baseline DOWN and causes the next sibling (address) to
+   * render at the same visual Y position — the "overlap" bug.
+   * Setting lineHeight: 1.0 collapses the line box to exactly the font size,
+   * so the name occupies only its true pixel height before marginBottom kicks in.
+   * marginBottom: 4 then gives clean, visible separation from the address.
+   */
   headerBusinessName: {
     fontFamily: HEAD_FONT,
     fontSize: 15,
     fontWeight: 700,
     color: ESPRESSO,
-    marginBottom: 1,
+    lineHeight: 1.0,    // ← THE FIX: neutralise inherited 1.4 line-height
+    marginBottom: 4,    // ← increased from 1 to 4 for visible gap
   },
   headerAddress: {
     fontSize: 7.5,
     color: BODY_TEXT,
-    marginBottom: 5,             // breathing room between address and meta row
+    lineHeight: 1.2,    // tighter than page default — multi-line addresses stay compact
+    marginBottom: 5,    // breathing room between address and meta row
   },
   /**
    * Single meta row: GSTIN | PAN | State | Ph | Email
@@ -546,11 +563,11 @@ function formatBillingPeriod(from: string, to: string): string {
  * HeaderBand
  *
  * Layout:
- *   [LOGO 52×52, equal margin 6px on all sides]  [Text block — flex:1]
+ *   [LOGO 72×72, equal margin 8px on all sides]  [Text block — flex:1]
  *
  * Text block (vertically centered beside logo):
- *   Business Name  (Lora 15pt bold)
- *   Address        (Inter 7.5pt)
+ *   Business Name  (Lora 15pt bold, lineHeight: 1.0 — prevents overlap)
+ *   Address        (Inter 7.5pt, lineHeight: 1.2)
  *   ── single meta line ──
  *   GSTIN: xxx | PAN: xxx | State: xxx (xx) | Ph: xxx | email
  */
