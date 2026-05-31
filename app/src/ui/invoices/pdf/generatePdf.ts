@@ -10,11 +10,12 @@
  *   1. Header band       — supplier identity (name, address, GSTIN, PAN, phone/email, logo)
  *   2. Invoice metadata  — invoice number, date, billing period, W.O. reference (muted)
  *   3. Bill-to block     — client name, address, GSTIN, place of supply, tax mode, reverse charge
- *   4. Line items table  — billing-type-specific columns
- *   5. Totals block      — taxable, GST split, total (bold), TDS line, net receivable
- *   6. Amount in words
- *   7. Bank details      — bank name, A/C name, A/C number, IFSC, branch
- *   8. Declaration + authorized signatory name + signature line
+ *   4. SAC code strip    — displayed after bill-to, before line items table
+ *   5. Line items table  — billing-type-specific columns
+ *   6. Totals block      — taxable, GST split, total (bold), TDS line, net receivable
+ *   7. Amount in words
+ *   8. Bank details      — bank name, A/C name, A/C number, IFSC, branch
+ *   9. Declaration + authorized signatory name + signature line
  */
 
 import type { InvoiceDraft } from '../../../db/types'
@@ -143,38 +144,54 @@ export async function generatePdf(draft: InvoiceDraft): Promise<Blob> {
   let y = M // current vertical cursor
 
   // ─── 1. Header band ───────────────────────────────────────────────────────
+  //
+  // FIX: Increased header height from 36 to 42 to avoid text/logo overlap.
+  // FIX: Logo doubled from 26×20 to 40×30 mm and repositioned accordingly.
+  // FIX: Business name and address are now clearly separated vertical elements.
+
+  const HEADER_H = 42
 
   // Background tint
   doc.setFillColor(248, 247, 242)
-  doc.rect(M, y, CW, 36, 'F')
+  doc.rect(M, y, CW, HEADER_H, 'F')
 
-  // Logo (top-right corner of header)
+  // Logo — doubled size: 40w × 30h, vertically centred in header
   if (logoDataUrl) {
+    const LOGO_W = 40
+    const LOGO_H = 30
+    const logoX = PW - M - LOGO_W - 2
+    const logoY = y + (HEADER_H - LOGO_H) / 2
     try {
-      doc.addImage(logoDataUrl, 'PNG', PW - M - 28, y + 2, 26, 20)
+      doc.addImage(logoDataUrl, 'PNG', logoX, logoY, LOGO_W, LOGO_H)
     } catch { /* skip if logo format fails */ }
   }
 
-  // Business name
+  // Business name — explicit lineHeight via tight vertical placement
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(14)
   doc.setTextColor(30, 25, 15)
-  doc.text(settings.business_name.toUpperCase(), M + 3, y + 8)
+  doc.text(settings.business_name.toUpperCase(), M + 3, y + 10)
 
-  // Address, GSTIN, PAN, phone, email
+  // Address line — sits clearly below name with explicit gap
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8.5)
+  doc.setTextColor(60, 56, 50)
+  doc.text(settings.address, M + 3, y + 18)
+
+  // GSTIN / PAN row
+  const gstinPan = `GSTIN: ${settings.gstin}${settings.pan ? `   |   PAN: ${settings.pan}` : ''}${settings.state_name ? `   |   State: ${settings.state_name} (${settings.state_code ?? ''})` : ''}`
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   doc.setTextColor(80, 76, 70)
-  const supplierLines = [
-    settings.address,
-    `GSTIN: ${settings.gstin}${settings.pan ? `  |  PAN: ${settings.pan}` : ''}`,
-    [settings.phone, settings.email].filter(Boolean).join('  |  '),
-  ].filter(Boolean)
-  supplierLines.forEach((line, i) => {
-    doc.text(line, M + 3, y + 14 + i * 5)
-  })
+  doc.text(gstinPan, M + 3, y + 25)
 
-  y += 38
+  // Phone / email row
+  const contactLine = [settings.phone, settings.email].filter(Boolean).join('   |   ')
+  if (contactLine) {
+    doc.text(contactLine, M + 3, y + 31)
+  }
+
+  y += HEADER_H + 2
 
   // ─── Divider ──────────────────────────────────────────────────────────────
   doc.setDrawColor(180, 170, 158)
@@ -182,7 +199,7 @@ export async function generatePdf(draft: InvoiceDraft): Promise<Blob> {
   doc.line(M, y, M + CW, y)
   y += 4
 
-  // ─── "TAX INVOICE" title + invoice number ─────────────────────────────────
+  // ─── "TAX INVOICE" title ──────────────────────────────────────────────────
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(11)
   doc.setTextColor(30, 25, 15)
@@ -191,6 +208,8 @@ export async function generatePdf(draft: InvoiceDraft): Promise<Blob> {
   y += 10
 
   // ─── 2. Invoice metadata (two-column) ─────────────────────────────────────
+  // NOTE: SAC Code removed from here — it now appears after the bill-to block
+  //       as a dedicated strip, just before the line items table.
   doc.setFontSize(8.5)
   const col2x = M + CW / 2 + 5
 
@@ -201,14 +220,13 @@ export async function generatePdf(draft: InvoiceDraft): Promise<Blob> {
   ]
   if (woRef) metaLeft.push(['W.O. Ref.', woRef])
 
-  const taxLabel = draft.tax_mode === 'igst' ? 'Tax Mode' : 'Tax Mode'
+  const taxLabel = 'Tax Mode'
   const taxValue = draft.tax_mode === 'igst' ? 'IGST' : 'CGST + SGST'
   const metaRight = [
     [taxLabel, taxValue],
     ['Place of Supply', `${draft.place_of_supply} (${draft.place_of_supply_code})`],
     ['Reverse Charge', draft.reverse_charge ? 'Yes' : 'No'],
   ]
-  if (sac) metaRight.push(['SAC Code', sac.sac_code])
 
   const metaRows = Math.max(metaLeft.length, metaRight.length)
   metaLeft.forEach(([label, value], i) => {
@@ -260,9 +278,39 @@ export async function generatePdf(draft: InvoiceDraft): Promise<Blob> {
   // ─── Divider ──────────────────────────────────────────────────────────────
   doc.setDrawColor(180, 170, 158)
   doc.line(M, y, M + CW, y)
-  y += 5
+  y += 4
 
-  // ─── 4. Line items table ──────────────────────────────────────────────────
+  // ─── 4. SAC Code strip — placed after Bill-to, before table ───────────────
+  // FIX: SAC code moved here from metadata column so it reads as a service
+  //      descriptor that directly precedes the line items table.
+  if (sac) {
+    const isIgst = draft.tax_mode === 'igst'
+    // Subtle tinted background chip
+    const chipBg = isIgst ? [220, 230, 240] : [240, 230, 210]
+    doc.setFillColor(chipBg[0], chipBg[1], chipBg[2])
+    doc.rect(M, y, CW, 8, 'F')
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8)
+    doc.setTextColor(80, 76, 70)
+    doc.text('SAC Code:', M + 2, y + 5)
+
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(30, 25, 15)
+    doc.text(sac.sac_code, M + 22, y + 5)
+
+    if (sac.description) {
+      doc.setFont('helvetica', 'italic')
+      doc.setFontSize(7.5)
+      doc.setTextColor(100, 96, 90)
+      const descText = doc.splitTextToSize(sac.description, CW - 60)[0]
+      doc.text(descText, M + 40, y + 5)
+    }
+
+    y += 10
+  }
+
+  // ─── 5. Line items table ──────────────────────────────────────────────────
 
   if (draft.line_item_billing_type === 'quantity') {
     y = drawQuantityTable(doc, draft, y, sac)
@@ -272,12 +320,12 @@ export async function generatePdf(draft: InvoiceDraft): Promise<Blob> {
 
   y += 5
 
-  // ─── 5. Totals block ──────────────────────────────────────────────────────
+  // ─── 6. Totals block ──────────────────────────────────────────────────────
   y = drawTotals(doc, draft, y)
 
   y += 4
 
-  // ─── 6. Amount in words ───────────────────────────────────────────────────
+  // ─── 7. Amount in words ───────────────────────────────────────────────────
   if (draft.amount_in_words) {
     doc.setFont('helvetica', 'bolditalic')
     doc.setFontSize(8.5)
@@ -296,7 +344,7 @@ export async function generatePdf(draft: InvoiceDraft): Promise<Blob> {
   doc.line(M, y, M + CW, y)
   y += 5
 
-  // ─── 7. Bank details ──────────────────────────────────────────────────────
+  // ─── 8. Bank details ──────────────────────────────────────────────────────
   if (bank) {
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(8.5)
@@ -327,7 +375,7 @@ export async function generatePdf(draft: InvoiceDraft): Promise<Blob> {
   doc.line(M, y, M + CW, y)
   y += 5
 
-  // ─── 8. Declaration + signatory ───────────────────────────────────────────
+  // ─── 9. Declaration + signatory ───────────────────────────────────────────
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7.5)
   doc.setTextColor(100, 96, 90)
