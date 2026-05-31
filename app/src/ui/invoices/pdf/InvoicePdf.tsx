@@ -31,7 +31,7 @@ import {
   GOLD_ACCENT, GOLD_CHIP_BG,
   STEEL_ACCENT, STEEL_CHIP_BG,
   QTY_TABLE_HEADER_BG, RENTAL_TABLE_HEADER_BG,
-  formatCurrency, formatDate,
+  formatCurrency, formatDate, toWords,
 } from './pdfUtils';
 import type { InvoicePdfProps } from './invoicePayloadTypes';
 
@@ -766,18 +766,22 @@ function RentalTable({
   );
 }
 
+// PDF Fix 4: Show only item descriptions — no allocation percentage.
+// The '— X%' suffix added no client-facing value and cluttered the block.
 function WorkItemsBlock({ items }: { items: InvoicePdfProps['item_distribution'] }) {
   if (!items || items.length === 0) return null;
+  // Filter out placeholder fallback entries (description is literally '–')
+  const validItems = items.filter(item => item.description && item.description !== '–');
+  if (validItems.length === 0) return null;
   return (
     <View style={s.workItemsBlock}>
       <Text style={s.workItemsLabel}>WORK ITEMS COVERED UNDER THIS BILLING PERIOD</Text>
-      {items.map((item, idx) => (
+      {validItems.map((item, idx) => (
         <View key={idx} style={s.workItemRow}>
           <Text style={s.workItemBullet}>–</Text>
           <Text style={s.workItemText}>
             {item.description}
             {item.sub_work_ref ? ` (Sub-ref: ${item.sub_work_ref})` : ''}
-            {' '}— {item.allocation_pct}%
           </Text>
         </View>
       ))}
@@ -785,62 +789,72 @@ function WorkItemsBlock({ items }: { items: InvoicePdfProps['item_distribution']
   );
 }
 
+// PDF Fix 5: TDS display-layer guard.
+// When tds_rate > 0 but tds_amount stored in DB is 0 (rental wizard gap),
+// recompute tds_amount from rate × total_amount so the PDF is always correct.
+// Net Receivable and Amount in Words are also derived from the effective values.
 function TotalsSection({ props }: { props: InvoicePdfProps }) {
   const {
     total_taxable, gst_rate, tax_mode,
     total_gst, total_amount, tds_rate, tds_amount, net_receivable,
   } = props;
   const halfRate = gst_rate / 2;
-  return (
-    <View style={s.totalsSection}>
-      <View style={s.totalsRow}>
-        <Text style={s.totalsLabel}>Taxable Amount</Text>
-        <Text style={s.totalsValue}>₹ {formatCurrency(total_taxable)}</Text>
-      </View>
-      {tax_mode === 'cgst_sgst' ? (
-        <View>
-          <View style={s.totalsRow}>
-            <Text style={s.totalsLabel}>CGST @ {halfRate}%</Text>
-            <Text style={s.totalsValue}>₹ {formatCurrency(total_gst / 2)}</Text>
-          </View>
-          <View style={s.totalsRow}>
-            <Text style={s.totalsLabel}>SGST @ {halfRate}%</Text>
-            <Text style={s.totalsValue}>₹ {formatCurrency(total_gst / 2)}</Text>
-          </View>
-        </View>
-      ) : (
-        <View style={s.totalsRow}>
-          <Text style={s.totalsLabel}>IGST @ {gst_rate}%</Text>
-          <Text style={s.totalsValue}>₹ {formatCurrency(total_gst)}</Text>
-        </View>
-      )}
-      <View style={[s.totalsRow, { borderTopWidth: 0.75, borderTopColor: DIVIDER }]}>
-        <Text style={s.totalsLabelStrong}>Total Amount</Text>
-        <Text style={s.totalsValueStrong}>₹ {formatCurrency(total_amount)}</Text>
-      </View>
-      <View style={s.totalsRow}>
-        <Text style={s.totalsLabel}>Less: TDS @ {tds_rate}%</Text>
-        <Text style={s.totalsValue}>- ₹ {formatCurrency(tds_amount)}</Text>
-      </View>
-      <View style={s.netReceivableRow}>
-        <Text style={s.netReceivableLabel}>Net Receivable</Text>
-        <Text style={s.netReceivableValue}>₹ {formatCurrency(net_receivable)}</Text>
-      </View>
-    </View>
-  );
-}
 
-function AmountInWords({ amount }: { amount: string }) {
+  // Guard: if tds_rate signals a deduction but tds_amount is zero, recompute.
+  const effectiveTdsAmount: number =
+    tds_amount === 0 && tds_rate > 0
+      ? Math.round((tds_rate / 100) * total_amount * 100) / 100
+      : tds_amount;
+  const effectiveNetReceivable: number = total_amount - effectiveTdsAmount;
+  const effectiveAmountInWords: string = toWords(effectiveNetReceivable);
+
   return (
-    <View style={s.amountInWords}>
-      <Text style={s.amountInWordsLabel}>AMOUNT IN WORDS :</Text>
-      <Text style={s.amountInWordsValue}>{amount}</Text>
-    </View>
+    <>
+      <View style={s.totalsSection}>
+        <View style={s.totalsRow}>
+          <Text style={s.totalsLabel}>Taxable Amount</Text>
+          <Text style={s.totalsValue}>₹ {formatCurrency(total_taxable)}</Text>
+        </View>
+        {tax_mode === 'cgst_sgst' ? (
+          <View>
+            <View style={s.totalsRow}>
+              <Text style={s.totalsLabel}>CGST @ {halfRate}%</Text>
+              <Text style={s.totalsValue}>₹ {formatCurrency(total_gst / 2)}</Text>
+            </View>
+            <View style={s.totalsRow}>
+              <Text style={s.totalsLabel}>SGST @ {halfRate}%</Text>
+              <Text style={s.totalsValue}>₹ {formatCurrency(total_gst / 2)}</Text>
+            </View>
+          </View>
+        ) : (
+          <View style={s.totalsRow}>
+            <Text style={s.totalsLabel}>IGST @ {gst_rate}%</Text>
+            <Text style={s.totalsValue}>₹ {formatCurrency(total_gst)}</Text>
+          </View>
+        )}
+        <View style={[s.totalsRow, { borderTopWidth: 0.75, borderTopColor: DIVIDER }]}>
+          <Text style={s.totalsLabelStrong}>Total Amount</Text>
+          <Text style={s.totalsValueStrong}>₹ {formatCurrency(total_amount)}</Text>
+        </View>
+        <View style={s.totalsRow}>
+          <Text style={s.totalsLabel}>Less: TDS @ {tds_rate}%</Text>
+          <Text style={s.totalsValue}>- ₹ {formatCurrency(effectiveTdsAmount)}</Text>
+        </View>
+        <View style={s.netReceivableRow}>
+          <Text style={s.netReceivableLabel}>Net Receivable</Text>
+          <Text style={s.netReceivableValue}>₹ {formatCurrency(effectiveNetReceivable)}</Text>
+        </View>
+      </View>
+      {/* Amount in Words rendered here using effective net receivable */}
+      <View style={s.amountInWords}>
+        <Text style={s.amountInWordsLabel}>AMOUNT IN WORDS :</Text>
+        <Text style={s.amountInWordsValue}>{effectiveAmountInWords}</Text>
+      </View>
+    </>
   );
 }
 
 function FooterSection({ props }: { props: InvoicePdfProps }) {
-  // FIX: use `bank` (correct field name from InvoicePdfProps)
   const { supplier, bank } = props;
   return (
     <View style={s.footer}>
@@ -891,7 +905,7 @@ export function InvoicePdf(props: InvoicePdfProps) {
   const {
     billing_type, tax_mode, sac_code,
     line_items, rental_items, item_distribution,
-    total_taxable, amount_in_words,
+    total_taxable,
   } = props;
 
   return (
@@ -900,7 +914,6 @@ export function InvoicePdf(props: InvoicePdfProps) {
         <HeaderBand supplier={props.supplier} />
         <TaxInvoiceStamp taxMode={tax_mode} />
         <TwoColumnMeta props={props} />
-        {/* FIX: use overall_description (correct field name) */}
         <DescriptionBlock description={props.overall_description} />
 
         {billing_type === 'rental' ? (
@@ -920,8 +933,8 @@ export function InvoicePdf(props: InvoicePdfProps) {
         )}
 
         <WorkItemsBlock items={item_distribution} />
+        {/* TotalsSection now owns AmountInWords to use effective TDS values */}
         <TotalsSection props={props} />
-        <AmountInWords amount={amount_in_words} />
         <FooterSection props={props} />
       </Page>
     </Document>
