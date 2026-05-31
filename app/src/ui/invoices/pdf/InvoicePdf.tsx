@@ -63,17 +63,18 @@ const HEAD_FONT    = 'Lora';
 /**
  * Header geometry constants.
  *
- * LOGO_SIZE         — logo renders at exactly this square (~2× the original 52px)
- * LOGO_MARGIN       — equal whitespace on all four sides of the logo
- * HEADER_PADDING_V  — vertical padding inside the cream band (increased to fit larger logo)
+ * HEADER_PADDING_V  — vertical padding inside the cream band
+ *                     Reduced to 6 to remove excess empty space above/below content.
+ * LOGO_SIZE         — logo square size. Bumped to 80px for a slightly larger presence.
+ * LOGO_MARGIN       — equal whitespace on all four sides of the logo.
+ *                     Reduced to 6 (proportional to logo size).
  *
- * FIX: lineHeight is explicitly set to 1.0 on the business name Text node so that
- * Lora's tall ascenders/descenders do NOT inherit the page lineHeight: 1.4, which
- * was causing the name to visually bleed into / overlap the address line below it.
+ * FIX (prev commit): lineHeight: 1.0 on headerBusinessName prevents Lora ascender
+ * bleed that was causing the name and address to visually overlap.
  */
-const HEADER_PADDING_V = 10;   // increased from 8 to accommodate larger logo
-const LOGO_SIZE        = 72;   // px — ≈2× original 52px for a more prominent presence
-const LOGO_MARGIN      = 8;    // px — proportional breathing room around logo
+const HEADER_PADDING_V = 6;    // ↓ from 10 — removes excess band height
+const LOGO_SIZE        = 80;   // ↑ from 72 — slightly larger logo
+const LOGO_MARGIN      = 6;    // ↓ from 8  — proportionally tighter at 80px
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
@@ -151,8 +152,8 @@ const s = StyleSheet.create({
     fontSize: 15,
     fontWeight: 700,
     color: ESPRESSO,
-    lineHeight: 1.0,    // ← THE FIX: neutralise inherited 1.4 line-height
-    marginBottom: 4,    // ← increased from 1 to 4 for visible gap
+    lineHeight: 1.0,    // ← prevents inherited 1.4 line-height overlap bug
+    marginBottom: 4,
   },
   headerAddress: {
     fontSize: 7.5,
@@ -563,7 +564,7 @@ function formatBillingPeriod(from: string, to: string): string {
  * HeaderBand
  *
  * Layout:
- *   [LOGO 72×72, equal margin 8px on all sides]  [Text block — flex:1]
+ *   [LOGO 80×80, margin 6px on all sides]  [Text block — flex:1]
  *
  * Text block (vertically centered beside logo):
  *   Business Name  (Lora 15pt bold, lineHeight: 1.0 — prevents overlap)
