@@ -249,10 +249,9 @@ const s = StyleSheet.create({
   // ── Description block ──────────────────────────────────────────────────────
   descBlock: {
     paddingVertical: 8,
-    paddingHorizontal: 10,
     borderBottomWidth: 1,
     borderBottomColor: DIVIDER,
-    marginBottom: 0,
+    marginBottom: 4,
   },
   descLabel: {
     fontSize: 6.5,
