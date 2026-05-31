@@ -212,25 +212,12 @@ const s = StyleSheet.create({
   },
 
   // ── SAC tab — compact badge that sits as a bump on top of the table ────────
-  /**
-   * sacTabWrap: full-width row but left-aligned content via alignItems: 'flex-start'.
-   * marginTop: 4 — reduced breathing room after description block (was 8).
-   * marginBottom: 0 — chip bottom edge touches the table header directly.
-   */
   sacTabWrap: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     marginTop: 4,
     marginBottom: 0,
   },
-  /**
-   * sacTab: the badge itself.
-   * - alignSelf: 'flex-start'  → shrinks to content width, no full-width stretch
-   * - borderTopLeftRadius/TopRightRadius: 4 → rounded top corners
-   * - borderBottomLeftRadius/BottomRightRadius: 0 → flat bottom, merges with table
-   * - borderWidth: 0.75 on top/left/right only (no bottom border — table provides it)
-   * - paddingVertical: 4, paddingHorizontal: 10 → tight but breathable
-   */
   sacTab: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -244,8 +231,6 @@ const s = StyleSheet.create({
     borderTopLeftRadius: 4,
     borderTopRightRadius: 4,
   },
-  // Both label and value share the same font size (7.5) for visual consistency.
-  // Label is muted/uppercase; value is bold espresso — distinction via weight+color, not size.
   sacTabLabel: {
     fontSize: 7.5,
     fontWeight: 600,
@@ -539,10 +524,6 @@ function accentColor(taxMode: 'cgst_sgst' | 'igst') {
 function chipBg(taxMode: 'cgst_sgst' | 'igst') {
   return taxMode === 'igst' ? STEEL_CHIP_BG : GOLD_CHIP_BG;
 }
-function tableHeaderBg(taxMode: 'cgst_sgst' | 'igst', billingType: string) {
-  if (billingType === 'rental') return RENTAL_TABLE_HEADER_BG;
-  return QTY_TABLE_HEADER_BG;
-}
 function formatBillingPeriod(from: string, to: string): string {
   return `${formatDate(from)} – ${formatDate(to)}`;
 }
@@ -662,6 +643,7 @@ function TwoColumnMeta({ props }: { props: InvoicePdfProps }) {
 }
 
 function DescriptionBlock({ description }: { description: string }) {
+  if (!description) return null;
   return (
     <View style={s.descBlock}>
       <Text style={s.descLabel}>DESCRIPTION OF SERVICES</Text>
@@ -670,16 +652,6 @@ function DescriptionBlock({ description }: { description: string }) {
   );
 }
 
-/**
- * SacTab
- *
- * Renders as a compact badge tab left-aligned, immediately above the table header.
- * - Rounded top corners (4px), flat bottom — visually "sits on" the table
- * - No bottom border — the table header row provides the base
- * - Uses chipBg (same tinted background as table header) for color unity
- * - alignSelf: 'flex-start' → width is content-only, no stretching
- * - Label "SAC CODE :" and value share identical font size (7.5pt) for visual consistency
- */
 function SacTab({ sacCode, taxMode }: { sacCode: string; taxMode: 'cgst_sgst' | 'igst' }) {
   return (
     <View style={s.sacTabWrap}>
@@ -708,11 +680,10 @@ function QuantityTable({
   lineItems: InvoicePdfProps['line_items'];
   totalTaxable: number;
   taxMode: 'cgst_sgst' | 'igst';
-  sacCode?: string;
+  sacCode?: string | null;
 }) {
   return (
     <View style={s.table}>
-      {/* SAC tab bump — sits flush on top-left of table header */}
       {sacCode ? <SacTab sacCode={sacCode} taxMode={taxMode} /> : null}
       <View style={[s.tableHeaderRow, { backgroundColor: QTY_TABLE_HEADER_BG }]}>
         <Text style={[s.tableHeaderCell, s.qColSl]}>Sl.</Text>
@@ -753,11 +724,10 @@ function RentalTable({
   rentalItems: InvoicePdfProps['rental_items'];
   totalTaxable: number;
   taxMode: 'cgst_sgst' | 'igst';
-  sacCode?: string;
+  sacCode?: string | null;
 }) {
   return (
     <View style={s.table}>
-      {/* SAC tab bump — sits flush on top-left of table header */}
       {sacCode ? <SacTab sacCode={sacCode} taxMode={taxMode} /> : null}
       <View style={[s.tableHeaderRow, { backgroundColor: RENTAL_TABLE_HEADER_BG }]}>
         <Text style={[s.tableHeaderCell, s.rColSl]}>Sl.</Text>
@@ -871,33 +841,34 @@ function AmountInWords({ amount }: { amount: string }) {
 }
 
 function FooterSection({ props }: { props: InvoicePdfProps }) {
-  const { supplier, bank_details } = props;
+  // FIX: use `bank` (correct field name from InvoicePdfProps)
+  const { supplier, bank } = props;
   return (
     <View style={s.footer}>
       <View style={s.footerLeft}>
         <Text style={s.footerSectionLabel}>BANK DETAILS</Text>
-        {bank_details ? (
+        {bank ? (
           <View>
             <View style={s.footerBankRow}>
               <Text style={s.footerBankLabel}>Bank Name</Text>
-              <Text style={s.footerBankValue}>{bank_details.bank_name}</Text>
+              <Text style={s.footerBankValue}>{bank.bank_name}</Text>
+            </View>
+            <View style={s.footerBankRow}>
+              <Text style={s.footerBankLabel}>Account Name</Text>
+              <Text style={s.footerBankValue}>{bank.account_name}</Text>
             </View>
             <View style={s.footerBankRow}>
               <Text style={s.footerBankLabel}>Account No.</Text>
-              <Text style={s.footerBankValue}>{bank_details.account_number}</Text>
+              <Text style={s.footerBankValue}>{bank.account_number}</Text>
             </View>
             <View style={s.footerBankRow}>
               <Text style={s.footerBankLabel}>IFSC Code</Text>
-              <Text style={s.footerBankValue}>{bank_details.ifsc_code}</Text>
+              <Text style={s.footerBankValue}>{bank.ifsc}</Text>
             </View>
-            <View style={s.footerBankRow}>
-              <Text style={s.footerBankLabel}>Branch</Text>
-              <Text style={s.footerBankValue}>{bank_details.branch}</Text>
-            </View>
-            {bank_details.account_type ? (
+            {bank.branch ? (
               <View style={s.footerBankRow}>
-                <Text style={s.footerBankLabel}>Account Type</Text>
-                <Text style={s.footerBankValue}>{bank_details.account_type}</Text>
+                <Text style={s.footerBankLabel}>Branch</Text>
+                <Text style={s.footerBankValue}>{bank.branch}</Text>
               </View>
             ) : null}
           </View>
@@ -919,7 +890,7 @@ function FooterSection({ props }: { props: InvoicePdfProps }) {
 
 export function InvoicePdf(props: InvoicePdfProps) {
   const {
-    billing_type, tax_mode, sac,
+    billing_type, tax_mode, sac_code,
     line_items, rental_items, item_distribution,
     total_taxable, amount_in_words,
   } = props;
@@ -930,21 +901,22 @@ export function InvoicePdf(props: InvoicePdfProps) {
         <HeaderBand supplier={props.supplier} />
         <TaxInvoiceStamp taxMode={tax_mode} />
         <TwoColumnMeta props={props} />
-        <DescriptionBlock description={props.description} />
+        {/* FIX: use overall_description (correct field name) */}
+        <DescriptionBlock description={props.overall_description} />
 
         {billing_type === 'rental' ? (
           <RentalTable
             rentalItems={rental_items ?? []}
             totalTaxable={total_taxable}
             taxMode={tax_mode}
-            sacCode={sac?.sac_code}
+            sacCode={sac_code}
           />
         ) : (
           <QuantityTable
             lineItems={line_items ?? []}
             totalTaxable={total_taxable}
             taxMode={tax_mode}
-            sacCode={sac?.sac_code}
+            sacCode={sac_code}
           />
         )}
 
