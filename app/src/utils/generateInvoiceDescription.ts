@@ -4,14 +4,18 @@
 // What we send to the AI (intentionally minimal):
 //   - billing period, WO reference, WO subject, billing type
 //   - sac_description: internal context only (AI must NOT mention it in output)
-//   - work_item_descriptions: sent for BOTH quantity and rental modes
-//     (rental vehicles support some work — describing it makes the description richer)
+//   - work_item_descriptions:
+//       • quantity mode → from draft.line_items[].description
+//       • rental mode   → from draft.item_distribution[].description
+//         (rental invoices do NOT use line_items; the user selects WO items
+//          via item_distribution to distribute the rental total — those
+//          descriptions are the richest work context available)
 //   - quantity mode: vehicles marked include_in_description
 //   - rental mode: rental items with reg_number, vehicle_type, billing_mode, num_days (no money)
 //
 // What we deliberately do NOT send:
 //   - client_name (already on the invoice header)
-//   - rates, quantities, amounts, subtotals (already in the bill table)
+//   - rates, quantities, amounts, subtotals, allocation_pct (already in the bill table)
 
 import { supabase } from '../db/supabaseClient'
 import type { InvoiceDraft } from '../db/types'
@@ -49,6 +53,33 @@ async function callEdgeFunction(body: object): Promise<string> {
   return data.description as string
 }
 
+/**
+ * Derive work item description strings from the draft.
+ *
+ * Quantity invoices: descriptions come from draft.line_items[].description.
+ * Rental invoices:   descriptions come from draft.item_distribution[].description
+ *                    (these are the WO items the user selected in Section 2 to
+ *                    distribute the rental total — they describe the actual work
+ *                    the rented vehicles were supporting).
+ *
+ * sub_work_ref is prepended when present so the AI has the full WO item label
+ * (e.g. "2A - Earth cutting and levelling").
+ */
+function getWorkItemDescriptions(draft: InvoiceDraft): string[] {
+  if (draft.line_item_billing_type === 'rental') {
+    return draft.item_distribution
+      .map(d => {
+        const label = d.sub_work_ref
+          ? `${d.sub_work_ref} — ${d.description}`
+          : d.description
+        return label.trim()
+      })
+      .filter(Boolean)
+  }
+  // Quantity mode
+  return draft.line_items.map(i => i.description).filter(Boolean)
+}
+
 /** Build the common payload shared by generate and refine calls */
 function buildPayload(
   ctx: DescriptionContext,
@@ -66,9 +97,8 @@ function buildPayload(
     // Sent as internal context only — AI is instructed not to mention SAC code or nickname
     sac_description,
 
-    // Work item descriptions sent for BOTH modes — rental vehicles also support real work
-    // and having the line item descriptions helps the AI describe what the vehicles were doing
-    work_item_descriptions: draft.line_items.map(i => i.description).filter(Boolean),
+    // Work item descriptions — sourced from item_distribution for rental, line_items for quantity
+    work_item_descriptions: getWorkItemDescriptions(draft),
 
     // Quantity mode only: vehicles explicitly marked for description inclusion
     vehicles: isRental
