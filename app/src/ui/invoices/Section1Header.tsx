@@ -7,8 +7,9 @@ import { getClients } from '../../db/clientsDb'
 import { getWorkOrders } from '../../db/workOrdersDb'
 import { getSettings, getSacCodes, getBankAccounts } from '../../db/settingsDb'
 import { inputStyle, labelStyle } from '../settings/_components'
+import { prevMonthRange } from './useInvoiceDraft'
 
-// ─── Helpers ──────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────
 
 // IMPORTANT: always use this instead of new Date(isoString) for display.
 // new Date("2026-03-01") parses as UTC midnight, which in IST (UTC+5:30)
@@ -26,7 +27,14 @@ function filterSacsByBillingType(sacs: SacCode[], billingType: InvoiceBillingTyp
   return sacs.filter(s => s.applicable_billing_type === billingType || s.applicable_billing_type === 'both')
 }
 
-// ─── Local primitives ─────────────────────────────────────────
+// Parse a YYYY-MM-DD string into a local Date without UTC shift.
+// new Date('2026-03-01') → UTC midnight → IST shows Feb 28. This avoids that.
+function parseLocalDate(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
+// ─── Local primitives ───────────────────────────────────────────────
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -107,7 +115,7 @@ function DateInput({ value, onChange }: { value: string; onChange: (v: string) =
   )
 }
 
-// ─── Billing type segmented toggle ────────────────────────────
+// ─── Billing type segmented toggle ──────────────────────────────────
 
 const BILLING_TYPES: { value: InvoiceBillingType; label: string; icon: string; hint: string }[] = [
   {
@@ -189,7 +197,7 @@ function BillingTypeToggle({
   )
 }
 
-// ─── Main component ───────────────────────────────────────────
+// ─── Main component ───────────────────────────────────────────────────
 
 export default function Section1Header({
   draft, patch,
@@ -253,6 +261,25 @@ export default function Section1Header({
   const selectedClient = clients.find(c => c.id === draft.client_id)
   const selectedBank   = bankAccounts.find(b => b.id === draft.bank_account_id)
   const isLocked       = !!draft.invoice_number && !draft.invoice_number.startsWith('DRAFT') && draft.invoice_number !== 'DRAFT'
+
+  /**
+   * When invoice_date changes:
+   * 1. Always update invoice_date.
+   * 2. Recompute billing_from / billing_to as the previous month
+   *    relative to the newly selected invoice date.
+   *
+   * This means backdating the invoice (e.g. to March) correctly
+   * sets billing_from = 01 Feb, billing_to = 28 Feb automatically.
+   * The user can still override billing_from / billing_to manually after.
+   */
+  function handleInvoiceDateChange(newDate: string) {
+    if (!newDate) {
+      patch({ invoice_date: newDate })
+      return
+    }
+    const { from, to } = prevMonthRange(parseLocalDate(newDate))
+    patch({ invoice_date: newDate, billing_from: from, billing_to: to })
+  }
 
   // When switching billing type:
   // 1. Clear opposing data arrays so totals don't bleed across modes.
@@ -378,7 +405,7 @@ export default function Section1Header({
         <SectionLabel>Invoice Period</SectionLabel>
 
         <FieldWrap label="Invoice Date" required>
-          <DateInput value={draft.invoice_date} onChange={v => patch({ invoice_date: v })} />
+          <DateInput value={draft.invoice_date} onChange={handleInvoiceDateChange} />
         </FieldWrap>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
