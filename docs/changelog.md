@@ -4,6 +4,35 @@
 
 ---
 
+## [2026-05-31] — Bug Fix: TDS Always Showing 0% (3 Root Causes)
+
+### Fixed
+- `app/src/ui/invoices/Section1Header.tsx` — **Bug 1 (init guard):** `emptyDraft()` initialises `tds_rate = 0`, so the old guard `if (draft.tds_rate === undefined)` was always false and settings were never applied. Guard changed to `if (!draft.work_order_id)` — TDS from global settings is now written unconditionally on first load when no WO is linked.
+- `app/src/ui/invoices/Section1Header.tsx` — **Bug 2 (WO selection):** Added new `useEffect` on `[draft.work_order_id, workOrders, loading]`. When a Work Order is selected, it reads the WO's `tds_applicable` flag and sets `tds_rate` to `default_tds_rate` from cached settings (if applicable) or `0`. Clearing the WO reverts to the global setting. A contextual hint line is shown below the WO dropdown ("✓ TDS 2% applied from work order settings" or "ℹ TDS not applicable for this work order").
+- `app/src/ui/invoices/Section4Review.tsx` — **Bug 3 (hidden row):** The entire TDS block was wrapped in `{draft.tds_rate > 0 && ...}`, making it invisible at 0% with no way to correct it. Replaced with a new `<TdsRow>` component that is always rendered. Shows the current rate as a tappable pill; tapping opens an inline number input (0–30%). On commit, calls `recomputeTotals()` and patches `tds_amount` and `net_receivable`. Net Receivable row still only appears when TDS > 0.
+
+### Observations
+- `emptyDraft()` initialising `tds_rate = 0` was the root cause — the `=== undefined` guard was a logical dead-end from day one. The fix does not change `emptyDraft()` itself; instead the init effect is made unconditional on fresh drafts.
+- Caching `default_tds_rate` and `tds_applicable` from settings into component state (`cachedTdsRate`, `cachedTdsApplicable`) was necessary so the WO-selection effect can reference them without a second DB call.
+- Inline TDS edit in Section 4 is the safety net — even if the auto-derived rate is wrong, the user can correct it before finalising without leaving the review screen.
+
+---
+
+## [2026-05-31] — Analysis: AI Description Quality Gap — Rental vs Quantity
+
+### Identified (Not Yet Fixed)
+- Diagnosed why AI-generated descriptions were good for quantity invoices but poor for rental invoices.
+- **Root cause 1 — Empty `work_item_descriptions`:** The prompt builder sends `draft.line_items[].description` as `work_item_descriptions`. For rental invoices, `line_items` is always `[]`, so the AI receives an empty list every time. The system prompt says "if provided" — so it just skips the field and produces generic output.
+- **Root cause 2 — Vague system prompt:** `SYSTEM_INSTRUCTION_RENTAL` says "Describe which vehicles were deployed" — this passive, open-ended instruction leads to list-style enumeration rather than a flowing professional sentence.
+- **Root cause 3 — No fallback instruction:** When `work_item_descriptions` is empty, the prompt builder adds nothing to tell the AI to derive work context from `wo_subject` instead.
+
+### Planned Fixes (deferred to next session or separate fix)
+1. Add an optional **Work Description** free-text field in Section 2 rental items form → passed as `work_item_descriptions` to the Edge Function.
+2. Rewrite `SYSTEM_INSTRUCTION_RENTAL` in the Edge Function to be directive and narrative-first ("Write as a single flowing professional sentence...").
+3. Add explicit fallback instruction in `buildGeneratePrompt()` when `work_item_descriptions` is empty: "Derive the nature of work from the Work Order Subject. Do not leave the description vague."
+
+---
+
 ## [2026-05-31] — Bug Fix: Invoice Date → Billing Period Auto-Recalculation
 
 ### Fixed
