@@ -65,17 +65,33 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
       amount:       r.subtotal ?? 0,
     }));
 
+    // ── Fetch distribution rows, then explicitly look up work_order_items
+    // (avoids PostgREST FK auto-join which can silently return null if
+    //  the schema cache hasn't refreshed after the FK migration)
     const { data: di, error: diErr } = await supabase
       .from('invoice_item_distribution')
-      .select('*, work_order_items(description, sub_work_ref)')
+      .select('work_order_item_id, allocation_pct')
       .eq('invoice_id', invoiceId)
       .order('id');
 
     if (diErr) throw new Error(`Distribution fetch failed: ${diErr.message}`);
 
+    const woItemIds: number[] = (di ?? []).map((d: any) => d.work_order_item_id).filter(Boolean);
+
+    let woMap: Record<number, { description: string; sub_work_ref: string | null }> = {};
+    if (woItemIds.length > 0) {
+      const { data: woItems } = await supabase
+        .from('work_order_items')
+        .select('id, description, sub_work_ref')
+        .in('id', woItemIds);
+      woMap = Object.fromEntries(
+        (woItems ?? []).map((w: any) => [w.id, { description: w.description, sub_work_ref: w.sub_work_ref ?? null }])
+      );
+    }
+
     distributionItems = (di ?? []).map((d: any): PdfDistributionItem => ({
-      description:    d.work_order_items?.description ?? '–',
-      sub_work_ref:   d.work_order_items?.sub_work_ref ?? null,
+      description:    woMap[d.work_order_item_id]?.description ?? '–',
+      sub_work_ref:   woMap[d.work_order_item_id]?.sub_work_ref ?? null,
       allocation_pct: d.allocation_pct ?? 0,
     }));
   } else {
