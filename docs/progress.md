@@ -37,26 +37,31 @@
   - ✅ `InvoiceActions.tsx` — reusable PDF action button component
   - ✅ `invoicePdfDb.ts` — `uploadInvoicePdf()` + `getInvoiceDownloadUrl()`
   - ✅ `supabase/migrations/007_invoices_pdf_url.sql` — adds `pdf_url` column + storage RLS policies
-  - ✅ Font 404 fix — corrected Fontsource CDN URLs from broken npm-path format to `cdn.jsdelivr.net/fontsource/fonts/` scheme (verified May 2026)
+  - ✅ Font 404 fix — corrected Fontsource CDN URLs (verified May 2026)
+  - ✅ Header overlap fix — explicit `lineHeight` on business name and address prevents overlap
+  - ✅ Logo size increase — `LOGO_SIZE` bumped to `100` (~2× original)
+  - ✅ Description block indent fix — removed `paddingHorizontal: 10` from `descBlock`; section now aligns flush with all others
   - ⬜ NOT YET: `InvoiceActions` wired into `InvoicesPage.tsx` invoice cards
   - ⬜ NOT YET: End-to-end test (open preview modal → PDF renders → download works)
   - ⬜ NOT YET: `npm install @react-pdf/renderer` confirmed in `package.json`
   - ⬜ NOT YET: Migration 007 run in Supabase SQL Editor
-  - ⬜ NOT YET: PDF layout changes (deferred — to be done in a dedicated session)
 
 ### Bug Fixes — `bugfix/pre-feature-fixes-20260531`
 - ✅ **Bug 1** — Invoice date change now auto-recalculates `billing_from` / `billing_to` as the previous month relative to the selected invoice date.
 - ✅ **Bug 2** — TDS init guard was always false (`tds_rate === undefined` never fires since `emptyDraft()` sets it to `0`). Fixed: TDS from global settings now applied unconditionally on fresh drafts.
 - ✅ **Bug 3** — Linking a Work Order with `tds_applicable: true` had no effect on `tds_rate`. Fixed: new `useEffect` reads WO's TDS flag and applies `default_tds_rate` from settings.
 - ✅ **Bug 4** — TDS row in Section 4 was hidden when `tds_rate === 0`, with no way to view or edit it. Fixed: always-visible inline-editable `<TdsRow>` component in Section 4 Review.
+- ✅ **PDF Fix 1** — Header business name overlapping address text. Fixed: explicit `lineHeight: 1.0` + `marginBottom: 4` on `headerBusinessName`.
+- ✅ **PDF Fix 2** — Logo rendered too small. Fixed: `LOGO_SIZE` increased to `100`.
+- ✅ **PDF Fix 3** — Description of Services section indented left vs. all other sections. Fixed: removed `paddingHorizontal: 10` from `descBlock` style.
 
 ---
 
 ## What's Next
 
-### Immediate: Finish bug fixes on current branch
-1. Continue reporting any remaining bugs — each fix committed to `bugfix/pre-feature-fixes-20260531`
-2. Once all known bugs are fixed, merge this branch → `main`
+### Immediate: Complete PDF look & compliance fixes
+- Continue identifying and fixing PDF layout issues in this session or the next
+- Once all PDF fixes are done, merge `bugfix/pre-feature-fixes-20260531` → `main`
 
 ### Pending Improvement (not yet started)
 - **AI Description quality for rental invoices** — diagnosed root causes (empty `work_item_descriptions`, vague system prompt, no fallback instruction). Three planned fixes:
@@ -69,8 +74,7 @@
 2. Run migration `007_invoices_pdf_url.sql` in Supabase SQL Editor
 3. Wire `InvoiceActions` into `InvoicesPage.tsx` invoice cards
 4. Open an invoice → click PDF button → verify preview modal loads with correct fonts and data
-5. **PDF layout changes** (separate session — user to specify changes)
-6. Merge `feature/pdf-rendering-part3-20260530` → `main` after test passes
+5. Merge `feature/pdf-rendering-part3-20260530` → `main` after test passes
 
 ### Phase 4: Polish & Analytics (after Part 3 merge)
 - Invoice List & Detail Sheet
@@ -92,4 +96,3 @@
 - [ ] `InvoiceActions` component needs to be imported and rendered inside `InvoicesPage.tsx` cards AND inside the future `InvoiceDetailSheet`
 - [ ] Two PDF layout implementations exist on the branch (`InvoicePdf.tsx` using react-pdf and a legacy `generatePdf.ts` using jsPDF) — `generatePdf.ts` should be deleted before merge
 - [ ] AI description quality gap for rental invoices — 3 fixes planned (see progress above), not yet implemented
-- [ ] PDF layout changes pending (deferred to dedicated session)

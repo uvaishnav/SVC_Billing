@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-05-31] — PDF Layout Fixes (Session 2)
+
+### Fixed
+- `app/src/ui/invoices/pdf/InvoicePdf.tsx` — **Header overlap fix:** Added `lineHeight: 1.0` and `marginBottom: 4` to `headerBusinessName` style. `@react-pdf/renderer` inherits the page-level `lineHeight: 1.4` into all text nodes; without an explicit override on the 18pt business name, the descenders bled into the address line below, causing the two texts to visually overlap. Setting `lineHeight: 1.0` on the name and `lineHeight: 1.2` on `headerAddress` creates clean vertical separation.
+- `app/src/ui/invoices/pdf/InvoicePdf.tsx` — **Logo size increase:** `LOGO_SIZE` constant bumped from its previous value to `100` (approximately 2× the original rendered size). Logo wrap, image, and placeholder all derive from this constant so all three update together.
+- `app/src/ui/invoices/pdf/InvoicePdf.tsx` — **Description of Services left-indent fix:** Removed `paddingHorizontal: 10` from `descBlock` style. The 10pt horizontal padding was causing the `DESCRIPTION OF SERVICES` heading and body text to be indented relative to every other section (TAX INVOICE stamp, two-column metadata block, table rows) which all sit flush with the page margin. With the padding removed, the description block aligns correctly with all surrounding sections.
+
+### Observations
+- The header overlap was not a z-index or absolute-positioning issue — `@react-pdf/renderer` uses a Flexbox-based flow layout. The cause was inherited `lineHeight` from the page style amplifying the apparent line height of the large display font. Explicit `lineHeight` overrides on the text nodes are the canonical fix.
+- `paddingHorizontal` on `descBlock` was redundant — the page already applies `paddingHorizontal: PAGE_MARGIN (32)` globally. The inner padding was additive, not a replacement, creating the unintended indent.
+- These are visual/cosmetic fixes only. No data flow, props, or business logic was changed.
+
+---
+
 ## [2026-05-31] — Bug Fix: TDS Always Showing 0% (3 Root Causes)
 
 ### Fixed
@@ -181,30 +195,3 @@
 
 ### Observations
 - `default_monthly_rent` on vehicles is a pre-fill hint only; not authoritative
-
----
-
-## [2026-05-23] — Clients Module
-
-### Added
-- `supabase/migrations/002_clients.sql`
-- `ClientsPage.tsx`, `ClientCard.tsx`, `ClientFormModal.tsx`, `ClientDetailSheet.tsx`
-- `clientsDb.ts` — CRUD with GSTIN management
-
-### Observations
-- Address on `client_gstins` not `clients` — multi-state clients have different registered addresses per GSTIN
-- `GstinDraft` pattern prevents stale-state race conditions
-
----
-
-## [2026-05-23] — Settings Module
-
-### Added
-- `supabase/migrations/001_settings.sql`
-- `SettingsPage.tsx`, `BusinessProfileForm.tsx`, `BankAccountsSection.tsx`, `SacCodesSection.tsx`, `BillingDefaultsForm.tsx`
-- `settingsDb.ts` — `upsertSettings()`, `patchSettings()`
-- `_components.tsx` — shared UI primitives: `Field`, `PrimaryButton`, `cardStyle`, `sectionTitleStyle`, `inputStyle`, `labelStyle`
-
-### Observations
-- `patchSettings` vs `upsertSettings` separation prevents NOT NULL constraint violations on partial updates
-- Single-row typed table preferred over key-value store for type safety
