@@ -5,16 +5,15 @@
  *
  * Layout order (per spec §18):
  *   1. Supplier header band
- *   2. TAX INVOICE heading
- *   3. Prominent invoice number callout box
- *   4. Two-column block: INVOICE DETAILS | DETAILS OF RECIPIENT OF SERVICE
- *   5. SAC code strip
- *   6. Description of Services
- *   7. Main table (quantity OR rental)
- *   8. Work Items Covered block (rental only, conditional)
- *   9. Tax / totals summary
- *  10. Amount in words
- *  11. Footer: bank details | signature
+ *   2. TAX INVOICE stamp (slim centered label)
+ *   3. Two-column block: INVOICE DETAILS (incl. invoice no.) | DETAILS OF RECIPIENT OF SERVICE
+ *   4. SAC code strip
+ *   5. Description of Services
+ *   6. Main table (quantity OR rental)
+ *   7. Work Items Covered block (rental only, conditional)
+ *   8. Tax / totals summary
+ *   9. Amount in words
+ *  10. Footer: bank details | signature
  */
 
 import React from 'react';
@@ -102,89 +101,79 @@ const s = StyleSheet.create({
     lineHeight: 1.4,
   },
 
-  // ── Header
+  // ── Header — compact, full-width, logo fills height
   header: {
     backgroundColor: CREAM,
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 14,
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'stretch',
     borderBottomWidth: 1,
     borderBottomColor: DIVIDER,
   },
-  headerLogo: {
-    width: 48,
-    height: 48,
+  headerLogoWrap: {
+    // logo column — fixed width, stretches to full header height
+    width: 44,
     marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerLogo: {
+    width: 44,
+    height: 44,
     objectFit: 'contain',
   },
   headerLogoPlaceholder: {
-    width: 48,
-    height: 48,
-    marginRight: 12,
+    width: 44,
+    height: 44,
     backgroundColor: '#E8E2D8',
     borderRadius: 4,
   },
   headerTextBlock: {
     flex: 1,
+    justifyContent: 'center',
   },
   headerBusinessName: {
     fontFamily: HEAD_FONT,
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: 700,
     color: ESPRESSO,
-    marginBottom: 3,
+    marginBottom: 2,
   },
   headerAddress: {
     fontSize: 7.5,
     color: BODY_TEXT,
-    marginBottom: 2,
+    marginBottom: 4,
   },
-  headerMetaRow: {
+  // Compact meta line: GSTIN | PAN | State
+  headerMetaLine: {
     flexDirection: 'row',
-    gap: 8,
-    marginTop: 2,
+    alignItems: 'center',
+    marginBottom: 2,
   },
   headerMetaItem: {
     fontSize: 7,
     color: MUTED,
   },
+  headerMetaDivider: {
+    fontSize: 7,
+    color: DIVIDER,
+    marginHorizontal: 5,
+  },
 
-  // ── TAX INVOICE identity band
-  identityBand: {
+  // ── TAX INVOICE stamp — slim centered label, no box
+  taxInvoiceStamp: {
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 5,
     borderBottomWidth: 1,
     borderBottomColor: DIVIDER,
   },
-  taxInvoiceHeading: {
+  taxInvoiceStampText: {
     fontFamily: HEAD_FONT,
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: 700,
     color: ESPRESSO,
-    letterSpacing: 1.5,
-    marginBottom: 6,
-  },
-  invoiceNumberBox: {
-    borderWidth: 1.5,
-    borderRadius: 4,
-    paddingVertical: 5,
-    paddingHorizontal: 14,
-    alignItems: 'center',
-    minWidth: 160,
-  },
-  invoiceNumberLabel: {
-    fontSize: 7,
-    color: MUTED,
-    letterSpacing: 0.8,
-    marginBottom: 2,
-  },
-  invoiceNumberValue: {
-    fontFamily: HEAD_FONT,
-    fontSize: 12,
-    fontWeight: 700,
-    color: ESPRESSO,
-    letterSpacing: 0.5,
+    letterSpacing: 2,
   },
 
   // ── Two-column metadata
@@ -235,6 +224,14 @@ const s = StyleSheet.create({
     fontWeight: 600,
     color: ESPRESSO,
     flex: 1,
+  },
+  // Invoice number row — bold highlight in left column
+  invoiceNumberValue: {
+    fontSize: 8.5,
+    fontWeight: 700,
+    color: ESPRESSO,
+    flex: 1,
+    letterSpacing: 0.3,
   },
 
   // ── SAC strip
@@ -548,51 +545,57 @@ function formatBillingPeriod(from: string, to: string): string {
 function HeaderBand({ supplier }: { supplier: InvoicePdfProps['supplier'] }) {
   return (
     <View style={s.header}>
-      {supplier.logo_url ? (
-        <Image src={supplier.logo_url} style={s.headerLogo} />
-      ) : (
-        <View style={s.headerLogoPlaceholder} />
-      )}
+      {/* Logo — fills full header height */}
+      <View style={s.headerLogoWrap}>
+        {supplier.logo_url ? (
+          <Image src={supplier.logo_url} style={s.headerLogo} />
+        ) : (
+          <View style={s.headerLogoPlaceholder} />
+        )}
+      </View>
+
+      {/* Text block */}
       <View style={s.headerTextBlock}>
+        {/* Business name — prominent */}
         <Text style={s.headerBusinessName}>{supplier.business_name}</Text>
+
+        {/* Address — subtitle */}
         <Text style={s.headerAddress}>{supplier.address}</Text>
-        <View style={s.headerMetaRow}>
+
+        {/* Meta line 1: GSTIN | PAN | State */}
+        <View style={s.headerMetaLine}>
           <Text style={s.headerMetaItem}>GSTIN: {supplier.gstin}</Text>
-          <Text style={s.headerMetaItem}>  PAN: {supplier.pan}</Text>
+          <Text style={s.headerMetaDivider}>|</Text>
+          <Text style={s.headerMetaItem}>PAN: {supplier.pan}</Text>
+          <Text style={s.headerMetaDivider}>|</Text>
+          <Text style={s.headerMetaItem}>State: {supplier.state} ({supplier.state_code})</Text>
         </View>
-        <View style={s.headerMetaRow}>
+
+        {/* Meta line 2: Phone | Email */}
+        <View style={s.headerMetaLine}>
           <Text style={s.headerMetaItem}>Ph: {supplier.phone}</Text>
-          <Text style={s.headerMetaItem}>  {supplier.email}</Text>
+          <Text style={s.headerMetaDivider}>|</Text>
+          <Text style={s.headerMetaItem}>{supplier.email}</Text>
         </View>
-        <Text style={[s.headerMetaItem, { marginTop: 2 }]}>
-          State: {supplier.state} ({supplier.state_code})
-        </Text>
       </View>
     </View>
   );
 }
 
-function IdentityBand({
-  invoiceNumber,
-  taxMode,
-}: {
-  invoiceNumber: string;
-  taxMode: 'cgst_sgst' | 'igst';
-}) {
+/** Slim centered "TAX INVOICE" document-type stamp — no box, minimal height */
+function TaxInvoiceStamp({ taxMode }: { taxMode: 'cgst_sgst' | 'igst' }) {
   return (
-    <View style={s.identityBand}>
-      <Text style={s.taxInvoiceHeading}>TAX INVOICE</Text>
-      <View style={[s.invoiceNumberBox, { borderColor: accentColor(taxMode) }]}>
-        <Text style={s.invoiceNumberLabel}>Invoice No.</Text>
-        <Text style={s.invoiceNumberValue}>{invoiceNumber}</Text>
-      </View>
+    <View style={[s.taxInvoiceStamp, { borderBottomColor: accentColor(taxMode) }]}>
+      <Text style={[s.taxInvoiceStampText, { color: accentColor(taxMode) }]}>
+        TAX INVOICE
+      </Text>
     </View>
   );
 }
 
 function TwoColumnMeta({ props }: { props: InvoicePdfProps }) {
   const {
-    invoice_date, billing_from, billing_to,
+    invoice_number, invoice_date, billing_from, billing_to,
     place_of_supply, place_of_supply_code,
     reverse_charge, work_order_reference, recipient,
   } = props;
@@ -600,6 +603,13 @@ function TwoColumnMeta({ props }: { props: InvoicePdfProps }) {
     <View style={s.twoCol}>
       <View style={s.twoColLeft}>
         <Text style={s.colSectionLabel}>INVOICE DETAILS</Text>
+
+        {/* Invoice number — bold, highlighted, first row */}
+        <View style={s.metaRow}>
+          <Text style={s.metaLabel}>Invoice No.</Text>
+          <Text style={s.invoiceNumberValue}>{invoice_number}</Text>
+        </View>
+
         <View style={s.metaRow}>
           <Text style={s.metaLabel}>Invoice Date</Text>
           <Text style={s.metaValue}>{formatDate(invoice_date)}</Text>
@@ -915,7 +925,7 @@ export function InvoicePdf(props: InvoicePdfProps) {
     >
       <Page size="A4" style={s.page}>
         <HeaderBand supplier={supplier} />
-        <IdentityBand invoiceNumber={invoice_number} taxMode={tax_mode} />
+        <TaxInvoiceStamp taxMode={tax_mode} />
         <TwoColumnMeta props={props} />
         {sac_code ? <SacStrip sacCode={sac_code} taxMode={tax_mode} /> : null}
         <DescriptionBlock description={overall_description} />
