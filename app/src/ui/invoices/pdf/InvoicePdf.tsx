@@ -64,17 +64,17 @@ const HEAD_FONT    = 'Lora';
  * Header geometry constants.
  *
  * HEADER_PADDING_V  — vertical padding inside the cream band
- *                     Reduced to 6 to remove excess empty space above/below content.
- * LOGO_SIZE         — logo square size. Bumped to 80px for a slightly larger presence.
+ *                     Reduced to 4 to remove excess empty space above/below content.
+ * LOGO_SIZE         — logo square size. Bumped to 88px for a slightly larger presence.
  * LOGO_MARGIN       — equal whitespace on all four sides of the logo.
- *                     Reduced to 6 (proportional to logo size).
+ *                     Reduced to 5 (proportional to tighter padding).
  *
  * FIX (prev commit): lineHeight: 1.0 on headerBusinessName prevents Lora ascender
  * bleed that was causing the name and address to visually overlap.
  */
-const HEADER_PADDING_V = 6;    // ↓ from 10 — removes excess band height
-const LOGO_SIZE        = 80;   // ↑ from 72 — slightly larger logo
-const LOGO_MARGIN      = 6;    // ↓ from 8  — proportionally tighter at 80px
+const HEADER_PADDING_V = 4;    // ↓ from 6 — removes excess band height
+const LOGO_SIZE        = 88;   // ↑ from 80 — slightly larger logo
+const LOGO_MARGIN      = 5;    // ↓ from 6  — proportionally tighter to match padding
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
@@ -564,7 +564,7 @@ function formatBillingPeriod(from: string, to: string): string {
  * HeaderBand
  *
  * Layout:
- *   [LOGO 80×80, margin 6px on all sides]  [Text block — flex:1]
+ *   [LOGO 88×88, margin 5px on all sides]  [Text block — flex:1]
  *
  * Text block (vertically centered beside logo):
  *   Business Name  (Lora 15pt bold, lineHeight: 1.0 — prevents overlap)
