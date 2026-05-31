@@ -233,6 +233,118 @@ function QuantityItemsSummary({ draft }: { draft: InvoiceDraft }) {
   )
 }
 
+// ─── TDS editable row ─────────────────────────────────────────────────────────
+// FIX (Bug 3): TDS was hidden behind `tds_rate > 0`. The user had no way to
+// see or correct it when the rate was incorrectly 0. This component renders
+// TDS as an always-visible inline-editable row in the review section.
+function TdsRow({
+  tdsRate, totalAmount, onTdsRateChange,
+}: {
+  tdsRate: number
+  totalAmount: number
+  onTdsRateChange: (rate: number) => void
+}) {
+  const tdsAmount    = Math.round((totalAmount * tdsRate) / 100 * 100) / 100
+  const netReceivable = totalAmount - tdsAmount
+  const [editing, setEditing] = React.useState(false)
+  const [inputVal, setInputVal] = React.useState(String(tdsRate))
+
+  // Keep local input in sync when tdsRate changes from outside (e.g. WO selection)
+  React.useEffect(() => {
+    if (!editing) setInputVal(String(tdsRate))
+  }, [tdsRate, editing])
+
+  function commitEdit() {
+    const parsed = parseFloat(inputVal)
+    const clamped = isNaN(parsed) ? 0 : Math.min(Math.max(parsed, 0), 30)
+    onTdsRateChange(Math.round(clamped * 100) / 100)
+    setEditing(false)
+  }
+
+  return (
+    <>
+      {/* TDS rate row — always visible, tap rate to edit */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        padding: '10px 0', borderBottom: '1px solid var(--color-border)',
+      }}>
+        <span style={{ fontSize: 13, color: 'var(--color-text-faint)' }}>
+          TDS deducted by client
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {editing ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input
+                autoFocus
+                type="number"
+                min={0}
+                max={30}
+                step={0.5}
+                value={inputVal}
+                onChange={e => setInputVal(e.target.value)}
+                onBlur={commitEdit}
+                onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditing(false) }}
+                style={{
+                  width: 64, padding: '4px 8px', borderRadius: 6,
+                  border: '1.5px solid var(--color-primary)',
+                  background: 'var(--color-surface)',
+                  fontSize: 14, fontWeight: 600,
+                  color: 'var(--color-text)', textAlign: 'right',
+                  outline: 'none',
+                }}
+              />
+              <span style={{ fontSize: 13, color: 'var(--color-text-faint)' }}>%</span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => { setInputVal(String(tdsRate)); setEditing(true) }}
+              title="Tap to edit TDS rate"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                padding: '4px 10px', borderRadius: 6,
+                border: '1px solid var(--color-border)',
+                background: tdsRate > 0 ? 'var(--color-primary-highlight)' : 'var(--color-surface-offset)',
+                cursor: 'pointer',
+              }}
+            >
+              <span style={{
+                fontSize: 14, fontWeight: 700,
+                color: tdsRate > 0 ? 'var(--color-primary)' : 'var(--color-text-faint)',
+                fontVariantNumeric: 'tabular-nums',
+              }}>
+                {tdsRate}%
+              </span>
+              <span style={{ fontSize: 10, color: 'var(--color-text-faint)' }}>✏️</span>
+            </button>
+          )}
+          <span style={{
+            fontSize: 14, fontWeight: 500,
+            color: tdsRate > 0 ? 'var(--color-text)' : 'var(--color-text-faint)',
+            fontVariantNumeric: 'tabular-nums', minWidth: 80, textAlign: 'right',
+          }}>
+            {tdsRate > 0 ? `− ₹${fmt(tdsAmount)}` : '—'}
+          </span>
+        </div>
+      </div>
+
+      {/* Net receivable — only show when TDS > 0 */}
+      {tdsRate > 0 && (
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '10px 0', borderBottom: '1px solid var(--color-border)',
+        }}>
+          <span style={{ fontSize: 14, color: 'var(--color-text-muted)', fontWeight: 600 }}>Net Receivable</span>
+          <span style={{
+            fontSize: 17, fontWeight: 700, color: 'var(--color-text)',
+            fontVariantNumeric: 'tabular-nums',
+          }}>₹{fmt(netReceivable)}</span>
+        </div>
+      )}
+    </>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function Section4Review({
   draft, patch, saving, saveDraft, onFinalized, existingStatus,
@@ -260,6 +372,12 @@ export default function Section4Review({
       patch(updated)
     }
   }, [])
+
+  // When TDS rate is edited inline, recompute tds_amount and net_receivable.
+  function handleTdsRateChange(newRate: number) {
+    const updated = recomputeTotals({ ...draft, tds_rate: newRate }, draft.gst_rate, newRate)
+    patch(updated)
+  }
 
   async function handleFinalize() {
     setFinalizing(true)
@@ -356,12 +474,14 @@ export default function Section4Review({
           <Row label={`IGST @ ${draft.gst_rate}%`} value={`₹${fmt(draft.total_gst)}`} />
         )}
         <Row label="Total Invoice Amount" value={`₹${fmt(draft.total_amount)}`} bold accent />
-        {draft.tds_rate > 0 && (
-          <>
-            <Row label={`TDS @ ${draft.tds_rate}% (deducted by client)`} value={`₹${fmt(draft.tds_amount)}`} faint />
-            <Row label="Net Receivable" value={`₹${fmt(draft.net_receivable)}`} bold />
-          </>
-        )}
+
+        {/* FIX (Bug 3): TDS row is now always shown as an editable inline field.
+            Previously hidden behind tds_rate > 0 — user had no way to see or fix it. */}
+        <TdsRow
+          tdsRate={draft.tds_rate}
+          totalAmount={draft.total_amount}
+          onTdsRateChange={handleTdsRateChange}
+        />
       </div>
 
       {draft.amount_in_words && (

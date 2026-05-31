@@ -212,6 +212,10 @@ export default function Section1Header({
   const [allSacCodes, setAllSacCodes]   = useState<SacCode[]>([])
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
   const [myStateCode, setMyStateCode]   = useState('')
+  // Cache settings so the WO-selection effect can reference default_tds_rate without
+  // re-fetching. Stored in state so it's available after initial load.
+  const [cachedTdsRate, setCachedTdsRate]           = useState<number>(0)
+  const [cachedTdsApplicable, setCachedTdsApplicable] = useState<boolean>(false)
   const [loading, setLoading]           = useState(true)
 
   useEffect(() => {
@@ -225,10 +229,24 @@ export default function Section1Header({
       setBankAccounts(banks.filter(b => b.is_active))
       setMyStateCode(settings?.state_code ?? '')
 
+      // Cache settings values for use in WO-selection effect below
+      const globalTdsApplicable = settings?.tds_applicable ?? false
+      const globalTdsRate       = settings?.default_tds_rate ?? 0
+      setCachedTdsRate(globalTdsRate)
+      setCachedTdsApplicable(globalTdsApplicable)
+
       const updates: Partial<InvoiceDraft> = {}
       if (!draft.sac_id          && settings?.default_sac_id)          updates.sac_id          = settings.default_sac_id
       if (!draft.bank_account_id && settings?.default_bank_account_id) updates.bank_account_id = settings.default_bank_account_id
-      if (draft.tds_rate     === undefined) updates.tds_rate     = settings?.tds_applicable ? (settings.default_tds_rate ?? 0) : 0
+
+      // FIX (Bug 1): emptyDraft() sets tds_rate = 0, so `=== undefined` never fires.
+      // Correct guard: apply settings default when draft has no WO linked yet AND
+      // tds_rate is still at the initial 0 default (i.e. user hasn't touched it).
+      // We also skip this if a WO is already linked — the WO effect below handles that case.
+      if (!draft.work_order_id) {
+        updates.tds_rate = globalTdsApplicable ? globalTdsRate : 0
+      }
+
       if (draft.reverse_charge === undefined) updates.reverse_charge = settings?.reverse_charge_applicable ?? false
       if (Object.keys(updates).length > 0) patch(updates)
 
@@ -253,6 +271,26 @@ export default function Section1Header({
       })
     }
   }, [draft.client_id, draft.client_gstin_id, clients, myStateCode])
+
+  // FIX (Bug 2): When a work order is selected/deselected, apply its tds_applicable
+  // flag to override the global setting. If the WO marks TDS as applicable, use the
+  // cached global default_tds_rate. If the WO has no TDS, fall back to global setting.
+  // This runs after initial load (cachedTdsApplicable is set), so settings are available.
+  useEffect(() => {
+    if (loading) return   // don't run before settings are loaded
+    if (!draft.work_order_id) {
+      // WO cleared — revert to global settings default
+      patch({ tds_rate: cachedTdsApplicable ? cachedTdsRate : 0 })
+      return
+    }
+    const selectedWo = workOrders.find(wo => wo.id === draft.work_order_id)
+    if (!selectedWo) return
+    // Work order overrides TDS applicability.
+    // If WO.tds_applicable is true → apply default_tds_rate from settings.
+    // If WO.tds_applicable is false → TDS is 0 for this invoice.
+    const woTdsApplicable = selectedWo.tds_applicable ?? cachedTdsApplicable
+    patch({ tds_rate: woTdsApplicable ? cachedTdsRate : 0 })
+  }, [draft.work_order_id, workOrders, loading])
 
   // Derive filtered SAC list from current billing type.
   // Re-computed on every render — no extra state needed.
@@ -452,6 +490,16 @@ export default function Section1Header({
           {!draft.client_id && (
             <p style={{ fontSize: 12, color: 'var(--color-text-faint)', marginTop: 6 }}>
               Select a client first to see their work orders.
+            </p>
+          )}
+          {/* Show TDS hint when a WO is linked so the user knows TDS was set from the WO */}
+          {draft.work_order_id && (
+            <p style={{ fontSize: 12, marginTop: 6,
+              color: draft.tds_rate > 0 ? 'var(--color-success)' : 'var(--color-text-faint)' }}>
+              {draft.tds_rate > 0
+                ? `✓ TDS ${draft.tds_rate}% applied from work order settings`
+                : 'ℹ TDS not applicable for this work order'
+              }
             </p>
           )}
         </FieldWrap>
