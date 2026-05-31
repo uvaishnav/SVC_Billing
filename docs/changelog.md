@@ -4,6 +4,22 @@
 
 ---
 
+## [2026-05-31] — PDF Font CDN Fix
+
+### Fixed
+- `app/src/ui/invoices/pdf/InvoicePdf.tsx` — all 6 `Font.register()` URLs updated from broken npm package-path format to the correct Fontsource jsDelivr CDN scheme
+  - Old (broken): `https://cdn.jsdelivr.net/npm/@fontsource/inter@4.5.15/files/inter-latin-400-normal.ttf`
+  - New (working): `https://cdn.jsdelivr.net/fontsource/fonts/inter@5/latin-400-normal.ttf`
+  - Same fix applied to Inter 500/600/700 and Lora 400/700
+
+### Observations
+- Fontsource migrated away from the npm `files/` path structure; the new CDN route is `cdn.jsdelivr.net/fontsource/fonts/{font}@{version}/{subset}-{weight}-{style}.{ext}`
+- `.ttf` format required (not `.woff2`) — `@react-pdf/renderer` fetches raw font bytes and cannot decode woff2
+- All 6 TTF URLs manually verified in browser before committing
+- The broken URLs caused a `PDF Error: Failed to fetch font … 404` that prevented any PDF from rendering
+
+---
+
 ## [2026-05-30] — PDF Invoice Generation — Part 3: PDF Rendering
 
 ### Added
@@ -28,12 +44,13 @@
 - Invoice number as prominent right-aligned bordered box in document identity band
 
 ### Observations
-- `@react-pdf/renderer` cannot use Tailwind or CSS variables — all styles are `StyleSheet.create()` objects; this is a deliberate PDF-only pattern and does NOT affect the app's UI styling rules
+- `@react-pdf/renderer` cannot use Tailwind or CSS variables — all styles are `StyleSheet.create()` objects; this is a deliberate PDF-only pattern and does NOT affect the app’s UI styling rules
 - `PDFViewer` is intentionally hidden on mobile (screen width < 768px) and replaced with a download prompt — PDFViewer renders an iframe which is heavy and poorly supported on mobile WebViews
 - PDF upload to Supabase Storage is intentionally non-blocking (fire-and-forget with console.warn on failure) — the user can still download the PDF even if the upload fails
 - Web Share API (`navigator.share`) with file sharing is supported on Android Chrome and iOS Safari 15.1+; desktop fallback triggers a download
 - `toWords()` in `pdfUtils.ts` is a self-contained Indian place-value implementation (Crore → Lakh → Thousand → Hundred) — no third-party dependency
 - `invoices` bucket must exist before running migration 007 (it was created manually on 2026-05-24)
+- **Note:** A secondary implementation (`generatePdf.ts` using jsPDF) also exists on this branch from an earlier brainstorm session — it is superseded by `InvoicePdf.tsx` and should be deleted before merge
 
 ---
 
