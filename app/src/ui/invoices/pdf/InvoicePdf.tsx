@@ -766,17 +766,17 @@ function RentalTable({
   );
 }
 
-// PDF Fix 4: Show only item descriptions — no allocation percentage.
-// The '— X%' suffix added no client-facing value and cluttered the block.
+// WorkItemsBlock: render all items from item_distribution.
+// Only hide the block when the array is empty/null — never filter individual
+// items by description content. The '–' fallback from buildInvoicePayload
+// (when the work_order_items FK join returns null) is shown as-is so the
+// block remains visible and the data gap is apparent rather than silently hidden.
 function WorkItemsBlock({ items }: { items: InvoicePdfProps['item_distribution'] }) {
   if (!items || items.length === 0) return null;
-  // Filter out placeholder fallback entries (description is literally '–')
-  const validItems = items.filter(item => item.description && item.description !== '–');
-  if (validItems.length === 0) return null;
   return (
     <View style={s.workItemsBlock}>
       <Text style={s.workItemsLabel}>WORK ITEMS COVERED UNDER THIS BILLING PERIOD</Text>
-      {validItems.map((item, idx) => (
+      {items.map((item, idx) => (
         <View key={idx} style={s.workItemRow}>
           <Text style={s.workItemBullet}>–</Text>
           <Text style={s.workItemText}>
@@ -796,7 +796,7 @@ function WorkItemsBlock({ items }: { items: InvoicePdfProps['item_distribution']
 function TotalsSection({ props }: { props: InvoicePdfProps }) {
   const {
     total_taxable, gst_rate, tax_mode,
-    total_gst, total_amount, tds_rate, tds_amount, net_receivable,
+    total_gst, total_amount, tds_rate, tds_amount,
   } = props;
   const halfRate = gst_rate / 2;
 
@@ -845,7 +845,6 @@ function TotalsSection({ props }: { props: InvoicePdfProps }) {
           <Text style={s.netReceivableValue}>₹ {formatCurrency(effectiveNetReceivable)}</Text>
         </View>
       </View>
-      {/* Amount in Words rendered here using effective net receivable */}
       <View style={s.amountInWords}>
         <Text style={s.amountInWordsLabel}>AMOUNT IN WORDS :</Text>
         <Text style={s.amountInWordsValue}>{effectiveAmountInWords}</Text>
@@ -933,7 +932,6 @@ export function InvoicePdf(props: InvoicePdfProps) {
         )}
 
         <WorkItemsBlock items={item_distribution} />
-        {/* TotalsSection now owns AmountInWords to use effective TDS values */}
         <TotalsSection props={props} />
         <FooterSection props={props} />
       </Page>
