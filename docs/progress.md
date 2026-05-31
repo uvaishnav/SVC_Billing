@@ -4,7 +4,7 @@
 
 ---
 
-## Current Phase: Phase 3 — Invoice Generation (PDF Rendering in progress)
+## Current Phase: Phase 3 — Invoice Generation (Bug Fixes in progress on `bugfix/pre-feature-fixes-20260531`)
 
 ---
 
@@ -43,11 +43,18 @@
   - ⬜ NOT YET: `npm install @react-pdf/renderer` confirmed in `package.json`
   - ⬜ NOT YET: Migration 007 run in Supabase SQL Editor
 
+### Bug Fixes — `bugfix/pre-feature-fixes-20260531`
+- ✅ **Bug 1** — Invoice date change now auto-recalculates `billing_from` / `billing_to` as the previous month relative to the selected invoice date (was always using today's date as base).
+
 ---
 
 ## What's Next
 
-### Immediate: Finish & verify Part 3
+### Immediate: Finish bug fixes on current branch
+1. Continue reporting bugs — each fix is committed to `bugfix/pre-feature-fixes-20260531`
+2. Once all bugs are fixed, merge this branch → `main`
+
+### Then: Finish & verify PDF Part 3
 1. Confirm `@react-pdf/renderer` is in `package.json` (run `npm install @react-pdf/renderer` if not)
 2. Run migration `007_invoices_pdf_url.sql` in Supabase SQL Editor
 3. Wire `InvoiceActions` into `InvoicesPage.tsx` invoice cards

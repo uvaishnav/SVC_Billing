@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-05-31] — Bug Fix: Invoice Date → Billing Period Auto-Recalculation
+
+### Fixed
+- `app/src/ui/invoices/useInvoiceDraft.ts` — `prevMonthRange()` now accepts an optional `baseDate?: Date` parameter instead of always using `new Date()` internally. Function is now exported so UI components can call it directly.
+- `app/src/ui/invoices/Section1Header.tsx` — Added `handleInvoiceDateChange()` handler on the Invoice Date field. When the user changes the invoice date, `billing_from` and `billing_to` are automatically recomputed as the first and last day of the previous month *relative to the selected invoice date*. All three fields are patched in a single `patch()` call. User can still manually override `billing_from` / `billing_to` after the auto-fill.
+- Added `parseLocalDate()` helper in `Section1Header.tsx` to safely parse `YYYY-MM-DD` strings as local dates (avoids the UTC-midnight → IST timezone shift that `new Date(isoString)` causes).
+
+### Observations
+- Root cause: `prevMonthRange()` was only ever called once at wizard init (`emptyDraft()`). The `invoice_date` `onChange` handler called `patch({ invoice_date: v })` directly, which never re-derived the billing period. Adding a base-date parameter to `prevMonthRange()` and wiring it into the date change handler was the minimal, zero-risk fix.
+- `billing_from` / `billing_to` remain independently editable — the auto-fill on invoice date change is a default, not a lock.
+- `parseLocalDate()` is reused from the existing IST-safe date handling pattern already present in the file (`formatISODate` avoids `new Date(isoString)` for the same reason).
+
+---
+
 ## [2026-05-31] — PDF Font CDN Fix
 
 ### Fixed
@@ -44,7 +58,7 @@
 - Invoice number as prominent right-aligned bordered box in document identity band
 
 ### Observations
-- `@react-pdf/renderer` cannot use Tailwind or CSS variables — all styles are `StyleSheet.create()` objects; this is a deliberate PDF-only pattern and does NOT affect the app’s UI styling rules
+- `@react-pdf/renderer` cannot use Tailwind or CSS variables — all styles are `StyleSheet.create()` objects; this is a deliberate PDF-only pattern and does NOT affect the app's UI styling rules
 - `PDFViewer` is intentionally hidden on mobile (screen width < 768px) and replaced with a download prompt — PDFViewer renders an iframe which is heavy and poorly supported on mobile WebViews
 - PDF upload to Supabase Storage is intentionally non-blocking (fire-and-forget with console.warn on failure) — the user can still download the PDF even if the upload fails
 - Web Share API (`navigator.share`) with file sharing is supported on Android Chrome and iOS Safari 15.1+; desktop fallback triggers a download
