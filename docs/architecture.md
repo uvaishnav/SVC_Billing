@@ -9,12 +9,15 @@
 Mobile-first PWA (React + Vite) — Supabase backend (Postgres + Auth + Storage + Edge Functions).
 
 - **Frontend:** React 18, TypeScript, Vite, inline CSS + CSS variables (no Tailwind on UI components)
-- **Backend:** Supabase (Postgres, Auth, RLS, Storage, Edge Functions for invoice numbering + AI parsing)
+- **Backend:** Supabase (Postgres, Auth, RLS, Storage, Edge Functions for invoice numbering + AI parsing + AI description)
 - **Hosting:** Vercel (auto-deploy from `main`)
-- **PDF generation:** jsPDF + html2canvas (in-browser)
+- **PDF generation:** `@react-pdf/renderer` v3 (vector PDFs, JSX layout, embedded TTF fonts — replaces jsPDF)
 - **OCR:** Tesseract.js (in-browser, work order PDF text extraction)
 - **AI parsing:** OpenAI / Gemini via Supabase Edge Function (`parse-work-order`) — API key protected server-side
-- **Fonts:** Playfair Display (headings), Work Sans (body) — loaded from Google Fonts
+- **AI description:** Gemini via Supabase Edge Function (`generate-invoice-description`) — rental-aware prompt
+- **Fonts:** Inter (body weights 400/500/600/700) + Lora (headings 400/700) — embedded as TTF in PDF via `cdn.jsdelivr.net/fontsource/fonts/`
+
+> ⚠️ `@react-pdf/renderer` cannot use Tailwind or CSS variables — all PDF styles are `StyleSheet.create()` objects. This is PDF-only and does NOT affect the app UI styling rules.
 
 ***
 
@@ -30,6 +33,7 @@ Mobile-first PWA (React + Vite) — Supabase backend (Postgres + Auth + Storage 
       004_invoice_numbering.sql
       005_projects_and_work_orders.sql
       006_rental_billing.sql    ← Rental billing tables + line_item_billing_type column
+      007_invoices_pdf_url.sql  ← Adds pdf_url column to invoices + Storage RLS policies
     functions/                  ← Edge Functions deployed via Supabase CLI from repo root
       generate-invoice-number/
         index.ts
@@ -49,10 +53,11 @@ Mobile-first PWA (React + Vite) — Supabase backend (Postgres + Auth + Storage 
         projectsDb.ts           — Projects DB helpers
         workOrdersDb.ts         — WorkOrders + WorkOrderItems DB helpers + computeWOStatus()
         invoicesDb.ts           — Invoices CRUD + saveDraftInvoice() + finalizeInvoice() (quantity + rental paths)
+        invoicePdfDb.ts         — uploadInvoicePdf() (Supabase Storage upload) + getInvoiceDownloadUrl() (signed URL)
         index.ts                — re-exports all DB modules
       ui/
         LoginScreen.tsx
-        AppShell.tsx            — 5-tab bar (Clients | Vehicles | Work Orders | Projects | Settings)
+        AppShell.tsx            — 6-tab bar (Clients | Vehicles | Work Orders | Projects | Invoices | Settings)
         settings/
           _components.tsx       — shared UI primitives (REUSE IN ALL MODULES)
           SettingsPage.tsx
@@ -88,6 +93,13 @@ Mobile-first PWA (React + Vite) — Supabase backend (Postgres + Auth + Storage 
           Section2Items.tsx         — billing mode selector + rental sub-form + distribution panel
           Section3Description.tsx   — vehicle summary (rental) or multi-select (quantity) + AI description
           Section4Review.tsx
+          InvoiceActions.tsx        — reusable PDF action button (View/Download); hides on draft invoices
+          pdf/
+            InvoicePdf.tsx          — @react-pdf/renderer document, A4 portrait, full 11-section layout
+            invoicePayloadTypes.ts  — TypeScript interfaces for PDF data (InvoicePayload + sub-types)
+            buildInvoicePayload.ts  — async data assembler: invoice + FK joins + settings → InvoicePayload
+            pdfUtils.ts             — formatCurrency(), formatDate(), toWords() (Indian place-value)
+            InvoicePreviewModal.tsx — full-screen preview modal, download + Web Share API + Storage upload
   docs/
     progress.md
     architecture.md
@@ -107,9 +119,10 @@ Mobile-first PWA (React + Vite) — Supabase backend (Postgres + Auth + Storage 
 | Bucket name | Visibility | Purpose |
 |---|---|---|
 | `work-orders` | Private | Uploaded work order PDFs — stored after OCR + AI parse |
-| `invoices` | Private | Generated invoice PDFs — to be created when invoice module is built |
+| `invoices` | Private | Generated invoice PDFs — signed-URL access via `getInvoiceDownloadUrl()` |
 
-> ⚠️ Both buckets must exist before any upload code is run. `work-orders` was created manually on 2026-05-24.
+> ⚠️ Both buckets were created manually on 2026-05-24 and must exist before any upload code is run.
+> The `invoices` bucket requires RLS policies from migration `007_invoices_pdf_url.sql` to allow authenticated uploads.
 
 ***
 
@@ -286,6 +299,7 @@ Mobile-first PWA (React + Vite) — Supabase backend (Postgres + Auth + Storage 
 | description | TEXT | AI-generated or user-edited |
 | status | TEXT NOT NULL | `draft` / `final` / `cancelled` |
 | **line_item_billing_type** | **TEXT NOT NULL DEFAULT 'quantity'** | **`'quantity'` or `'rental'` — drives Section 2 UI and PDF layout path. Single authoritative flag, never inferred from child tables.** |
+| **pdf_url** | **TEXT** | **Supabase Storage URL of the generated PDF — set by `uploadInvoicePdf()` after first preview/download. NULL until PDF is first generated.** |
 | created_at | TIMESTAMPTZ | |
 
 ### `invoice_line_items` (quantity invoices only)
@@ -349,12 +363,53 @@ Mobile-first PWA (React + Vite) — Supabase backend (Postgres + Auth + Storage 
 
 > ⚠️ Analytics-only table. Never shown in UI directly. Written on `finalizeInvoice()`, deleted on `cancelInvoice()`. Used for future "revenue per vehicle" dashboard feature.
 
+### Migration 007 — Invoice PDF URL (`supabase/migrations/007_invoices_pdf_url.sql`)
+
+| Change | Purpose |
+|---|---|
+| `invoices.pdf_url TEXT` | Stores the Supabase Storage URL of the generated PDF. NULL until PDF is first opened/downloaded. Set by `invoicePdfDb.uploadInvoicePdf()`. |
+| Storage RLS: INSERT policy | Allows authenticated users to upload to the `invoices` bucket |
+| Storage RLS: SELECT policy | Allows authenticated users to read/list from the `invoices` bucket |
+| Storage RLS: UPDATE policy | Allows authenticated users to overwrite an existing PDF in the `invoices` bucket |
+
+> ⚠️ Run migration 007 in Supabase SQL Editor before testing the PDF preview modal.
+
 **Rental invoice data flow:**
 1. User selects `billing_type = 'rental'` in Section 1 → `InvoiceDraft.line_item_billing_type = 'rental'`
 2. Section 2 shows rental sub-form → writes `InvoiceRentalItemDraft[]` + `InvoiceItemDistributionDraft[]`
 3. Section 3 shows read-only vehicle summary (no picker); AI description uses rental prompt (no per-day rate)
 4. On finalize → `invoicesDb.finalizeInvoice()` writes `invoice_rental_items`, `invoice_item_distribution`, `vehicle_billing_ledger`; increments `cumulative_billed_qty` per WO item proportional to `allocated_amount`
 5. PDF renderer checks `line_item_billing_type` → routes to rental layout (vehicle table, no qty/unit columns)
+
+**PDF generation data flow:**
+1. User opens `InvoicePreviewModal` → triggers `buildInvoicePayload(invoiceId)` async call
+2. `buildInvoicePayload` fetches invoice row + FK joins (client, client_gstin, work_order, sac, bank_account) + settings + billing-type-branched child items (`invoice_line_items` or `invoice_rental_items` + `invoice_item_distribution`)
+3. Assembled `InvoicePayload` is passed to `<InvoicePdf payload={...} />` React component
+4. `@react-pdf/renderer` renders the component to a PDF blob (vector, A4 portrait)
+5. On modal open: PDF blob is uploaded to Supabase Storage (`invoices/{invoice_id}.pdf`) and `invoices.pdf_url` is updated (non-blocking fire-and-forget)
+6. User can Download (triggers file save) or Share (Web Share API with blob, Android/iOS Safari; desktop fallback = download)
+
+***
+
+## PDF Invoice Layout — Section Structure
+
+All invoice types (quantity + rental) share the same outer section structure. Only the line items section differs:
+
+| # | Section | Content | Billing type |
+|---|---------|---------|-------------|
+| 1 | Header band | Supplier: name, address, GSTIN, PAN, phone, email, logo (cream bg `#FAF8F3`) | Both |
+| 2 | Document identity band | "TAX INVOICE" centred + Invoice number in prominent right-aligned bordered box | Both |
+| 3 | Two-column details | Left: Invoice date, billing period, W.O. ref (muted). Right: Bill-to (client name, address, GSTIN, place of supply, state code, tax mode, reverse charge flag) | Both |
+| 4 | SAC chip | SAC code as standalone tinted badge (tax-mode accent colour) | Both |
+| 5 | Description of services | AI-generated or user-edited paragraph above the line items table | Both |
+| 6 | Line items table | **Quantity:** Sl.No / Description / Unit / Qty / Rate / Taxable Value. **Rental:** Vehicle / Reg No / Billing Mode / Days / Monthly Rent / Subtotal | Branched |
+| 7 | Work Items Covered block | WO item descriptions + allocation percentages from `invoice_item_distribution` — labelled as informational | Rental only |
+| 8 | Totals block | Total Taxable, CGST+SGST or IGST (@9%/18%), **Total Invoice Amount** (bold), TDS @ 2% (informational), Net Receivable | Both |
+| 9 | Amount in words | Indian place-value words: Rupees X Crore Y Lakh Z Thousand … Only | Both |
+| 10 | Bank details | Bank name, account name, account number, IFSC, branch | Both |
+| 11 | Declaration + signature | Standard GST declaration text + Authorized Signatory name + signature line | Both |
+
+> **Color system:** Tax mode drives accent (gold `#C8A96A` for CGST/SGST, steel `#4A7FA5` for IGST). Billing type drives table header bg (parchment `#EDE9DE` for quantity, cool blue-grey `#E8EEF2` for rental). Brand elements (espresso text `#3B2A1F`, cream bg `#FAF8F3`, totals highlight `#3B2A1F`) are invariant.
 
 ***
 
@@ -365,6 +420,7 @@ Mobile-first PWA (React + Vite) — Supabase backend (Postgres + Auth + Storage 
 - **Never** use Tailwind utility classes on UI components — it breaks design consistency
 - CSS variables: `--color-primary`, `--color-bg`, `--color-accent`, `--color-surface`, `--color-surface-offset`, `--color-border`, `--color-text`, `--color-text-muted`, `--color-text-faint`, `--color-success`, `--color-success-highlight`, `--color-warning`, `--color-warning-highlight`, `--color-error`, `--color-error-highlight`, `--color-info`, `--color-info-highlight`
 - Fonts: `Playfair Display` for headings (h1–h3), `Work Sans` for body/inputs
+- **PDF components only:** Use `StyleSheet.create()` from `@react-pdf/renderer` — CSS variables do not apply here
 
 ### 2. Shared primitives — import from `settings/_components.tsx`
 ```ts
@@ -419,7 +475,7 @@ For boolean fields (rates_firm, tds_applicable), use the pill-toggle pattern est
 
 ***
 
-## AppShell Layout (5 tabs)
+## AppShell Layout (6 tabs)
 
 ```
 ┌──────────────────────────────┐
@@ -430,6 +486,7 @@ For boolean fields (rates_firm, tds_applicable), use the pill-toggle pattern est
 │  <VehiclesPage />              │
 │  <WorkOrdersPage />            │
 │  <ProjectsPage />              │
+│  <InvoicesPage />              │
 │  <SettingsPage />              │
 └──────────────────────────────┘
 ┌──────────────────────────────┐
@@ -438,6 +495,7 @@ For boolean fields (rates_firm, tds_applicable), use the pill-toggle pattern est
 │  🚛 Vehicles                  │  icon: 18px emoji
 │  📋 Work Orders               │
 │  📁 Projects                  │
+│  🧾 Invoices                  │
 │  ⚙️ Settings                  │
 └──────────────────────────────┘
 ```
@@ -457,3 +515,4 @@ For boolean fields (rates_firm, tds_applicable), use the pill-toggle pattern est
 9. **JOIN pattern in DB helpers** — use `.select('*, related_table(col)')` for FK joins; map result to flatten: `client_name: row.clients?.name ?? null, clients: undefined`
 10. **Delete-before-insert for child lists** — for 1:many relationships where the user edits the full list (e.g. work_order_items), delete all children then re-insert rather than diffing. Simpler and safe for this use case.
 11. **`NUMERIC` division in SQL for rental billing** — never use integer division for `(monthly_rent / 30) × num_days`; ensure both operands are `NUMERIC` to avoid truncation. TypeScript: use plain `number` arithmetic, never `Math.floor` on intermediate rental subtotal.
+12. **`@react-pdf/renderer` fonts must be TTF** — woff2 is not supported. Use `cdn.jsdelivr.net/fontsource/fonts/{font}@{version}/{subset}-{weight}-{style}.ttf` scheme. All font URLs must be verified in browser before committing.
