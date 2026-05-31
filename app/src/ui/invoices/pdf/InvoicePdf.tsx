@@ -37,56 +37,39 @@ import {
 import type { InvoicePdfProps } from './invoicePayloadTypes';
 
 // ── Font registration ─────────────────────────────────────────────────────────
-// Using the correct Fontsource jsDelivr CDN format:
-//   https://cdn.jsdelivr.net/fontsource/fonts/{font}@{version}/{subset}-{weight}-{style}.ttf
-// All 6 URLs manually verified working (May 2026).
-
 Font.register({
   family: 'Inter',
   fonts: [
-    {
-      src: 'https://cdn.jsdelivr.net/fontsource/fonts/inter@5/latin-400-normal.ttf',
-      fontWeight: 400,
-      fontStyle: 'normal',
-    },
-    {
-      src: 'https://cdn.jsdelivr.net/fontsource/fonts/inter@5/latin-500-normal.ttf',
-      fontWeight: 500,
-      fontStyle: 'normal',
-    },
-    {
-      src: 'https://cdn.jsdelivr.net/fontsource/fonts/inter@5/latin-600-normal.ttf',
-      fontWeight: 600,
-      fontStyle: 'normal',
-    },
-    {
-      src: 'https://cdn.jsdelivr.net/fontsource/fonts/inter@5/latin-700-normal.ttf',
-      fontWeight: 700,
-      fontStyle: 'normal',
-    },
+    { src: 'https://cdn.jsdelivr.net/fontsource/fonts/inter@5/latin-400-normal.ttf', fontWeight: 400, fontStyle: 'normal' },
+    { src: 'https://cdn.jsdelivr.net/fontsource/fonts/inter@5/latin-500-normal.ttf', fontWeight: 500, fontStyle: 'normal' },
+    { src: 'https://cdn.jsdelivr.net/fontsource/fonts/inter@5/latin-600-normal.ttf', fontWeight: 600, fontStyle: 'normal' },
+    { src: 'https://cdn.jsdelivr.net/fontsource/fonts/inter@5/latin-700-normal.ttf', fontWeight: 700, fontStyle: 'normal' },
   ],
 });
 
 Font.register({
   family: 'Lora',
   fonts: [
-    {
-      src: 'https://cdn.jsdelivr.net/fontsource/fonts/lora@5/latin-400-normal.ttf',
-      fontWeight: 400,
-      fontStyle: 'normal',
-    },
-    {
-      src: 'https://cdn.jsdelivr.net/fontsource/fonts/lora@5/latin-700-normal.ttf',
-      fontWeight: 700,
-      fontStyle: 'normal',
-    },
+    { src: 'https://cdn.jsdelivr.net/fontsource/fonts/lora@5/latin-400-normal.ttf', fontWeight: 400, fontStyle: 'normal' },
+    { src: 'https://cdn.jsdelivr.net/fontsource/fonts/lora@5/latin-700-normal.ttf', fontWeight: 700, fontStyle: 'normal' },
   ],
 });
 
 // ── Page constants ────────────────────────────────────────────────────────────
-const PAGE_MARGIN = 32;
-const BODY_FONT   = 'Inter';
-const HEAD_FONT   = 'Lora';
+const PAGE_MARGIN  = 32;
+const BODY_FONT    = 'Inter';
+const HEAD_FONT    = 'Lora';
+
+/**
+ * Header geometry constants.
+ * HEADER_PADDING_V  — vertical padding inside the cream band
+ * LOGO_SIZE         — logo renders at exactly this square (≈80% of band height)
+ *   Band inner height ≈ LOGO_SIZE + 2 × LOGO_MARGIN, so the logo fills 80% visually.
+ * LOGO_MARGIN       — equal whitespace on all four sides of the logo
+ */
+const HEADER_PADDING_V = 8;
+const LOGO_SIZE        = 52;   // px — logo image square
+const LOGO_MARGIN      = 6;    // px — equal breathing room around logo on all sides
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
@@ -101,67 +84,85 @@ const s = StyleSheet.create({
     lineHeight: 1.4,
   },
 
-  // ── Header — compact, full-width, logo fills height
+  // ── Header ────────────────────────────────────────────────────────────────
   header: {
     backgroundColor: CREAM,
-    paddingVertical: 10,
+    paddingVertical: HEADER_PADDING_V,
     paddingHorizontal: 14,
     flexDirection: 'row',
-    alignItems: 'stretch',
+    alignItems: 'center',          // vertically centre logo column vs text column
     borderBottomWidth: 1,
     borderBottomColor: DIVIDER,
   },
+
+  /**
+   * Logo column:
+   *  - Fixed square = LOGO_SIZE
+   *  - Equal margin on all 4 sides = LOGO_MARGIN
+   *  - Total column width = LOGO_SIZE + 2×LOGO_MARGIN (auto via margin props)
+   */
   headerLogoWrap: {
-    // logo column — fixed width, stretches to full header height
-    width: 44,
-    marginRight: 12,
+    margin: LOGO_MARGIN,
+    marginRight: LOGO_MARGIN + 10,  // a little extra gutter before text
+    width: LOGO_SIZE,
+    height: LOGO_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   headerLogo: {
-    width: 44,
-    height: 44,
+    width: LOGO_SIZE,
+    height: LOGO_SIZE,
     objectFit: 'contain',
   },
   headerLogoPlaceholder: {
-    width: 44,
-    height: 44,
+    width: LOGO_SIZE,
+    height: LOGO_SIZE,
     backgroundColor: '#E8E2D8',
     borderRadius: 4,
   },
+
+  /**
+   * Text column:
+   *  - flex: 1  → expands to fill all remaining width after the logo
+   *  - justifyContent: 'center' → vertically centres the name+address+meta stack
+   */
   headerTextBlock: {
     flex: 1,
     justifyContent: 'center',
   },
   headerBusinessName: {
     fontFamily: HEAD_FONT,
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: 700,
     color: ESPRESSO,
-    marginBottom: 2,
+    marginBottom: 1,
   },
   headerAddress: {
     fontSize: 7.5,
     color: BODY_TEXT,
-    marginBottom: 4,
+    marginBottom: 5,             // breathing room between address and meta row
   },
-  // Compact meta line: GSTIN | PAN | State
+  /**
+   * Single meta row: GSTIN | PAN | State | Ph | Email
+   * All on one line — uses full available width.
+   */
   headerMetaLine: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 2,
+    flexWrap: 'nowrap',
   },
   headerMetaItem: {
-    fontSize: 7,
+    fontSize: 6.8,
     color: MUTED,
   },
   headerMetaDivider: {
-    fontSize: 7,
+    fontSize: 6.8,
     color: DIVIDER,
-    marginHorizontal: 5,
+    marginHorizontal: 4,
   },
 
-  // ── TAX INVOICE stamp — slim centered label, no box
+  // ── TAX INVOICE stamp — slim centered label, no box ────────────────────────
   taxInvoiceStamp: {
     alignItems: 'center',
     paddingVertical: 5,
@@ -176,7 +177,7 @@ const s = StyleSheet.create({
     letterSpacing: 2,
   },
 
-  // ── Two-column metadata
+  // ── Two-column metadata ────────────────────────────────────────────────────
   twoCol: {
     flexDirection: 'row',
     borderBottomWidth: 1,
@@ -225,7 +226,6 @@ const s = StyleSheet.create({
     color: ESPRESSO,
     flex: 1,
   },
-  // Invoice number row — bold highlight in left column
   invoiceNumberValue: {
     fontSize: 8.5,
     fontWeight: 700,
@@ -234,7 +234,7 @@ const s = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  // ── SAC strip
+  // ── SAC strip ──────────────────────────────────────────────────────────────
   sacStrip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -258,7 +258,7 @@ const s = StyleSheet.create({
     letterSpacing: 1,
   },
 
-  // ── Description block
+  // ── Description block ──────────────────────────────────────────────────────
   descBlock: {
     paddingVertical: 8,
     paddingHorizontal: 10,
@@ -279,7 +279,7 @@ const s = StyleSheet.create({
     lineHeight: 1.5,
   },
 
-  // ── Table shared
+  // ── Table shared ───────────────────────────────────────────────────────────
   table: {
     width: '100%',
     marginBottom: 8,
@@ -337,7 +337,7 @@ const s = StyleSheet.create({
     textAlign: 'right',
   },
 
-  // ── Quantity table column widths
+  // ── Quantity table column widths ───────────────────────────────────────────
   qColSl:   { width: '6%' },
   qColDesc: { width: '40%' },
   qColUnit: { width: '12%', textAlign: 'center' },
@@ -345,7 +345,7 @@ const s = StyleSheet.create({
   qColRate: { width: '15%', textAlign: 'right' },
   qColAmt:  { width: '15%', textAlign: 'right' },
 
-  // ── Rental table column widths
+  // ── Rental table column widths ─────────────────────────────────────────────
   rColSl:     { width: '5%' },
   rColVeh:    { width: '14%' },
   rColType:   { width: '10%' },
@@ -355,7 +355,7 @@ const s = StyleSheet.create({
   rColRent:   { width: '16%', textAlign: 'right' },
   rColAmt:    { width: '15%', textAlign: 'right' },
 
-  // ── Work items block
+  // ── Work items block ───────────────────────────────────────────────────────
   workItemsBlock: {
     backgroundColor: '#F7F5F0',
     borderWidth: 0.75,
@@ -386,7 +386,7 @@ const s = StyleSheet.create({
     flex: 1,
   },
 
-  // ── Totals section
+  // ── Totals section ─────────────────────────────────────────────────────────
   totalsSection: {
     marginBottom: 8,
     marginLeft: '50%',
@@ -440,7 +440,7 @@ const s = StyleSheet.create({
     textAlign: 'right',
   },
 
-  // ── Amount in words
+  // ── Amount in words ────────────────────────────────────────────────────────
   amountInWords: {
     flexDirection: 'row',
     paddingVertical: 7,
@@ -464,7 +464,7 @@ const s = StyleSheet.create({
     flex: 1,
   },
 
-  // ── Footer
+  // ── Footer ─────────────────────────────────────────────────────────────────
   footer: {
     flexDirection: 'row',
     borderTopWidth: 1,
@@ -542,10 +542,22 @@ function formatBillingPeriod(from: string, to: string): string {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
+/**
+ * HeaderBand
+ *
+ * Layout:
+ *   [LOGO 52×52, equal margin 6px on all sides]  [Text block — flex:1]
+ *
+ * Text block (vertically centered beside logo):
+ *   Business Name  (Lora 15pt bold)
+ *   Address        (Inter 7.5pt)
+ *   ── single meta line ──
+ *   GSTIN: xxx | PAN: xxx | State: xxx (xx) | Ph: xxx | email
+ */
 function HeaderBand({ supplier }: { supplier: InvoicePdfProps['supplier'] }) {
   return (
     <View style={s.header}>
-      {/* Logo — fills full header height */}
+      {/* ── Logo column ── */}
       <View style={s.headerLogoWrap}>
         {supplier.logo_url ? (
           <Image src={supplier.logo_url} style={s.headerLogo} />
@@ -554,25 +566,19 @@ function HeaderBand({ supplier }: { supplier: InvoicePdfProps['supplier'] }) {
         )}
       </View>
 
-      {/* Text block */}
+      {/* ── Text column ── */}
       <View style={s.headerTextBlock}>
-        {/* Business name — prominent */}
         <Text style={s.headerBusinessName}>{supplier.business_name}</Text>
-
-        {/* Address — subtitle */}
         <Text style={s.headerAddress}>{supplier.address}</Text>
 
-        {/* Meta line 1: GSTIN | PAN | State */}
+        {/* Single meta line — all fields separated by | */}
         <View style={s.headerMetaLine}>
           <Text style={s.headerMetaItem}>GSTIN: {supplier.gstin}</Text>
           <Text style={s.headerMetaDivider}>|</Text>
           <Text style={s.headerMetaItem}>PAN: {supplier.pan}</Text>
           <Text style={s.headerMetaDivider}>|</Text>
           <Text style={s.headerMetaItem}>State: {supplier.state} ({supplier.state_code})</Text>
-        </View>
-
-        {/* Meta line 2: Phone | Email */}
-        <View style={s.headerMetaLine}>
+          <Text style={s.headerMetaDivider}>|</Text>
           <Text style={s.headerMetaItem}>Ph: {supplier.phone}</Text>
           <Text style={s.headerMetaDivider}>|</Text>
           <Text style={s.headerMetaItem}>{supplier.email}</Text>
