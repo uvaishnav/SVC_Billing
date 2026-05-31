@@ -7,13 +7,12 @@
  *   1. Supplier header band
  *   2. TAX INVOICE stamp (slim centered label)
  *   3. Two-column block: INVOICE DETAILS (incl. invoice no.) | DETAILS OF RECIPIENT OF SERVICE
- *   4. SAC code strip
- *   5. Description of Services
- *   6. Main table (quantity OR rental)
- *   7. Work Items Covered block (rental only, conditional)
- *   8. Tax / totals summary
- *   9. Amount in words
- *  10. Footer: bank details | signature
+ *   4. Description of Services
+ *   5. SAC code tab + Main table (quantity OR rental) — SAC sits as a bump on the table
+ *   6. Work Items Covered block (rental only, conditional)
+ *   7. Tax / totals summary
+ *   8. Amount in words
+ *   9. Footer: bank details | signature
  */
 
 import React from 'react';
@@ -60,21 +59,9 @@ const PAGE_MARGIN  = 32;
 const BODY_FONT    = 'Inter';
 const HEAD_FONT    = 'Lora';
 
-/**
- * Header geometry constants.
- *
- * HEADER_PADDING_V  — vertical padding inside the cream band
- *                     Reduced to 4 to remove excess empty space above/below content.
- * LOGO_SIZE         — logo square size. Bumped to 88px for a slightly larger presence.
- * LOGO_MARGIN       — equal whitespace on all four sides of the logo.
- *                     Reduced to 5 (proportional to tighter padding).
- *
- * FIX (prev commit): lineHeight: 1.0 on headerBusinessName prevents Lora ascender
- * bleed that was causing the name and address to visually overlap.
- */
-const HEADER_PADDING_V = 0;    // ↓ from 6 — removes excess band height
-const LOGO_SIZE        = 100;   // ↑ from 80 — slightly larger logo
-const LOGO_MARGIN      = 0;    // ↓ from 6  — proportionally tighter to match padding
+const HEADER_PADDING_V = 0;
+const LOGO_SIZE        = 100;
+const LOGO_MARGIN      = 0;
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
@@ -95,20 +82,13 @@ const s = StyleSheet.create({
     paddingVertical: HEADER_PADDING_V,
     paddingHorizontal: 5,
     flexDirection: 'row',
-    alignItems: 'center',          // vertically centre logo column vs text column
+    alignItems: 'center',
     borderBottomWidth: 1,
     borderBottomColor: DIVIDER,
   },
-
-  /**
-   * Logo column:
-   *  - Fixed square = LOGO_SIZE
-   *  - Equal margin on all 4 sides = LOGO_MARGIN
-   *  - Total column width = LOGO_SIZE + 2×LOGO_MARGIN (auto via margin props)
-   */
   headerLogoWrap: {
     margin: LOGO_MARGIN,
-    marginRight: 0,  // a little extra gutter before text
+    marginRight: 0,
     width: LOGO_SIZE,
     height: LOGO_SIZE,
     alignItems: 'center',
@@ -126,45 +106,24 @@ const s = StyleSheet.create({
     backgroundColor: '#E8E2D8',
     borderRadius: 4,
   },
-
-  /**
-   * Text column:
-   *  - flex: 1  → expands to fill all remaining width after the logo
-   *  - justifyContent: 'center' → vertically centres the name+address+meta stack
-   */
   headerTextBlock: {
     flex: 1,
     justifyContent: 'center',
   },
-
-  /**
-   * FIX: lineHeight: 1.0 — critical override.
-   * @react-pdf/renderer Text nodes inherit lineHeight from the Page style (1.4).
-   * Lora at 15pt with lineHeight 1.4 produces a computed line box of ~21pt,
-   * which pushes the baseline DOWN and causes the next sibling (address) to
-   * render at the same visual Y position — the "overlap" bug.
-   * Setting lineHeight: 1.0 collapses the line box to exactly the font size,
-   * so the name occupies only its true pixel height before marginBottom kicks in.
-   * marginBottom: 4 then gives clean, visible separation from the address.
-   */
   headerBusinessName: {
     fontFamily: HEAD_FONT,
     fontSize: 18,
     fontWeight: 700,
     color: ESPRESSO,
-    lineHeight: 1.0,    // ← prevents inherited 1.4 line-height overlap bug
+    lineHeight: 1.0,
     marginBottom: 4,
   },
   headerAddress: {
     fontSize: 7.5,
     color: BODY_TEXT,
-    lineHeight: 1.2,    // tighter than page default — multi-line addresses stay compact
-    marginBottom: 5,    // breathing room between address and meta row
+    lineHeight: 1.2,
+    marginBottom: 5,
   },
-  /**
-   * Single meta row: GSTIN | PAN | State | Ph | Email
-   * All on one line — uses full available width.
-   */
   headerMetaLine: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -180,7 +139,7 @@ const s = StyleSheet.create({
     marginHorizontal: 4,
   },
 
-  // ── TAX INVOICE stamp — slim centered label, no box ────────────────────────
+  // ── TAX INVOICE stamp ──────────────────────────────────────────────────────
   taxInvoiceStamp: {
     alignItems: 'center',
     paddingVertical: 5,
@@ -252,28 +211,52 @@ const s = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  // ── SAC strip ──────────────────────────────────────────────────────────────
-  sacStrip: {
+  // ── SAC tab — compact badge that sits as a bump on top of the table ────────
+  /**
+   * sacTabWrap: full-width row but left-aligned content via alignItems: 'flex-start'.
+   * marginTop: 8 — breathing room after description block.
+   * marginBottom: 0 — chip bottom edge touches the table header directly.
+   */
+  sacTabWrap: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 8,
+    marginBottom: 0,
+  },
+  /**
+   * sacTab: the badge itself.
+   * - alignSelf: 'flex-start'  → shrinks to content width, no full-width stretch
+   * - borderTopLeftRadius/TopRightRadius: 4 → rounded top corners
+   * - borderBottomLeftRadius/BottomRightRadius: 0 → flat bottom, merges with table
+   * - borderWidth: 0.75 on top/left/right only (no bottom border — table provides it)
+   * - paddingVertical: 4, paddingHorizontal: 10 → tight but breathable
+   */
+  sacTab: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 6,
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
     paddingHorizontal: 10,
-    borderWidth: 0.75,
-    borderRadius: 3,
-    marginTop: 8,
-    marginBottom: 6,
+    borderTopWidth: 0.75,
+    borderLeftWidth: 0.75,
+    borderRightWidth: 0.75,
+    borderBottomWidth: 0,
+    borderTopLeftRadius: 4,
+    borderTopRightRadius: 4,
   },
-  sacLabel: {
-    fontSize: 7,
+  sacTabLabel: {
+    fontSize: 6,
+    fontWeight: 700,
     color: MUTED,
-    marginRight: 8,
-    letterSpacing: 0.6,
+    letterSpacing: 0.8,
+    marginRight: 6,
+    textTransform: 'uppercase',
   },
-  sacValue: {
-    fontSize: 8.5,
+  sacTabValue: {
+    fontSize: 8,
     fontWeight: 700,
     color: ESPRESSO,
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
 
   // ── Description block ──────────────────────────────────────────────────────
@@ -554,28 +537,19 @@ function accentColor(taxMode: 'cgst_sgst' | 'igst') {
 function chipBg(taxMode: 'cgst_sgst' | 'igst') {
   return taxMode === 'igst' ? STEEL_CHIP_BG : GOLD_CHIP_BG;
 }
+function tableHeaderBg(taxMode: 'cgst_sgst' | 'igst', billingType: string) {
+  if (billingType === 'rental') return RENTAL_TABLE_HEADER_BG;
+  return QTY_TABLE_HEADER_BG;
+}
 function formatBillingPeriod(from: string, to: string): string {
   return `${formatDate(from)} – ${formatDate(to)}`;
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-/**
- * HeaderBand
- *
- * Layout:
- *   [LOGO 88×88, margin 5px on all sides]  [Text block — flex:1]
- *
- * Text block (vertically centered beside logo):
- *   Business Name  (Lora 15pt bold, lineHeight: 1.0 — prevents overlap)
- *   Address        (Inter 7.5pt, lineHeight: 1.2)
- *   ── single meta line ──
- *   GSTIN: xxx | PAN: xxx | State: xxx (xx) | Ph: xxx | email
- */
 function HeaderBand({ supplier }: { supplier: InvoicePdfProps['supplier'] }) {
   return (
     <View style={s.header}>
-      {/* ── Logo column ── */}
       <View style={s.headerLogoWrap}>
         {supplier.logo_url ? (
           <Image src={supplier.logo_url} style={s.headerLogo} />
@@ -583,13 +557,9 @@ function HeaderBand({ supplier }: { supplier: InvoicePdfProps['supplier'] }) {
           <View style={s.headerLogoPlaceholder} />
         )}
       </View>
-
-      {/* ── Text column ── */}
       <View style={s.headerTextBlock}>
         <Text style={s.headerBusinessName}>{supplier.business_name}</Text>
         <Text style={s.headerAddress}>{supplier.address}</Text>
-
-        {/* Single meta line — all fields separated by | */}
         <View style={s.headerMetaLine}>
           <Text style={s.headerMetaItem}>GSTIN: {supplier.gstin}</Text>
           <Text style={s.headerMetaDivider}>|</Text>
@@ -606,7 +576,6 @@ function HeaderBand({ supplier }: { supplier: InvoicePdfProps['supplier'] }) {
   );
 }
 
-/** Slim centered "TAX INVOICE" document-type stamp — no box, minimal height */
 function TaxInvoiceStamp({ taxMode }: { taxMode: 'cgst_sgst' | 'igst' }) {
   return (
     <View style={[s.taxInvoiceStamp, { borderBottomColor: accentColor(taxMode) }]}>
@@ -627,13 +596,10 @@ function TwoColumnMeta({ props }: { props: InvoicePdfProps }) {
     <View style={s.twoCol}>
       <View style={s.twoColLeft}>
         <Text style={s.colSectionLabel}>INVOICE DETAILS</Text>
-
-        {/* Invoice number — bold, highlighted, first row */}
         <View style={s.metaRow}>
           <Text style={s.metaLabel}>Invoice No.</Text>
           <Text style={s.invoiceNumberValue}>{invoice_number}</Text>
         </View>
-
         <View style={s.metaRow}>
           <Text style={s.metaLabel}>Invoice Date</Text>
           <Text style={s.metaValue}>{formatDate(invoice_date)}</Text>
@@ -693,15 +659,6 @@ function TwoColumnMeta({ props }: { props: InvoicePdfProps }) {
   );
 }
 
-function SacStrip({ sacCode, taxMode }: { sacCode: string; taxMode: 'cgst_sgst' | 'igst' }) {
-  return (
-    <View style={[s.sacStrip, { backgroundColor: chipBg(taxMode), borderColor: accentColor(taxMode) }]}>
-      <Text style={s.sacLabel}>SAC Code :</Text>
-      <Text style={s.sacValue}>{sacCode}</Text>
-    </View>
-  );
-}
-
 function DescriptionBlock({ description }: { description: string }) {
   return (
     <View style={s.descBlock}>
@@ -711,15 +668,49 @@ function DescriptionBlock({ description }: { description: string }) {
   );
 }
 
+/**
+ * SacTab
+ *
+ * Renders as a compact badge tab left-aligned, immediately above the table header.
+ * - Rounded top corners (4px), flat bottom — visually "sits on" the table
+ * - No bottom border — the table header row provides the base
+ * - Uses chipBg (same tinted background as table header) for color unity
+ * - alignSelf: 'flex-start' → width is content-only, no stretching
+ */
+function SacTab({ sacCode, taxMode }: { sacCode: string; taxMode: 'cgst_sgst' | 'igst' }) {
+  return (
+    <View style={s.sacTabWrap}>
+      <View style={[
+        s.sacTab,
+        {
+          backgroundColor: chipBg(taxMode),
+          borderTopColor: accentColor(taxMode),
+          borderLeftColor: accentColor(taxMode),
+          borderRightColor: accentColor(taxMode),
+        },
+      ]}>
+        <Text style={s.sacTabLabel}>SAC</Text>
+        <Text style={s.sacTabValue}>{sacCode}</Text>
+      </View>
+    </View>
+  );
+}
+
 function QuantityTable({
   lineItems,
   totalTaxable,
+  taxMode,
+  sacCode,
 }: {
   lineItems: InvoicePdfProps['line_items'];
   totalTaxable: number;
+  taxMode: 'cgst_sgst' | 'igst';
+  sacCode?: string;
 }) {
   return (
     <View style={s.table}>
+      {/* SAC tab bump — sits flush on top-left of table header */}
+      {sacCode ? <SacTab sacCode={sacCode} taxMode={taxMode} /> : null}
       <View style={[s.tableHeaderRow, { backgroundColor: QTY_TABLE_HEADER_BG }]}>
         <Text style={[s.tableHeaderCell, s.qColSl]}>Sl.</Text>
         <Text style={[s.tableHeaderCell, s.qColDesc]}>Description of Service</Text>
@@ -753,12 +744,18 @@ function QuantityTable({
 function RentalTable({
   rentalItems,
   totalTaxable,
+  taxMode,
+  sacCode,
 }: {
   rentalItems: InvoicePdfProps['rental_items'];
   totalTaxable: number;
+  taxMode: 'cgst_sgst' | 'igst';
+  sacCode?: string;
 }) {
   return (
     <View style={s.table}>
+      {/* SAC tab bump — sits flush on top-left of table header */}
+      {sacCode ? <SacTab sacCode={sacCode} taxMode={taxMode} /> : null}
       <View style={[s.tableHeaderRow, { backgroundColor: RENTAL_TABLE_HEADER_BG }]}>
         <Text style={[s.tableHeaderCell, s.rColSl]}>Sl.</Text>
         <Text style={[s.tableHeaderCell, s.rColVeh]}>Vehicle No</Text>
@@ -951,11 +948,10 @@ export function InvoicePdf(props: InvoicePdfProps) {
         <HeaderBand supplier={supplier} />
         <TaxInvoiceStamp taxMode={tax_mode} />
         <TwoColumnMeta props={props} />
-        {sac_code ? <SacStrip sacCode={sac_code} taxMode={tax_mode} /> : null}
         <DescriptionBlock description={overall_description} />
         {isRental
-          ? <RentalTable rentalItems={rental_items} totalTaxable={total_taxable} />
-          : <QuantityTable lineItems={line_items} totalTaxable={total_taxable} />
+          ? <RentalTable rentalItems={rental_items} totalTaxable={total_taxable} taxMode={tax_mode} sacCode={sac_code} />
+          : <QuantityTable lineItems={line_items} totalTaxable={total_taxable} taxMode={tax_mode} sacCode={sac_code} />
         }
         {hasWorkItems ? <WorkItemsBlock items={item_distribution} /> : null}
         <TotalsSection props={props} />
