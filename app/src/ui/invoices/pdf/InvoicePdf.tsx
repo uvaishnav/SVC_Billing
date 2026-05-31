@@ -214,13 +214,13 @@ const s = StyleSheet.create({
   // ── SAC tab — compact badge that sits as a bump on top of the table ────────
   /**
    * sacTabWrap: full-width row but left-aligned content via alignItems: 'flex-start'.
-   * marginTop: 8 — breathing room after description block.
+   * marginTop: 4 — reduced breathing room after description block (was 8).
    * marginBottom: 0 — chip bottom edge touches the table header directly.
    */
   sacTabWrap: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginTop: 8,
+    marginTop: 4,
     marginBottom: 0,
   },
   /**
@@ -244,19 +244,21 @@ const s = StyleSheet.create({
     borderTopLeftRadius: 4,
     borderTopRightRadius: 4,
   },
+  // Both label and value share the same font size (7.5) for visual consistency.
+  // Label is muted/uppercase; value is bold espresso — distinction via weight+color, not size.
   sacTabLabel: {
-    fontSize: 6,
-    fontWeight: 700,
+    fontSize: 7.5,
+    fontWeight: 600,
     color: MUTED,
-    letterSpacing: 0.8,
-    marginRight: 6,
+    letterSpacing: 0.5,
+    marginRight: 4,
     textTransform: 'uppercase',
   },
   sacTabValue: {
-    fontSize: 8,
+    fontSize: 7.5,
     fontWeight: 700,
     color: ESPRESSO,
-    letterSpacing: 0.8,
+    letterSpacing: 0.5,
   },
 
   // ── Description block ──────────────────────────────────────────────────────
@@ -265,7 +267,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 10,
     borderBottomWidth: 1,
     borderBottomColor: DIVIDER,
-    marginBottom: 8,
+    marginBottom: 0,
   },
   descLabel: {
     fontSize: 6.5,
@@ -676,6 +678,7 @@ function DescriptionBlock({ description }: { description: string }) {
  * - No bottom border — the table header row provides the base
  * - Uses chipBg (same tinted background as table header) for color unity
  * - alignSelf: 'flex-start' → width is content-only, no stretching
+ * - Label "SAC CODE :" and value share identical font size (7.5pt) for visual consistency
  */
 function SacTab({ sacCode, taxMode }: { sacCode: string; taxMode: 'cgst_sgst' | 'igst' }) {
   return (
@@ -689,7 +692,7 @@ function SacTab({ sacCode, taxMode }: { sacCode: string; taxMode: 'cgst_sgst' | 
           borderRightColor: accentColor(taxMode),
         },
       ]}>
-        <Text style={s.sacTabLabel}>SAC</Text>
+        <Text style={s.sacTabLabel}>SAC CODE :</Text>
         <Text style={s.sacTabValue}>{sacCode}</Text>
       </View>
     </View>
@@ -858,109 +861,97 @@ function TotalsSection({ props }: { props: InvoicePdfProps }) {
   );
 }
 
-function AmountInWords({ text }: { text: string }) {
+function AmountInWords({ amount }: { amount: string }) {
   return (
     <View style={s.amountInWords}>
-      <Text style={s.amountInWordsLabel}>Amount in Words: </Text>
-      <Text style={s.amountInWordsValue}>{text}</Text>
+      <Text style={s.amountInWordsLabel}>AMOUNT IN WORDS :</Text>
+      <Text style={s.amountInWordsValue}>{amount}</Text>
     </View>
   );
 }
 
-function FooterSection({
-  bank,
-  businessName,
-  authorizedSignatory,
-}: {
-  bank: InvoicePdfProps['bank'];
-  businessName: string;
-  authorizedSignatory: string;
-}) {
+function FooterSection({ props }: { props: InvoicePdfProps }) {
+  const { supplier, bank_details } = props;
   return (
     <View style={s.footer}>
       <View style={s.footerLeft}>
         <Text style={s.footerSectionLabel}>BANK DETAILS</Text>
-        {bank ? (
+        {bank_details ? (
           <View>
             <View style={s.footerBankRow}>
               <Text style={s.footerBankLabel}>Bank Name</Text>
-              <Text style={s.footerBankValue}>{bank.bank_name}</Text>
-            </View>
-            <View style={s.footerBankRow}>
-              <Text style={s.footerBankLabel}>Account Name</Text>
-              <Text style={s.footerBankValue}>{bank.account_name}</Text>
+              <Text style={s.footerBankValue}>{bank_details.bank_name}</Text>
             </View>
             <View style={s.footerBankRow}>
               <Text style={s.footerBankLabel}>Account No.</Text>
-              <Text style={s.footerBankValue}>{bank.account_number}</Text>
+              <Text style={s.footerBankValue}>{bank_details.account_number}</Text>
             </View>
             <View style={s.footerBankRow}>
-              <Text style={s.footerBankLabel}>IFSC</Text>
-              <Text style={s.footerBankValue}>{bank.ifsc}</Text>
+              <Text style={s.footerBankLabel}>IFSC Code</Text>
+              <Text style={s.footerBankValue}>{bank_details.ifsc_code}</Text>
             </View>
-            {bank.branch ? (
+            <View style={s.footerBankRow}>
+              <Text style={s.footerBankLabel}>Branch</Text>
+              <Text style={s.footerBankValue}>{bank_details.branch}</Text>
+            </View>
+            {bank_details.account_type ? (
               <View style={s.footerBankRow}>
-                <Text style={s.footerBankLabel}>Branch</Text>
-                <Text style={s.footerBankValue}>{bank.branch}</Text>
+                <Text style={s.footerBankLabel}>Account Type</Text>
+                <Text style={s.footerBankValue}>{bank_details.account_type}</Text>
               </View>
             ) : null}
           </View>
         ) : (
-          <Text style={s.tableCellMuted}>No bank details on file</Text>
+          <Text style={s.tableCellMuted}>No bank details on file.</Text>
         )}
       </View>
-
       <View style={s.footerRight}>
-        <Text style={s.footerSectionLabel}>For {businessName}</Text>
-        <View style={{ height: 40 }} />
+        <Text style={s.footerForText}>For {supplier.business_name}</Text>
+        <View style={{ height: 36 }} />
         <View style={s.footerSignatureLine} />
         <Text style={s.footerSignatoryLabel}>Authorised Signatory</Text>
-        {authorizedSignatory ? (
-          <Text style={[s.footerSignatoryLabel, { marginTop: 2, fontWeight: 500, color: BODY_TEXT }]}>
-            {authorizedSignatory}
-          </Text>
-        ) : null}
       </View>
     </View>
   );
 }
 
-// ── Main export ───────────────────────────────────────────────────────────────
+// ── Main Document ─────────────────────────────────────────────────────────────
 
 export function InvoicePdf(props: InvoicePdfProps) {
   const {
-    supplier, invoice_number, tax_mode, billing_type,
-    sac_code, overall_description,
+    billing_type, tax_mode, sac,
     line_items, rental_items, item_distribution,
-    total_taxable, amount_in_words, bank,
+    total_taxable, amount_in_words,
   } = props;
 
-  const isRental     = billing_type === 'rental';
-  const hasWorkItems = isRental && item_distribution && item_distribution.length > 0;
-
   return (
-    <Document
-      title={`Tax Invoice – ${invoice_number}`}
-      author={supplier.business_name}
-      subject="GST Tax Invoice"
-    >
+    <Document>
       <Page size="A4" style={s.page}>
-        <HeaderBand supplier={supplier} />
+        <HeaderBand supplier={props.supplier} />
         <TaxInvoiceStamp taxMode={tax_mode} />
         <TwoColumnMeta props={props} />
-        <DescriptionBlock description={overall_description} />
-        {isRental
-          ? <RentalTable rentalItems={rental_items} totalTaxable={total_taxable} taxMode={tax_mode} sacCode={sac_code} />
-          : <QuantityTable lineItems={line_items} totalTaxable={total_taxable} taxMode={tax_mode} sacCode={sac_code} />
-        }
-        {hasWorkItems ? <WorkItemsBlock items={item_distribution} /> : null}
+        <DescriptionBlock description={props.description} />
+
+        {billing_type === 'rental' ? (
+          <RentalTable
+            rentalItems={rental_items ?? []}
+            totalTaxable={total_taxable}
+            taxMode={tax_mode}
+            sacCode={sac?.sac_code}
+          />
+        ) : (
+          <QuantityTable
+            lineItems={line_items ?? []}
+            totalTaxable={total_taxable}
+            taxMode={tax_mode}
+            sacCode={sac?.sac_code}
+          />
+        )}
+
+        <WorkItemsBlock items={item_distribution} />
         <TotalsSection props={props} />
-        <AmountInWords text={amount_in_words} />
-        <FooterSection
-          bank={bank}
-          businessName={supplier.business_name}
-          authorizedSignatory={supplier.authorized_signatory}
-        />
+        <AmountInWords amount={amount_in_words} />
+        <FooterSection props={props} />
       </Page>
     </Document>
   );
