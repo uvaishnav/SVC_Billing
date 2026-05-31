@@ -19,10 +19,16 @@ function localISO(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
-function prevMonthRange(): { from: string; to: string } {
-  const now = new Date()
-  const from = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-  const to   = new Date(now.getFullYear(), now.getMonth(), 0)
+/**
+ * Returns the first and last date of the month BEFORE the given base date.
+ * baseDate defaults to today when not provided (used for emptyDraft).
+ * When invoice_date changes, pass the new date here so billing_from/to
+ * track the previous month relative to the selected invoice date.
+ */
+export function prevMonthRange(baseDate?: Date): { from: string; to: string } {
+  const ref = baseDate ?? new Date()
+  const from = new Date(ref.getFullYear(), ref.getMonth() - 1, 1)
+  const to   = new Date(ref.getFullYear(), ref.getMonth(), 0)
   return { from: localISO(from), to: localISO(to) }
 }
 
