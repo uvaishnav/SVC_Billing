@@ -4,6 +4,54 @@
 
 ---
 
+## [2026-06-01] — Dashboard / Home Tab (Phase 4)
+
+### Added
+
+- `supabase/migrations/008_dashboard_ignores.sql` — new `dashboard_ignores` table.
+  - Columns: `vehicle_id` (FK → vehicles), `year_month` (TEXT, format `YYYY-MM`).
+  - UNIQUE constraint on `(vehicle_id, year_month)` — prevents duplicate ignores.
+  - RLS policy: authenticated users only.
+
+- `app/src/db/dashboardDb.ts` — all dashboard data queries.
+  - `fetchKpis()` — returns `thisMonthRevenue`, `thisFyRevenue`, `activeWoCount`, `expiringWoCount` (WOs expiring within 30 days). Sources: `vehicle_billing_ledger` (billing_month / financial_year) + `work_orders`.
+  - `fetchUnbilledVehicles()` — checks active vehicles against `vehicle_billing_ledger` for current month AND previous month. Returns vehicles with missing ledger rows, plus their `isIgnored` flag from `dashboard_ignores`.
+  - `fetchVehicleRevenue(period)` — aggregates `vehicle_billing_ledger.amount` per vehicle for current month or current FY. Returns sorted descending by revenue.
+  - `fetchWoFlags()` — returns two flag types: `expiring_soon` (valid_to within 30 days) and `near_limit` (≥80% of contracted value billed). Both computed client-side from `work_orders` + `work_order_items`.
+  - `fetchMonthlyTrend()` — queries last 6 months of `vehicle_billing_ledger`, aggregates by `billing_month`, always returns all 6 months (zero-filled if no data).
+  - `ignoreUnbilledMonth(vehicleId, yearMonth)` — upserts into `dashboard_ignores`.
+  - `unignoreUnbilledMonth(vehicleId, yearMonth)` — deletes from `dashboard_ignores`.
+
+- `app/src/ui/dashboard/DashboardPage.tsx` — full dashboard page component.
+  - **Sticky teal header** — shows current month label + unbilled count badge + refresh button.
+  - **Skeleton loader** — shimmer placeholders while data loads (4 stacked blocks).
+  - **`UnbilledAlert`** — expandable amber banner. Lists each unaccounted vehicle-month with Ignore / Restore actions. Turns green when all items are ignored.
+  - **`KpiStrip`** — 2×2 grid of KPI cards: This Month billed, This FY total, Active WOs, Expiring WOs (accent amber when count > 0).
+  - **`VehicleRevenueChart`** — Chart.js horizontal bar chart (top 10 vehicles). Toggles between current month and current FY. Unbilled vehicles shown as grey bars.
+  - **`WoFlags`** — list of WOs with expiry warnings (⏰) or utilisation warnings (📊). Red at ≤7 days / ≥95%, amber otherwise.
+  - **`MonthlyTrendChart`** — Chart.js vertical bar chart for last 6 months. Current month highlighted in gold, past months in teal. MoM delta badge (▲/▼ %) in header. Stat pills: monthly average + peak month.
+  - **`StatPill`** — reusable pill sub-component for avg/peak summary.
+
+- `app/src/ui/AppShell.tsx` — added 🏠 Home as tab index 0. Default active tab changed from `invoices` to `home`.
+
+### Fixed
+
+- `DashboardPage.tsx` — `inv.totalInvoiceAmount` renamed to `inv.totalAmount` to match `dashboardDb.ts` type.
+- `DashboardPage.tsx` — Restore button used undefined CSS var `--color-info`; corrected to `--color-primary`.
+
+### Changed
+
+- `dashboardDb.ts` — Replaced `RecentInvoice` type + `fetchRecentInvoices()` with `MonthlyTrend` type + `fetchMonthlyTrend()`. Recent invoices are already accessible in the Invoices tab; the dashboard bottom slot is better used for a billing trend chart.
+
+### Observations
+
+- `vehicle_billing_ledger` was purpose-built during Phase 3 for analytics — all four dashboard data queries read from it directly with no joins, making the dashboard extremely fast.
+- Chart.js is loaded from CDN on first render (lazy `<script>` inject). Both charts share the same CDN script — `MonthlyTrendChart` checks for an existing `<script>` tag before injecting a second one to avoid double-loading.
+- Unbilled detection covers current + previous month only. Checking further back would produce false positives for vehicles that were legitimately idle. The ignore mechanism handles legitimate gaps.
+- The `near_limit` WO flag threshold is 80% of contracted value. This is a soft warning — the WO is not blocked, just flagged. 95% triggers red (error colour).
+
+---
+
 ## [2026-06-01] — Cancel Invoice + Edit Finalised Invoice + InvoicesPage Redesign
 
 ### Added
@@ -28,169 +76,75 @@
 ### Fixed
 
 - `app/src/ui/invoices/InvoiceWizard.tsx` — Next → button was hidden when editing a final invoice.
-  - **Root cause:** The condition `existingStatus !== 'final'` wrapped the entire bottom bar, hiding both Save Draft and Next → for final invoices. Only Save Draft should be hidden (to prevent demoting a final to draft).
-  - **Fix:** Extracted `isEditingFinal` flag. Save Draft is conditionally rendered with `{!isEditingFinal && <SaveDraftBtn />}`. Next → is always rendered regardless of `existingStatus`.
 
 ### Changed
 
-- `app/src/ui/invoices/InvoicesPage.tsx` — Full redesign to match `WorkOrdersPage.tsx` UX pattern.
-  - **Teal sticky header** — teal `var(--color-primary)` background, Playfair Display title, subtitle showing `FY XX-XX • N finalised`, circle `+` button top-right.
-  - **Financial Year selector** — scrollable pill row auto-derived from `invoice_date` of all invoices. Current FY always present. Defaults to current FY on load. Draft invoices (no finalized date) assigned to current FY.
-  - **Status filter pills** — four tabs with live count badges scoped to selected FY:
-    - Finalised ✅ (default on landing)
-    - Drafts 📝
-    - Cancelled 🚫
-    - All 📋
-  - **Sorted by invoice number descending** — numeric suffix extraction handles formatted numbers like `SVC/25-26/003`.
-  - **VOID stamp** — semi-transparent diagonal overlay on cancelled cards (opacity 0.18, pointer-events none).
-  - **Auto-tab switch on cancel** — after cancelling an invoice, view switches to Cancelled tab automatically.
-  - **`InvoiceCard` extracted** — card rendering extracted into a standalone component for cleaner separation of concerns. Handles all three statuses with conditional action rows.
-
-### Design Decisions
-
-- **[2026-06-01] For invoice cancellation — chose two-step inline confirmation over a modal.**
-  The first tap reveals a warning panel + "Yes, void invoice" / "Keep it" directly on the card.
-  This avoids context switching while still requiring deliberate user intent for a destructive action.
-
-- **[2026-06-01] For cancelled invoice sequence numbers — do not decrement `current_sequence`.**
-  Cancelled invoice numbers must not be reused. Gaps in numbering for voided invoices are expected
-  and auditable under GST. `current_sequence = 2` after cancelling invoice 002 is correct — the next
-  new invoice will be 003, not 002.
-
-- **[2026-06-01] For InvoicesPage FY filter — drafts assigned to current FY.**
-  Drafts have no `invoice_date` until finalization. Assigning them to current FY is a pragmatic
-  default. Known limitation: a draft created in March and finalized in April (new FY) will briefly
-  disappear from view after finalization until the user switches FY. Acceptable for now.
+- `app/src/ui/invoices/InvoicesPage.tsx` — Full redesign: teal header, FY selector, status filter pills, VOID stamp on cancelled cards, auto-tab switch on cancel, `InvoiceCard` extracted.
 
 ### Observations
 
-- The `existingStatus !== 'final'` guard in `InvoiceWizard` was subtle — it looked intentional
-  (hiding Save Draft) but had a hidden side effect (hiding Next too). This class of
-  "overly broad boolean condition" is worth watching for in other wizard sections.
-- Rental and quantity billing types are both handled by `_reverseBilledQty` — the function reads
-  `line_item_billing_type` from the DB first and then takes the correct path. This mirrors the
-  exact same branching logic in `_updateBilledQty`, making the reverse path a reliable inverse.
+- The `existingStatus !== 'final'` guard in `InvoiceWizard` was subtle — it looked intentional (hiding Save Draft) but had a hidden side effect (hiding Next too).
+- Rental and quantity billing types are both handled by `_reverseBilledQty`.
 
 ---
 
 ## [2026-06-01] — Draft/Final UI Split + Draft Delete
 
 ### Added
-- `app/src/db/invoicesDb.ts` — `deleteDraftInvoice(invoiceId: number)` function.
-  - First verifies `status === 'draft'` by fetching the row; returns `{ ok: false, error }` immediately if the invoice is not a draft — finalized invoices cannot be deleted through this path, only cancelled.
-  - Deletes all 4 child tables in order (`invoice_line_items`, `invoice_vehicles`, `invoice_rental_items`, `invoice_item_distribution`) before deleting the parent row to satisfy FK constraints.
-  - Returns `{ ok: true }` on success or `{ ok: false, error: string }` on DB failure.
+- `deleteDraftInvoice(invoiceId)` in `invoicesDb.ts`.
 
 ### Changed
-- `app/src/ui/invoices/InvoicesPage.tsx` — Invoice list split into two separate visual sections:
-  - **Drafts** (top): section label "DRAFTS — N" with horizontal rule. Each card has an amber left border (`var(--color-warning)`), tap-to-edit behaviour, and a 🗑 delete button in the top-right corner. The delete button is a two-step inline confirmation: first tap shows "Delete draft? [Yes, delete] [Cancel]" — no modal, no page navigation. Deletion is optimistic (row removed from local state immediately; DB call runs in background).
-  - **Finalised Invoices** (bottom): section label "FINALISED INVOICES — N" with horizontal rule. Cards are non-clickable (`cursor: default`). Status badge (green for final, red for cancelled) shown top-right. `InvoiceActions` (View/Download PDF button) rendered inline on each card.
-
-### Observations
-- `e.stopPropagation()` on the delete button is essential — without it, clicking delete also triggers the card's `onClick` (open wizard) event, causing a confusing state transition.
-- Optimistic removal gives instant feedback with no flicker; the full `load()` is not called on delete, avoiding a list re-sort.
-- The `InvoiceActions` component already existed with `if (status === 'draft') return null` — wiring it into the Finalised section required zero changes to `InvoiceActions` itself.
+- `InvoicesPage.tsx` — split into Drafts (top) and Finalised (bottom) sections. Two-step inline delete confirmation on draft cards.
 
 ---
 
 ## [2026-06-01] — Invoice Identity Fix (Draft → Final same row)
 
 ### Fixed
-- `app/src/db/invoicesDb.ts` — `saveDraftInvoice()` and `finalizeInvoice()` both accept a new optional `existingInvoiceId?: number | null` parameter.
-  - When provided: uses `UPDATE ... WHERE id = ?` — the same DB row is promoted in-place from draft to final. The `invoice_number` and `status` columns change; the `id` (and all FK references from child tables) stay the same.
-  - When null/undefined: falls back to the old `upsert by invoice_number` path — safe for the very first save of a brand-new draft.
-  - `saveDraftInvoice` now returns `{ invoice, savedId }` (was `Invoice | null`) so callers can capture the auto-assigned `id` from the first INSERT and use it for all subsequent saves and the final promote.
-
-- `app/src/ui/invoices/useInvoiceDraft.ts` — new `savedInvoiceId` state, initialised from optional `initialInvoiceId` prop.
-  - `saveDraft()` now passes `savedInvoiceId` to `saveDraftInvoice()`, captures the returned `savedId`, and stores it — so the **second and all further saves** of the same session UPDATE the correct row.
-  - Exposes `savedInvoiceId` for the wizard to pass down to Section 4.
-
-- `app/src/ui/invoices/InvoiceWizard.tsx` — new `existingInvoiceId` prop.
-  - Passes it as `initialInvoiceId` to `useInvoiceDraft`.
-  - Passes the live `savedInvoiceId` (from hook) to `Section4Review` as `existingInvoiceId` — so even a newly created draft that was saved mid-wizard carries the correct id into the finalize step.
-
-- `app/src/ui/invoices/InvoicesPage.tsx` — new `editInvoiceId` state.
-  - `openInvoice()` sets `editInvoiceId = inv.id` when loading a draft for editing.
-  - Passes `existingInvoiceId={editInvoiceId}` to `<InvoiceWizard>`.
-  - Clears `editInvoiceId` on `closeWizard()`.
-
-- `app/src/ui/invoices/Section4Review.tsx` — new `existingInvoiceId` prop.
-  - `handleFinalize()` passes it to `finalizeInvoice()` to select the UPDATE path.
-
-### Observations
-- The previous upsert-by-invoice_number approach failed because `DRAFT-{timestamp}` → `SVC/26-27/001` is a different key, so the upsert treated finalization as a new row INSERT, leaving the original draft row orphaned in the DB with `status='draft'` and `invoice_number='DRAFT-...'`.
-- The invariant now enforced: **one draft = one `invoices` row, forever**. The `id` is the permanent identity; `invoice_number` is a mutable label on that row.
-- Existing invoices edited from the list correctly carry their `id` through the entire wizard flow without any new INSERT.
+- `saveDraftInvoice()` + `finalizeInvoice()` — now accept `existingInvoiceId` to UPDATE in-place.
+- `useInvoiceDraft.ts`, `InvoiceWizard.tsx`, `InvoicesPage.tsx`, `Section4Review.tsx` — threaded `savedInvoiceId` through the entire flow.
 
 ---
 
 ## [2026-06-01] — TDS Calculation Fixes (3 Bugs) + Invoice Rollback
 
 ### Fixed
-
-- `app/src/ui/invoices/Section4Review.tsx` — **TDS preview used wrong base (`total_amount` → `total_taxable`).**
-- `app/src/ui/invoices/pdf/buildInvoicePayload.ts` — **TDS rate back-derivation used wrong denominator (`total_amount` → `total_taxable`).**
-- `app/src/ui/invoices/InvoiceWizard.tsx` — **Rental TDS always 0 in PDF preview (root cause: `setRentalItems` never triggered `recomputeTotals`).**
-
-### Observations
-- TDS rule enforced everywhere: `TDS = tds_rate% × total_taxable` — never on `total_amount` which includes GST.
+- TDS base corrected to `total_taxable` everywhere (`Section4Review`, `buildInvoicePayload`, `InvoiceWizard`).
 
 ---
 
-## [2026-06-01] — PDF Layout Fix 4: Gold Separator Row Position
+## [2026-06-01] — PDF Layout Fixes
 
 ### Fixed
-- `app/src/ui/invoices/pdf/InvoicePdf.tsx` — Taxable Value row gold border moved from top to bottom.
+- Header overlap, logo size, description indent, gold separator row position in `InvoicePdf.tsx`.
 
 ---
 
-## [2026-05-31] — PDF Layout Fixes (Session 2)
+## [2026-05-31] — PDF Layout Fixes (Session 2) + Bug Fixes
 
 ### Fixed
-- `app/src/ui/invoices/pdf/InvoicePdf.tsx` — Header overlap fix, logo size bump, description indent removed.
+- Additional PDF layout fixes. TDS always 0% bug (3 root causes). Invoice date billing period auto-recalculation. PDF font CDN URLs.
 
 ---
 
-## [2026-05-31] — Bug Fix: TDS Always Showing 0% (3 Root Causes)
-
-### Fixed
-- `Section1Header.tsx` — init guard + WO selection TDS apply.
-- `Section4Review.tsx` — always-visible TdsRow + inline editable rate.
-
----
-
-## [2026-05-31] — Bug Fix: Invoice Date → Billing Period Auto-Recalculation
-
-### Fixed
-- `useInvoiceDraft.ts` + `Section1Header.tsx` — billing period auto-fills on invoice date change.
-
----
-
-## [2026-05-31] — PDF Font CDN Fix
-
-### Fixed
-- `InvoicePdf.tsx` — All 6 `Font.register()` URLs updated to correct Fontsource jsDelivr CDN scheme.
-
----
-
-## [2026-05-30] — PDF Invoice Generation — Part 3: PDF Rendering
+## [2026-05-30] — PDF Invoice Generation — Part 3
 
 ### Added
-- Complete `@react-pdf/renderer` document component, payload types, utilities, data assembler, preview modal, actions component, PDF storage DB helpers, and migration 007.
+- Complete `@react-pdf/renderer` pipeline: `InvoicePdf.tsx`, payload types, utilities, assembler, preview modal, actions component, PDF storage helpers, migration 007.
 
 ---
 
-## [2026-05-28] — Invoice Wizard — Phase 3 Parts 1–2 (Rental Billing + AI Description)
+## [2026-05-28] — Invoice Wizard — Phase 3 Parts 1–2
 
 ### Added
-- Migration 006, rental billing DB schema, Section 2 rental sub-form, Section 3 description + AI, `generate-invoice-description` Edge Function.
+- Migration 006, rental billing schema, Section 2 + Section 3, AI description Edge Function.
 
 ---
 
-## [2026-05-27] — Invoice Wizard — Phase 3 Part 1 (Wizard Shell + Section 1 Header)
+## [2026-05-27] — Invoice Wizard — Phase 3 Part 1
 
 ### Added
-- Invoice tab, `InvoicesPage`, `InvoiceWizard`, `WizardNav`, `useInvoiceDraft`, `Section1Header`, `Section4Review`, `invoicesDb`, `invoiceNumberingDb`.
+- Invoice tab, wizard shell, Section 1 Header, Section 4 Review, `invoicesDb`, `invoiceNumberingDb`.
 
 ---
 

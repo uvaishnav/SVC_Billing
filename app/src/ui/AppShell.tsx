@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import DashboardPage from './dashboard/DashboardPage'
 import SettingsPage from './settings/SettingsPage'
 import ClientsPage from './clients/ClientsPage'
 import VehiclesPage from './vehicles/VehiclesPage'
@@ -6,26 +7,28 @@ import WorkOrdersPage from './workorders/WorkOrdersPage'
 import ProjectsPage from './projects/ProjectsPage'
 import InvoicesPage from './invoices/InvoicesPage'
 
-type Tab = 'invoices' | 'clients' | 'vehicles' | 'workorders' | 'projects' | 'settings'
+type Tab = 'home' | 'invoices' | 'clients' | 'vehicles' | 'workorders' | 'projects' | 'settings'
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'invoices',   label: 'Invoices',    icon: '📄' },
-  { id: 'clients',    label: 'Clients',     icon: '👤' },
-  { id: 'vehicles',   label: 'Vehicles',    icon: '🚛' },
+  { id: 'home',       label: 'Home',       icon: '🏠' },
+  { id: 'invoices',   label: 'Invoices',   icon: '📄' },
+  { id: 'clients',    label: 'Clients',    icon: '👤' },
+  { id: 'vehicles',   label: 'Vehicles',   icon: '🚛' },
   { id: 'workorders', label: 'Work Orders', icon: '📋' },
-  { id: 'projects',   label: 'Projects',    icon: '📁' },
-  { id: 'settings',   label: 'Settings',    icon: '⚙️' },
+  { id: 'projects',   label: 'Projects',   icon: '📁' },
+  { id: 'settings',   label: 'Settings',   icon: '⚙️' },
 ]
 
 const NAV_HEIGHT = 64
 
 export default function AppShell() {
-  const [activeTab, setActiveTab] = useState<Tab>('invoices')
+  const [activeTab, setActiveTab] = useState<Tab>('home')
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100svh', background: 'var(--color-bg)' }}>
 
       <div style={{ flex: 1, overflowY: 'auto', paddingBottom: NAV_HEIGHT }}>
+        {activeTab === 'home'       && <DashboardPage />}
         {activeTab === 'invoices'   && <InvoicesPage />}
         {activeTab === 'clients'    && <ClientsPage />}
         {activeTab === 'vehicles'   && <VehiclesPage />}
@@ -51,7 +54,7 @@ export default function AppShell() {
               onClick={() => setActiveTab(tab.id)}
               style={{
                 flex: 1,
-                minWidth: 52,
+                minWidth: 48,
                 display: 'flex', flexDirection: 'column',
                 alignItems: 'center', justifyContent: 'center',
                 gap: '2px',
