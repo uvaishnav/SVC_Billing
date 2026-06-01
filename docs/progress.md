@@ -54,13 +54,14 @@
 - ✅ **PDF Fix 1** — Header business name overlapping address text. Fixed: explicit `lineHeight: 1.0` + `marginBottom: 4` on `headerBusinessName`.
 - ✅ **PDF Fix 2** — Logo rendered too small. Fixed: `LOGO_SIZE` increased to `100`.
 - ✅ **PDF Fix 3** — Description of Services section indented left vs. all other sections. Fixed: removed `paddingHorizontal: 10` from `descBlock` style.
+- ✅ **PDF Fix 4** — Taxable Value row gold separator line was on the **top** of the row (between data rows and Taxable Value), making it appear detached from the table. Fixed: moved gold border (`#C8B89A`, `borderBottomWidth: 1`) to the **bottom** of `tableTaxableRow`, removed `marginTop: 2`. Table now seals cleanly: data rows → Taxable Value → gold closing line → totals section.
 
 ---
 
 ## What's Next
 
-### Immediate: Complete PDF look & compliance fixes
-- Continue identifying and fixing PDF layout issues in this session or the next
+### Immediate: Continue PDF look & compliance fixes
+- Keep identifying and fixing PDF layout issues section by section
 - Once all PDF fixes are done, merge `bugfix/pre-feature-fixes-20260531` → `main`
 
 ### Pending Improvement (not yet started)

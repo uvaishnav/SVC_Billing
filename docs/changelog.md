@@ -4,6 +4,22 @@
 
 ---
 
+## [2026-06-01] — PDF Layout Fix 4: Gold Separator Row Position
+
+### Fixed
+- `app/src/ui/invoices/pdf/InvoicePdf.tsx` — **Taxable Value row gold border moved from top to bottom.**
+  - Removed `borderTopWidth: 1`, `borderTopColor: '#C8B89A'`, and `marginTop: 2` from `tableTaxableRow` style.
+  - Added `borderBottomWidth: 1`, `borderBottomColor: '#C8B89A'` to the same style.
+  - The gold `#C8B89A` line now acts as the **closing seal of the table**, sitting below "Taxable Value" rather than above it.
+
+### Observations
+- With `borderTop`, the gold line appeared between the last data row and the Taxable Value row, making Taxable Value look like it was floating *outside* the table — detached from the data above it.
+- With `borderBottom`, the visual flow is: header → data rows (separated by thin `DIVIDER` lines) → **Taxable Value** → gold closing line → totals section below. This reads correctly as a table footer row.
+- The `marginTop: 2` removal also eliminates the visual gap that was making the row appear disconnected.
+- No data, props, or business logic was changed — purely a cosmetic border placement fix.
+
+---
+
 ## [2026-05-31] — PDF Layout Fixes (Session 2)
 
 ### Fixed
@@ -167,31 +183,3 @@
 ### Observations
 - Tesseract accuracy is sufficient for clean scanned WO PDFs from RSV Constructions
 - Supabase Edge Function env var for AI API key set via `supabase secrets set`
-
----
-
-## [2026-05-24] — Work Orders Module — Part 1 (Schema + CRUD)
-
-### Added
-- `supabase/migrations/004_invoice_numbering.sql`, `005_projects_and_work_orders.sql`
-- `WorkOrdersPage.tsx`, `WorkOrderCard.tsx`, `WorkOrderFormModal.tsx`, `WorkOrderDetailSheet.tsx`
-- `workOrdersDb.ts` — CRUD + `computeWOStatus()`
-- `projectsDb.ts`, `ProjectsPage.tsx`, `ProjectCard.tsx`, `ProjectFormModal.tsx`
-- AppShell updated to 5 tabs (added Work Orders + Projects)
-
-### Observations
-- `wo_reference` used over `wo_number` (see design-decisions.md)
-- Client-side `computeWOStatus()` is zero-infrastructure — never stale
-
----
-
-## [2026-05-23] — Vehicles Module
-
-### Added
-- `supabase/migrations/003_vehicles.sql`
-- `VehiclesPage.tsx`, `VehicleCard.tsx`, `VehicleFormModal.tsx`, `VehicleDetailSheet.tsx`
-- `vehiclesDb.ts` — CRUD with soft delete
-- AppShell updated to 4 tabs (added Vehicles)
-
-### Observations
-- `default_monthly_rent` on vehicles is a pre-fill hint only; not authoritative
