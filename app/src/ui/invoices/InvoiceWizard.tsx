@@ -17,10 +17,6 @@ export default function InvoiceWizard({
 }: {
   initialDraft?: InvoiceDraft
   existingStatus?: InvoiceStatus
-  // The DB id of the invoice row when editing an existing draft.
-  // Must be provided when opening any previously-saved draft so that
-  // saveDraft and finalizeInvoice UPDATE the same row rather than
-  // inserting a new one.
   existingInvoiceId?: number | null
   onComplete: () => void
   onSaveDraft?: () => void
@@ -34,15 +30,6 @@ export default function InvoiceWizard({
     savedInvoiceId,
   } = useInvoiceDraft(initialDraft, existingInvoiceId)
 
-  // FIX (rental TDS bug): setRentalItems alone only updates draft.rental_items.
-  // It never triggers recomputeTotals, so total_taxable / tds_amount / net_receivable
-  // stay 0 for the entire rental wizard flow. The Section4Review useEffect guard
-  // (updated.total_taxable !== draft.total_taxable) then evaluates 0 !== 0 = false
-  // and patch never fires — PDF preview receives tds_amount=0 and wrong totals.
-  //
-  // Fix: wrap setRentalItems so totals are recomputed immediately after each change,
-  // matching how the quantity path works (setLineItems already sets taxable_value
-  // per item so total_taxable is non-zero before Section4 mounts).
   function handleSetRentalItems(items: InvoiceRentalItemDraft[]) {
     const updatedDraft = { ...draft, rental_items: items }
     const recomputed  = recomputeTotals(updatedDraft, draft.gst_rate, draft.tds_rate)
@@ -63,6 +50,11 @@ export default function InvoiceWizard({
   function advanceSection() {
     if (activeSection < 4) goToSection((activeSection + 1) as 2 | 3 | 4)
   }
+
+  // Whether we are editing a previously-finalised invoice.
+  // When true: hide "Save Draft" (finals must not be demoted to draft),
+  // but still show "Next →" so the user can navigate all sections.
+  const isEditingFinal = existingStatus === 'final'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%', background: 'var(--color-bg)' }}>
@@ -101,7 +93,10 @@ export default function InvoiceWizard({
         )}
       </div>
 
-      {activeSection < 4 && existingStatus !== 'final' && (
+      {/* Bottom action bar — visible on sections 1-3 only.
+          Save Draft is hidden when editing a final invoice (would demote it to draft).
+          Next → is ALWAYS shown so the user can navigate through all sections. */}
+      {activeSection < 4 && (
         <div style={{
           position: 'sticky', bottom: 64, left: 0, right: 0,
           padding: '10px 16px',
@@ -109,17 +104,19 @@ export default function InvoiceWizard({
           borderTop: '1px solid var(--color-border)',
           display: 'flex', gap: 10, zIndex: 30,
         }}>
-          <button
-            type="button" onClick={handleSaveDraft} disabled={saving}
-            style={{
-              flex: 1, padding: '13px', borderRadius: 12,
-              border: '1.5px solid var(--color-border)',
-              background: 'transparent', color: 'var(--color-text-muted)',
-              fontWeight: 600, fontSize: 14, cursor: 'pointer',
-            }}
-          >
-            {saving ? 'Saving…' : '💾 Save Draft'}
-          </button>
+          {!isEditingFinal && (
+            <button
+              type="button" onClick={handleSaveDraft} disabled={saving}
+              style={{
+                flex: 1, padding: '13px', borderRadius: 12,
+                border: '1.5px solid var(--color-border)',
+                background: 'transparent', color: 'var(--color-text-muted)',
+                fontWeight: 600, fontSize: 14, cursor: 'pointer',
+              }}
+            >
+              {saving ? 'Saving…' : '💾 Save Draft'}
+            </button>
+          )}
           <button
             type="button" onClick={advanceSection}
             style={{
