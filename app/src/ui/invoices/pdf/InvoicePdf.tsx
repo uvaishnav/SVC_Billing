@@ -5,14 +5,15 @@
  *
  * Layout order (per spec §18):
  *   1. Supplier header band
- *   2. TAX INVOICE stamp (slim centered label)
- *   3. Two-column block: INVOICE DETAILS (incl. invoice no.) | DETAILS OF RECIPIENT OF SERVICE
- *   4. Description of Services
- *   5. SAC code tab + Main table (quantity OR rental) — SAC sits as a bump on the table
- *   6. Work Items Covered block (rental only, conditional)
- *   7. Tax / totals summary
- *   8. Amount in words
- *   9. Footer: bank details | signature
+ *   2. GSTIN strip (full-width ESPRESSO bar, centered GSTIN — header bottom border)
+ *   3. TAX INVOICE stamp (slim centered label)
+ *   4. Two-column block: INVOICE DETAILS (incl. invoice no.) | DETAILS OF RECIPIENT OF SERVICE
+ *   5. Description of Services
+ *   6. SAC code tab + Main table (quantity OR rental) — SAC sits as a bump on the table
+ *   7. Work Items Covered block (rental only, conditional)
+ *   8. Tax / totals summary
+ *   9. Amount in words
+ *  10. Footer: bank details | signature
  */
 
 import React from 'react';
@@ -89,8 +90,6 @@ const s = StyleSheet.create({
     paddingHorizontal: 5,
     flexDirection: 'row',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: DIVIDER,
   },
   headerLogoWrap: {
     margin: LOGO_MARGIN,
@@ -143,6 +142,31 @@ const s = StyleSheet.create({
     fontSize: 6.8,
     color: DIVIDER,
     marginHorizontal: 4,
+  },
+
+  // ── GSTIN Strip ───────────────────────────────────────────────────────────
+  // Full-width ESPRESSO band — acts as the visual bottom-border of the header.
+  // Centered label + value mirrors the netReceivableRow design language.
+  gstinStrip: {
+    backgroundColor: ESPRESSO,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gstinStripLabel: {
+    fontSize: 7,
+    fontWeight: 400,
+    color: '#C8B89A',   // warm muted cream — readable but subordinate
+    letterSpacing: 1.2,
+    marginRight: 8,
+  },
+  gstinStripValue: {
+    fontSize: 9,
+    fontWeight: 700,
+    color: CREAM,
+    letterSpacing: 1.5,
   },
 
   // ── TAX INVOICE stamp ──────────────────────────────────────────────────────
@@ -471,12 +495,11 @@ const s = StyleSheet.create({
     borderRightWidth: 0.75,
     borderRightColor: DIVIDER,
   },
-  // Right column: declaration at top-left, signature block pushed to bottom-left
   footerRight: {
     flex: 1,
     paddingLeft: 12,
-    justifyContent: 'space-between',  // pushes signature block to bottom
-    alignItems: 'flex-start',         // left-align everything
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
   footerSectionLabel: {
     fontSize: 6.5,
@@ -504,14 +527,12 @@ const s = StyleSheet.create({
     fontWeight: 500,
     flex: 1,
   },
-  // GST declaration — left-aligned, top of right column
   footerDeclaration: {
     fontSize: 6.5,
     color: MUTED,
     lineHeight: 1.5,
     textAlign: 'left',
   },
-  // Signature block — bottom of right column, left-aligned
   footerSignatureBlock: {
     alignItems: 'center',
     alignSelf: 'flex-end',
@@ -576,8 +597,6 @@ function HeaderBand({ supplier }: { supplier: InvoicePdfProps['supplier'] }) {
         <Text style={s.headerBusinessName}>{supplier.business_name}</Text>
         <Text style={s.headerAddress}>{supplier.address}</Text>
         <View style={s.headerMetaLine}>
-          <Text style={s.headerMetaItem}>GSTIN: {supplier.gstin}</Text>
-          <Text style={s.headerMetaDivider}>|</Text>
           <Text style={s.headerMetaItem}>PAN: {supplier.pan}</Text>
           <Text style={s.headerMetaDivider}>|</Text>
           <Text style={s.headerMetaItem}>State: {supplier.state} ({supplier.state_code})</Text>
@@ -587,6 +606,16 @@ function HeaderBand({ supplier }: { supplier: InvoicePdfProps['supplier'] }) {
           <Text style={s.headerMetaItem}>{supplier.email}</Text>
         </View>
       </View>
+    </View>
+  );
+}
+
+/** Full-width ESPRESSO strip — prominent GSTIN, centered, acts as header bottom border */
+function GstinStrip({ gstin }: { gstin: string }) {
+  return (
+    <View style={s.gstinStrip}>
+      <Text style={s.gstinStripLabel}>GSTIN</Text>
+      <Text style={s.gstinStripValue}>{gstin}</Text>
     </View>
   );
 }
@@ -948,6 +977,7 @@ export function InvoicePdf(props: InvoicePdfProps) {
     <Document>
       <Page size="A4" style={s.page}>
         <HeaderBand supplier={props.supplier} />
+        <GstinStrip gstin={props.supplier.gstin} />
         <TaxInvoiceStamp taxMode={tax_mode} />
         <TwoColumnMeta props={props} />
         <DescriptionBlock description={props.overall_description} />
