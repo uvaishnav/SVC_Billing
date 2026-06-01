@@ -12,7 +12,7 @@ import type { InvoicePdfProps, PdfLineItem, PdfRentalItem, PdfDistributionItem }
 import { toWords } from './pdfUtils';
 
 export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdfProps> {
-  // ── 1. Invoice row + FK joins ───────────────────────────────────────────────────────
+  // ── 1. Invoice row + FK joins ─────────────────────────────────────────────────────────────────────
   const { data: inv, error: invErr } = await supabase
     .from('invoices')
     .select(`
@@ -28,7 +28,7 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
 
   if (invErr || !inv) throw new Error(`Invoice ${invoiceId} not found: ${invErr?.message}`);
 
-  // ── 2. Settings (supplier identity) ───────────────────────────────────────────────
+  // ── 2. Settings (supplier identity) ──────────────────────────────────────────────────────────────────────
   const { data: settings, error: settingsErr } = await supabase
     .from('settings')
     .select('*')
@@ -37,7 +37,7 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
 
   if (settingsErr || !settings) throw new Error('Settings not found');
 
-  // ── 3. Line items (branched on billing type) ───────────────────────────────────────────
+  // ── 3. Line items (branched on billing type) ────────────────────────────────────────────────────────────────
   let lineItems: PdfLineItem[] = [];
   let rentalItems: PdfRentalItem[] = [];
   let distributionItems: PdfDistributionItem[] = [];
@@ -113,7 +113,7 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
     }));
   }
 
-  // ── 4. Derive computed totals ────────────────────────────────────────────────────────
+  // ── 4. Derive computed totals ───────────────────────────────────────────────────────────────────────────────
   const taxMode: 'cgst_sgst' | 'igst' = inv.tax_mode;
   const totalTaxable: number = inv.total_taxable ?? 0;
   const cgst: number  = inv.cgst_amount ?? 0;
@@ -124,12 +124,16 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
   const tdsAmount     = inv.tds_amount ?? 0;
   const netReceivable = inv.net_receivable ?? (totalAmount - tdsAmount);
 
-  // Derive GST rate from totals (percentage)
+  // Derive GST rate from totals (percentage against taxable value)
   const gstRate = totalTaxable > 0 ? Math.round((totalGst / totalTaxable) * 100) : 0;
-  // Derive TDS rate
-  const tdsRate = totalAmount > 0 ? Math.round((tdsAmount / totalAmount) * 100) : 0;
 
-  // ── 5. Assemble flat InvoicePdfProps ────────────────────────────────────────────────────
+  // FIX (Bug B): tdsRate must be derived using totalTaxable as the denominator,
+  // NOT totalAmount. TDS is calculated on taxable value only (before GST).
+  // Using totalAmount gave a smaller, wrong rate:
+  //   e.g. taxable=100, GST=18, TDS=2 → wrong: 2/118*100=1.69%, correct: 2/100*100=2%
+  const tdsRate = totalTaxable > 0 ? Math.round((tdsAmount / totalTaxable) * 100) : 0;
+
+  // ── 5. Assemble flat InvoicePdfProps ────────────────────────────────────────────────────────────────────────────
   return {
     supplier: {
       business_name:        settings.business_name,
