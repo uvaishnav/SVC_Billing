@@ -6,7 +6,7 @@ import type {
 } from './types'
 import { generateInvoiceNumber } from '../utils/invoiceNumbering'
 
-// ─── Helpers ─────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────
 
 function getFY(dateStr: string): string {
   const d = new Date(dateStr)
@@ -43,11 +43,8 @@ function draftToRow(
     line_item_billing_type:  draft.line_item_billing_type,
     total_taxable:           draft.total_taxable,
     gst_rate:                draft.gst_rate,
-    // Persist split GST amounts so buildInvoicePayload reads them back correctly.
-    // recomputeTotals() always derives these from tax_mode — they are never undefined.
-    cgst_amount:             draft.cgst_amount,
-    sgst_amount:             draft.sgst_amount,
-    igst_amount:             draft.igst_amount,
+    // GST split (cgst/sgst vs igst) is derived at render time in InvoicePdf.tsx
+    // from tax_mode + total_gst. No separate columns needed in the DB.
     total_gst:               draft.total_gst,
     total_amount:            draft.total_amount,
     tds_rate:                draft.tds_rate,
@@ -61,7 +58,7 @@ function draftToRow(
   }
 }
 
-// ─── List + Fetch ─────────────────────────────────────────────
+// ─── List + Fetch ───────────────────────────────────────────────
 
 export async function getInvoices(): Promise<InvoiceWithDetails[]> {
   const { data, error } = await supabase
@@ -218,10 +215,6 @@ export async function mapInvoiceWithDetailsToDraft(inv: InvoiceWithDetails): Pro
     }),
     total_taxable:   inv.total_taxable,
     gst_rate:        inv.gst_rate,
-    // Restore split GST amounts from DB — persisted by draftToRow()
-    cgst_amount:     inv.cgst_amount ?? 0,
-    sgst_amount:     inv.sgst_amount ?? 0,
-    igst_amount:     inv.igst_amount ?? 0,
     total_gst:       inv.total_gst,
     total_amount:    inv.total_amount,
     tds_rate:        inv.tds_rate,
@@ -273,7 +266,7 @@ export async function saveDraftInvoice(
   return { invoice: { ...inv, invoice_number: row.invoice_number }, savedId: invoiceId }
 }
 
-// ─── Delete Draft ──────────────────────────────────────────────
+// ─── Delete Draft ───────────────────────────────────────────────
 
 export async function deleteDraftInvoice(invoiceId: number): Promise<{ ok: boolean; error?: string }> {
   const { data: inv, error: fetchErr } = await supabase
@@ -298,18 +291,11 @@ export async function deleteDraftInvoice(invoiceId: number): Promise<{ ok: boole
   return { ok: true }
 }
 
-// ─── Cancel Invoice ───────────────────────────────────────────
-// Fully reverses all finalization side effects:
-//   1. Decrements cumulative_billed_qty on work_order_items
-//   2. Deletes vehicle_billing_ledger rows for this invoice
-//   3. Sets invoice status to 'cancelled'
-// Child rows (line_items, vehicles, etc.) are KEPT for audit trail.
-// PDF in storage is KEPT — VOID stamp is shown in UI only.
+// ─── Cancel Invoice ────────────────────────────────────────────
 
 export async function cancelInvoice(
   invoiceId: number,
 ): Promise<{ ok: boolean; error?: string }> {
-  // Safety: only final invoices can be cancelled
   const { data: inv, error: fetchErr } = await supabase
     .from('invoices')
     .select('id, status')
@@ -318,13 +304,9 @@ export async function cancelInvoice(
   if (fetchErr || !inv) return { ok: false, error: 'Invoice not found.' }
   if (inv.status !== 'final') return { ok: false, error: 'Only finalised invoices can be cancelled.' }
 
-  // Step 1 — reverse cumulative_billed_qty
   await _reverseBilledQty(invoiceId)
-
-  // Step 2 — delete vehicle_billing_ledger rows
   await _reverseVehicleLedger(invoiceId)
 
-  // Step 3 — mark as cancelled
   const { error: updateErr } = await supabase
     .from('invoices')
     .update({ status: 'cancelled' })
@@ -337,7 +319,7 @@ export async function cancelInvoice(
   return { ok: true }
 }
 
-// ─── Finalize Invoice ─────────────────────────────────────────
+// ─── Finalize Invoice ───────────────────────────────────────────
 
 export async function finalizeInvoice(
   draft: InvoiceDraft,
@@ -382,8 +364,6 @@ export async function finalizeInvoice(
   if (!inv) return null
   const invoiceId = inv.id
 
-  // When re-finalizing an already-final invoice:
-  // reverse old billed qty + ledger BEFORE writing new values.
   if (isAlreadyFinal && existingInvoiceId) {
     await _reverseBilledQty(existingInvoiceId)
     await _reverseVehicleLedger(existingInvoiceId)
@@ -396,7 +376,7 @@ export async function finalizeInvoice(
   return { invoice: inv, invoiceNumber }
 }
 
-// ─── Private helpers ──────────────────────────────────────────
+// ─── Private helpers ────────────────────────────────────────────
 
 async function _replaceChildren(invoiceId: number, draft: InvoiceDraft): Promise<void> {
   const billingType = draft.line_item_billing_type
@@ -543,8 +523,6 @@ async function _writeVehicleLedger(
     .upsert(ledgerRows, { onConflict: 'vehicle_id,invoice_id', ignoreDuplicates: true })
   if (error) console.error('_writeVehicleLedger:', error)
 }
-
-// ─── _reverseBilledQty ────────────────────────────────────────
 
 async function _reverseBilledQty(invoiceId: number): Promise<void> {
   const { data: invRow, error: invErr } = await supabase
