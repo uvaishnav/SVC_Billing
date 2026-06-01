@@ -569,7 +569,7 @@ function chipBg(taxMode: 'cgst_sgst' | 'igst') {
   return taxMode === 'igst' ? STEEL_CHIP_BG : GOLD_CHIP_BG;
 }
 function formatBillingPeriod(from: string, to: string): string {
-  return `${formatDate(from)} \u2013 ${formatDate(to)}`;
+  return `${formatDate(from)} – ${formatDate(to)}`;
 }
 
 function formatBillingMode(mode: string): string {
@@ -613,11 +613,17 @@ function HeaderBand({ supplier }: { supplier: InvoicePdfProps['supplier'] }) {
   );
 }
 
+/**
+ * Full-width ESPRESSO strip — seals the header band.
+ * GSTIN label and number use identical style: same size, same color, same weight.
+ * A warm muted · dot separates label from number without creating visual hierarchy.
+ * Thin #C8B89A top-border acts as crisp transition line from cream to espresso.
+ */
 function GstinStrip({ gstin }: { gstin: string }) {
   return (
     <View style={s.gstinStrip}>
       <Text style={s.gstinStripText}>GSTIN</Text>
-      <Text style={s.gstinStripSpacer}>\u00b7</Text>
+      <Text style={s.gstinStripSpacer}>·</Text>
       <Text style={s.gstinStripText}>{gstin}</Text>
     </View>
   );
@@ -809,13 +815,13 @@ function RentalTable({
           <Text style={[s.tableCell, s.rColVeh]}>{item.reg_number}</Text>
           <Text style={[s.tableCell, s.rColType]}>{item.vehicle_type}</Text>
           <Text style={[s.tableCell, s.rColPeriod]}>
-            {formatDate(item.billing_from)} \u2013 {formatDate(item.billing_to)}
+            {formatDate(item.billing_from)} – {formatDate(item.billing_to)}
           </Text>
           <Text style={[s.tableCell, s.rColMode]}>
             {formatBillingMode(item.billing_mode)}
           </Text>
           <Text style={[s.tableCellRight, s.rColDays]}>
-            {item.billing_mode === 'full_month' ? '\u2013' : (item.num_days ?? '\u2013')}
+            {item.billing_mode === 'full_month' ? '–' : (item.num_days ?? '–')}
           </Text>
           <Text style={[s.tableCellRight, s.rColRent]}>{formatCurrency(item.monthly_rent)}</Text>
           <Text style={[s.tableCellRight, s.rColAmt]}>{formatCurrency(item.amount)}</Text>
@@ -842,7 +848,7 @@ function WorkItemsBlock({ items }: { items: InvoicePdfProps['item_distribution']
       <Text style={s.workItemsLabel}>WORK ITEMS COVERED UNDER THIS BILLING PERIOD</Text>
       {items.map((item, idx) => (
         <View key={idx} style={s.workItemRow}>
-          <Text style={s.workItemBullet}>\u2013</Text>
+          <Text style={s.workItemBullet}>–</Text>
           <Text style={s.workItemText}>
             {item.description}
             {item.sub_work_ref ? ` (Sub-ref: ${item.sub_work_ref})` : ''}
