@@ -228,7 +228,7 @@ function UnbilledAlert({ items, onIgnore, onUnignore }: {
                     fontSize: 11, padding: '4px 10px', borderRadius: 20,
                     border: '1px solid var(--color-border)',
                     background: 'transparent',
-                    color: 'var(--color-info)', cursor: 'pointer',
+                    color: 'var(--color-primary)', cursor: 'pointer',
                     fontFamily: 'Work Sans, sans-serif',
                   }}>Restore</button>
                 </div>
@@ -338,7 +338,7 @@ function RecentInvoices({ invoices }: { invoices: RecentInvoice[] }) {
           </div>
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-primary)', fontVariantNumeric: 'tabular-nums' }}>
-              {fmt(inv.totalInvoiceAmount)}
+              {fmt(inv.totalAmount)}
             </div>
             <div style={{
               fontSize: 10, padding: '1px 7px', borderRadius: 20, display: 'inline-block', marginTop: 2,
@@ -407,7 +407,6 @@ export default function DashboardPage() {
 
   return (
     <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
-      {/* Sticky header */}
       <div style={{
         background: 'var(--color-primary)',
         padding: '20px 20px 16px',
@@ -435,9 +434,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Content */}
       <div style={{ padding: '14px 14px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-
         {loading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {[1,2,3].map(i => (
