@@ -2,8 +2,8 @@ import React, { useEffect, useRef, useState } from 'react'
 import {
   fetchKpis, fetchUnbilledVehicles, fetchVehicleRevenue, fetchWoFlags, fetchRecentInvoices,
   ignoreUnbilledMonth, unignoreUnbilledMonth,
-  KpiData, UnbilledVehicle, VehicleRevenue, WoFlag, RecentInvoice,
 } from '../../db/dashboardDb'
+import type { KpiData, UnbilledVehicle, VehicleRevenue, WoFlag, RecentInvoice } from '../../db/dashboardDb'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -41,7 +41,6 @@ function VehicleRevenueChart({ data, period, onPeriodChange }: {
   const chartRef = useRef<any>(null)
 
   useEffect(() => {
-    // Load Chart.js lazily from CDN if not already loaded
     function buildChart() {
       const ChartJS = (window as any).Chart
       if (!ChartJS || !canvasRef.current) return
@@ -188,7 +187,6 @@ function UnbilledAlert({ items, onIgnore, onUnignore }: {
 
       {expanded && (
         <div style={{ borderTop: '1px solid rgba(0,0,0,0.06)', padding: '8px 14px 12px' }}>
-          {/* Active unbilled */}
           {active.length > 0 && (
             <div style={{ marginBottom: ignored.length > 0 ? 12 : 0 }}>
               {active.map(item => (
@@ -213,7 +211,6 @@ function UnbilledAlert({ items, onIgnore, onUnignore }: {
             </div>
           )}
 
-          {/* Ignored entries */}
           {ignored.length > 0 && (
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-faint)', letterSpacing: '0.5px', marginBottom: 6 }}>IGNORED (vehicle was idle)</div>
@@ -441,7 +438,6 @@ export default function DashboardPage() {
       {/* Content */}
       <div style={{ padding: '14px 14px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-        {/* Skeleton while loading */}
         {loading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {[1,2,3].map(i => (
@@ -459,19 +455,10 @@ export default function DashboardPage() {
 
         {!loading && (
           <>
-            {/* Unbilled alert */}
             <UnbilledAlert items={unbilled} onIgnore={handleIgnore} onUnignore={handleUnignore} />
-
-            {/* KPI strip */}
             <KpiStrip kpis={kpis} />
-
-            {/* Vehicle Revenue chart */}
             <VehicleRevenueChart data={vehicleRevenue} period={revPeriod} onPeriodChange={handleRevPeriodChange} />
-
-            {/* WO Flags */}
             <WoFlags flags={woFlags} />
-
-            {/* Recent invoices */}
             <RecentInvoices invoices={recentInvoices} />
           </>
         )}
