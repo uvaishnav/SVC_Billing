@@ -513,7 +513,8 @@ const s = StyleSheet.create({
   },
   // Signature block — bottom of right column, left-aligned
   footerSignatureBlock: {
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
   },
   footerSignatureLine: {
     borderTopWidth: 0.75,
