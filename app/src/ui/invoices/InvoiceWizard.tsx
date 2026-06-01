@@ -11,11 +11,17 @@ import Section4Review from './Section4Review'
 export default function InvoiceWizard({
   initialDraft,
   existingStatus,
+  existingInvoiceId,
   onComplete,
   onSaveDraft,
 }: {
   initialDraft?: InvoiceDraft
   existingStatus?: InvoiceStatus
+  // The DB id of the invoice row when editing an existing draft.
+  // Must be provided when opening any previously-saved draft so that
+  // saveDraft and finalizeInvoice UPDATE the same row rather than
+  // inserting a new one.
+  existingInvoiceId?: number | null
   onComplete: () => void
   onSaveDraft?: () => void
 }) {
@@ -25,7 +31,8 @@ export default function InvoiceWizard({
     setRentalItems, setItemDistribution,
     activeSection, goToSection, visitedSections,
     saving, saveDraft,
-  } = useInvoiceDraft(initialDraft)
+    savedInvoiceId,
+  } = useInvoiceDraft(initialDraft, existingInvoiceId)
 
   // FIX (rental TDS bug): setRentalItems alone only updates draft.rental_items.
   // It never triggers recomputeTotals, so total_taxable / tds_amount / net_receivable
@@ -42,8 +49,6 @@ export default function InvoiceWizard({
     patch(recomputed)
   }
 
-  // Keep item_distribution in sync too — distribution changes don't affect
-  // financial totals but patching via recomputeTotals keeps the draft consistent.
   function handleSetItemDistribution(dist: InvoiceItemDistributionDraft[]) {
     setItemDistribution(dist)
   }
@@ -81,8 +86,6 @@ export default function InvoiceWizard({
           />
         )}
         {activeSection === 3 && (
-          // For rental invoices, vehicles list is not used — Section3 skips the vehicle panel.
-          // Pass setVehicles regardless; Section3 reads draft.line_item_billing_type internally.
           <Section3Description draft={draft} setVehicles={setVehicles} patch={patch} />
         )}
         {activeSection === 4 && (
@@ -93,6 +96,7 @@ export default function InvoiceWizard({
             saveDraft={handleSaveDraft}
             onFinalized={() => onComplete()}
             existingStatus={existingStatus}
+            existingInvoiceId={savedInvoiceId}
           />
         )}
       </div>

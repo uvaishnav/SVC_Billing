@@ -23,7 +23,8 @@ export default function InvoicesPage() {
   const [showWizard, setShowWizard]     = useState(false)
   const [editDraft, setEditDraft]       = useState<InvoiceDraft | undefined>(undefined)
   const [editStatus, setEditStatus]     = useState<InvoiceStatus | undefined>(undefined)
-  const [loadingEdit, setLoadingEdit]   = useState<number | null>(null)  // tracks which card is loading
+  const [editInvoiceId, setEditInvoiceId] = useState<number | null>(null)
+  const [loadingEdit, setLoadingEdit]   = useState<number | null>(null)
 
   async function load() {
     setLoading(true)
@@ -35,19 +36,17 @@ export default function InvoicesPage() {
   useEffect(() => { load() }, [])
 
   async function openInvoice(inv: InvoiceWithDetails) {
-    // Final / cancelled invoices: only show PDF actions (no wizard)
     if (inv.status === 'final' || inv.status === 'cancelled') return
 
-    // Draft invoices: fetch full data and open wizard prefilled
     setLoadingEdit(inv.id)
     const full = await getInvoiceById(inv.id)
     setLoadingEdit(null)
     if (!full) return
-    // mapInvoiceWithDetailsToDraft is async — it batch-fetches WO item descriptions
-    // for item_distribution rows so they render correctly in Section 2
     const draft = await mapInvoiceWithDetailsToDraft(full)
     setEditDraft(draft)
     setEditStatus(inv.status)
+    // Pass the real DB id so the wizard can UPDATE instead of INSERT
+    setEditInvoiceId(inv.id)
     setShowWizard(true)
   }
 
@@ -55,13 +54,13 @@ export default function InvoicesPage() {
     setShowWizard(false)
     setEditDraft(undefined)
     setEditStatus(undefined)
+    setEditInvoiceId(null)
     load()
   }
 
   if (showWizard) {
     return (
       <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
-        {/* Header */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 12,
           padding: '16px 16px 12px',
@@ -84,6 +83,7 @@ export default function InvoicesPage() {
         <InvoiceWizard
           initialDraft={editDraft}
           existingStatus={editStatus}
+          existingInvoiceId={editInvoiceId}
           onComplete={closeWizard}
           onSaveDraft={() => load()}
         />
@@ -93,7 +93,6 @@ export default function InvoicesPage() {
 
   return (
     <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
-      {/* Page header */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '20px 16px 12px',
@@ -107,6 +106,7 @@ export default function InvoicesPage() {
           onClick={() => {
             setEditDraft(undefined)
             setEditStatus(undefined)
+            setEditInvoiceId(null)
             setShowWizard(true)
           }}
           style={{
@@ -119,7 +119,6 @@ export default function InvoicesPage() {
         </button>
       </div>
 
-      {/* List */}
       <div style={{ padding: '12px 16px' }}>
         {loading && (
           <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--color-text-faint)' }}>Loading…</div>
@@ -177,7 +176,6 @@ export default function InvoicesPage() {
               </span>
             </div>
 
-            {/* Draft hint */}
             {inv.status === 'draft' && (
               <div style={{
                 marginTop: 10,
@@ -195,7 +193,6 @@ export default function InvoicesPage() {
               </div>
             )}
 
-            {/* PDF / action buttons — only for final/cancelled */}
             {inv.status !== 'draft' && (
               <div onClick={e => e.stopPropagation()}>
                 <InvoiceActions

@@ -150,8 +150,6 @@ function mapInvoiceRow(row: any): InvoiceWithDetails {
  * DB table, only work_order_item_id is persisted.
  */
 export async function mapInvoiceWithDetailsToDraft(inv: InvoiceWithDetails): Promise<InvoiceDraft> {
-  // Hydrate item_distribution descriptions from work_order_items.
-  // Only do the fetch when there are distribution rows to hydrate.
   let woItemMap: Map<number, { description: string; sub_work_ref: string | null }> = new Map()
 
   if (inv.item_distribution.length > 0) {
@@ -185,7 +183,6 @@ export async function mapInvoiceWithDetailsToDraft(inv: InvoiceWithDetails): Pro
     reverse_charge:          inv.reverse_charge,
     line_item_billing_type:  inv.line_item_billing_type,
     overall_description:     inv.overall_description ?? '',
-    // Quantity invoice children
     line_items: inv.line_items.map(li => ({
       work_order_item_id: li.work_order_item_id,
       sl_no:              li.sl_no,
@@ -203,7 +200,6 @@ export async function mapInvoiceWithDetailsToDraft(inv: InvoiceWithDetails): Pro
       vehicle_type:           v.vehicle_type,
       include_in_description: v.include_in_description,
     })),
-    // Rental invoice children
     rental_items: inv.rental_items.map(ri => ({
       vehicle_id:   ri.vehicle_id,
       reg_number:   ri.reg_number ?? '',
@@ -214,7 +210,6 @@ export async function mapInvoiceWithDetailsToDraft(inv: InvoiceWithDetails): Pro
       subtotal:     ri.subtotal,
       sort_order:   ri.sort_order,
     })),
-    // Hydrate description and sub_work_ref from the fetched WO items map
     item_distribution: inv.item_distribution.map(d => {
       const woItem = woItemMap.get(d.work_order_item_id)
       return {
@@ -225,7 +220,6 @@ export async function mapInvoiceWithDetailsToDraft(inv: InvoiceWithDetails): Pro
         allocated_amount:   d.allocated_amount,
       }
     }),
-    // Totals
     total_taxable:   inv.total_taxable,
     gst_rate:        inv.gst_rate,
     total_gst:       inv.total_gst,
@@ -238,8 +232,19 @@ export async function mapInvoiceWithDetailsToDraft(inv: InvoiceWithDetails): Pro
 }
 
 // ─── Save Draft ───────────────────────────────────────────────
+//
+// When existingInvoiceId is provided (editing a previously saved draft),
+// we UPDATE that specific row by id — so the DRAFT-xxx number is preserved
+// and no second row is ever created.
+//
+// When existingInvoiceId is null/undefined (first save of a brand-new
+// draft), we upsert by invoice_number as before, then return the new id
+// so the caller can store it and pass it on all future saves.
 
-export async function saveDraftInvoice(draft: InvoiceDraft): Promise<Invoice | null> {
+export async function saveDraftInvoice(
+  draft: InvoiceDraft,
+  existingInvoiceId?: number | null,
+): Promise<{ invoice: Invoice; savedId: number } | null> {
   const row = draftToRow(draft, 'draft')
 
   if (!row.invoice_number || row.invoice_number === 'DRAFT') {
@@ -248,23 +253,48 @@ export async function saveDraftInvoice(draft: InvoiceDraft): Promise<Invoice | n
       : `DRAFT-${Date.now()}`
   }
 
-  const { data: inv, error: invErr } = await supabase
-    .from('invoices')
-    .upsert(row, { onConflict: 'invoice_number' })
-    .select()
-    .single()
-  if (invErr) { console.error('saveDraftInvoice header:', invErr); return null }
+  let inv: Invoice | null = null
 
+  if (existingInvoiceId) {
+    // UPDATE the existing row — preserves the id, never creates a duplicate
+    const { data, error } = await supabase
+      .from('invoices')
+      .update(row)
+      .eq('id', existingInvoiceId)
+      .select()
+      .single()
+    if (error) { console.error('saveDraftInvoice update:', error); return null }
+    inv = data
+  } else {
+    // First save — upsert by invoice_number (no id yet)
+    const { data, error } = await supabase
+      .from('invoices')
+      .upsert(row, { onConflict: 'invoice_number' })
+      .select()
+      .single()
+    if (error) { console.error('saveDraftInvoice upsert:', error); return null }
+    inv = data
+  }
+
+  if (!inv) return null
   const invoiceId = inv.id
   await _replaceChildren(invoiceId, draft)
 
-  return { ...inv, invoice_number: row.invoice_number }
+  return { invoice: { ...inv, invoice_number: row.invoice_number }, savedId: invoiceId }
 }
 
 // ─── Finalize Invoice ─────────────────────────────────────────
+//
+// existingInvoiceId MUST be provided when finalizing a previously saved
+// draft. We UPDATE that row's invoice_number + status in-place so the
+// original draft row is promoted to a final invoice — never abandoned.
+//
+// If existingInvoiceId is not available (edge case: finalizing without
+// ever saving a draft), we fall back to a fresh INSERT.
 
 export async function finalizeInvoice(
   draft: InvoiceDraft,
+  existingInvoiceId?: number | null,
   currentStatus?: InvoiceStatus,
 ): Promise<{ invoice: Invoice; invoiceNumber: string } | null> {
 
@@ -281,13 +311,32 @@ export async function finalizeInvoice(
   const draftWithNumber: InvoiceDraft = { ...draft, invoice_number: invoiceNumber }
   const row = draftToRow(draftWithNumber, 'final')
 
-  const { data: inv, error: invErr } = await supabase
-    .from('invoices')
-    .upsert(row, { onConflict: 'invoice_number' })
-    .select()
-    .single()
-  if (invErr) { console.error('finalizeInvoice upsert:', invErr); return null }
+  let inv: Invoice | null = null
 
+  if (existingInvoiceId) {
+    // UPDATE the existing draft row in-place — this is the core fix.
+    // The invoice_number column changes from DRAFT-xxx to SVC/YY-YY/NNN
+    // on the SAME row. No new row is ever created.
+    const { data, error } = await supabase
+      .from('invoices')
+      .update(row)
+      .eq('id', existingInvoiceId)
+      .select()
+      .single()
+    if (error) { console.error('finalizeInvoice update:', error); return null }
+    inv = data
+  } else {
+    // Fallback: no prior draft row — insert fresh
+    const { data, error } = await supabase
+      .from('invoices')
+      .insert(row)
+      .select()
+      .single()
+    if (error) { console.error('finalizeInvoice insert:', error); return null }
+    inv = data
+  }
+
+  if (!inv) return null
   const invoiceId = inv.id
   await _replaceChildren(invoiceId, draft)
 
