@@ -258,7 +258,9 @@ export default function Section4Review({
   const [error, setError]           = React.useState<string | null>(null)
   const [showPdf, setShowPdf]       = React.useState(false)
 
-  const { pdfUrl, generating, generatePdf } = usePdfPreview()
+  // Fix: pass draft to the hook (it captures it internally for PDF generation),
+  // and alias the exported names to match what this component uses.
+  const { open: generatePdf, loading: generating, pdfUrl } = usePdfPreview(draft)
 
   // Recompute totals once on mount in case Section 4 is reached without
   // a prior recompute (e.g. editing an existing draft)
@@ -345,7 +347,7 @@ export default function Section4Review({
         <button
           type="button"
           onClick={async () => {
-            await generatePdf(draft)
+            await generatePdf()
             setShowPdf(true)
           }}
           disabled={generating}
