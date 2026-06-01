@@ -60,8 +60,8 @@ const PAGE_MARGIN  = 32;
 const BODY_FONT    = 'Inter';
 const HEAD_FONT    = 'Lora';
 
-const HEADER_PADDING_V = 0;   // was 0 — gives cream band graceful top/bottom margins
-const LOGO_SIZE        = 100;  // was 100 — balanced with text block, less wasted space
+const HEADER_PADDING_V = 0;
+const LOGO_SIZE        = 100;
 const LOGO_MARGIN      = 0;
 
 // Thin warm separator between CREAM header and ESPRESSO GSTIN strip
@@ -174,7 +174,7 @@ const s = StyleSheet.create({
   gstinStripSpacer: {
     fontSize: 8.5,
     fontWeight: 400,
-    color: GSTIN_STRIP_BORDER,  // warm muted divider dot between label and number
+    color: GSTIN_STRIP_BORDER,
     marginHorizontal: 6,
   },
 
@@ -343,13 +343,15 @@ const s = StyleSheet.create({
     fontSize: 7,
     color: MUTED,
   },
+  // Taxable Value footer row — sits INSIDE the table as its closing row.
+  // Gold border is on the BOTTOM, sealing the table below the value.
+  // No top border, no margin — it flows directly after the last data row.
   tableTaxableRow: {
     flexDirection: 'row',
     paddingVertical: 5,
     paddingHorizontal: 4,
-    borderTopWidth: 1,
-    borderTopColor: '#C8B89A',
-    marginTop: 2,
+    borderBottomWidth: 1,
+    borderBottomColor: '#C8B89A',
   },
   tableTaxableLabel: {
     fontSize: 7.5,
