@@ -60,8 +60,8 @@ const PAGE_MARGIN  = 32;
 const BODY_FONT    = 'Inter';
 const HEAD_FONT    = 'Lora';
 
-const HEADER_PADDING_V = 8;   // was 0 — gives cream band graceful top/bottom margins
-const LOGO_SIZE        = 72;  // was 100 — balanced with text block, less wasted space
+const HEADER_PADDING_V = 0;   // was 0 — gives cream band graceful top/bottom margins
+const LOGO_SIZE        = 100;  // was 100 — balanced with text block, less wasted space
 const LOGO_MARGIN      = 0;
 
 // Thin warm separator between CREAM header and ESPRESSO GSTIN strip
@@ -97,6 +97,7 @@ const s = StyleSheet.create({
   headerLogoWrap: {
     margin: LOGO_MARGIN,
     marginRight: 0,
+    marginLeft: 0,
     width: LOGO_SIZE,
     height: LOGO_SIZE,
     alignItems: 'center',
@@ -154,6 +155,7 @@ const s = StyleSheet.create({
   // the whole string reads as one authoritative registration stamp.
   gstinStrip: {
     backgroundColor: ESPRESSO,
+    marginTop: -14,
     paddingVertical: 4,
     paddingHorizontal: 8,
     flexDirection: 'row',
