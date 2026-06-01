@@ -63,6 +63,12 @@ const HEADER_PADDING_V = 0;
 const LOGO_SIZE        = 100;
 const LOGO_MARGIN      = 0;
 
+// Standard GST invoice declaration (Rule 46, CGST Rules 2017)
+const GST_DECLARATION =
+  'We hereby certify that the goods/services mentioned in this invoice are true ' +
+  'and correct and the amount indicated represents the price actually charged and ' +
+  'that there is no additional consideration flowing from the buyer.';
+
 // ── Styles ────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   page: {
@@ -468,7 +474,8 @@ const s = StyleSheet.create({
   footerRight: {
     flex: 1,
     paddingLeft: 12,
-    alignItems: 'flex-start',
+    justifyContent: 'space-between',  // declaration at top, signature at bottom
+    alignItems: 'flex-end',           // everything right-aligned
   },
   footerSectionLabel: {
     fontSize: 6.5,
@@ -496,11 +503,16 @@ const s = StyleSheet.create({
     fontWeight: 500,
     flex: 1,
   },
-  footerForText: {
-    fontSize: 7.5,
-    fontWeight: 600,
-    color: ESPRESSO,
-    marginBottom: 4,
+  // GST declaration statement
+  footerDeclaration: {
+    fontSize: 6.5,
+    color: MUTED,
+    lineHeight: 1.5,
+    textAlign: 'right',
+  },
+  // Signature block (bottom of right column)
+  footerSignatureBlock: {
+    alignItems: 'flex-end',
   },
   footerSignatureLine: {
     borderTopWidth: 0.75,
@@ -513,12 +525,14 @@ const s = StyleSheet.create({
     color: MUTED,
     letterSpacing: 0.5,
     marginBottom: 2,
+    textAlign: 'right',
   },
   footerSignatoryName: {
     fontSize: 8,
     fontWeight: 700,
     color: ESPRESSO,
     letterSpacing: 0.3,
+    textAlign: 'right',
   },
 });
 
@@ -879,6 +893,7 @@ function FooterSection({ props }: { props: InvoicePdfProps }) {
   const { supplier, bank } = props;
   return (
     <View style={s.footer}>
+      {/* ── Left: Bank Details ── */}
       <View style={s.footerLeft}>
         <Text style={s.footerSectionLabel}>BANK DETAILS</Text>
         {bank ? (
@@ -910,14 +925,20 @@ function FooterSection({ props }: { props: InvoicePdfProps }) {
           <Text style={s.tableCellMuted}>No bank details on file.</Text>
         )}
       </View>
+
+      {/* ── Right: Declaration (top) + Signature (bottom) ── */}
       <View style={s.footerRight}>
-        <Text style={s.footerForText}>For {supplier.business_name}</Text>
-        <View style={{ height: 36 }} />
-        <View style={s.footerSignatureLine} />
-        <Text style={s.footerSignatoryLabel}>Authorised Signatory</Text>
-        {supplier.authorized_signatory ? (
-          <Text style={s.footerSignatoryName}>{supplier.authorized_signatory}</Text>
-        ) : null}
+        {/* GST compliance declaration — top of right column */}
+        <Text style={s.footerDeclaration}>{GST_DECLARATION}</Text>
+
+        {/* Signature block — pinned to bottom, right-aligned */}
+        <View style={s.footerSignatureBlock}>
+          <View style={s.footerSignatureLine} />
+          <Text style={s.footerSignatoryLabel}>Authorised Signatory</Text>
+          {supplier.authorized_signatory ? (
+            <Text style={s.footerSignatoryName}>{supplier.authorized_signatory}</Text>
+          ) : null}
+        </View>
       </View>
     </View>
   );
