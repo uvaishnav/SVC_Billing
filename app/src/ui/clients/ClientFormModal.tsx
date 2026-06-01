@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import type { ClientWithGstins } from '../../db/types'
 import { upsertClient, upsertClientGstin, deleteClientGstin, setPrimaryGstin } from '../../db/clientsDb'
 import { Field, PrimaryButton, cardStyle, sectionTitleStyle, inputStyle, labelStyle } from '../settings/_components'

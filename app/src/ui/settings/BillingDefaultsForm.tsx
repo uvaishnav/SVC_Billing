@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { getBankAccounts, getSacCodes, upsertSettings } from '../../db/settingsDb'
 import type { Settings, BankAccount, SacCode } from '../../db/types'
 import { Field, PrimaryButton, SavedBadge, sectionTitleStyle, labelStyle, inputStyle } from './_components'

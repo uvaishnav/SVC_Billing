@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import type { Vehicle } from '../../db/types'
 import { getVehicles, deactivateVehicle } from '../../db/vehiclesDb'
 import VehicleCard from './VehicleCard'

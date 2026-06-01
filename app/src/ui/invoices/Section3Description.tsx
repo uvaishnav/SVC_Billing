@@ -9,7 +9,7 @@
 //
 // Rental mode: vehicles panel is hidden (they are already in Section 2 rental_items).
 // Quantity mode: original vehicles panel (unchanged).
-import React, { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import type { InvoiceDraft, Vehicle, InvoiceVehicleDraft } from '../../db/types'
 import { getVehicles } from '../../db/vehiclesDb'
 import { generateInvoiceDescription, refineInvoiceDescription } from '../../utils/generateInvoiceDescription'

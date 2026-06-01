@@ -23,7 +23,7 @@
  *   Name → GSTIN → Address → State (separate row) → State Code (separate row)
  */
 
-import React from 'react';
+
 import {
   Document,
   Page,

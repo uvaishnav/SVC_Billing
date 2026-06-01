@@ -3,7 +3,7 @@
 //   'quantity' → existing WO item checklist + qty inputs (unchanged logic)
 //   'rental'   → vehicle rows with billing mode picker + distribution panel
 
-import React, { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import type {
   InvoiceDraft,
   WorkOrderItem,

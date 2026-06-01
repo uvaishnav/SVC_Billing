@@ -4,7 +4,7 @@
  * Offers Download and Share (Web Share API) actions.
  * Triggers PDF upload to Supabase Storage on first open (lazy, once per invoice).
  */
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { PDFViewer, PDFDownloadLink, pdf } from '@react-pdf/renderer';
 import { InvoicePdf } from './InvoicePdf';
 import { buildInvoicePayload } from './buildInvoicePayload';

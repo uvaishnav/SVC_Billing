@@ -1,5 +1,5 @@
 // Invoices list page — FY selector + status filter pills (Final default) + sorted by invoice number desc
-import React, { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import type { InvoiceWithDetails, InvoiceStatus } from '../../db/types'
 import { getInvoices, getInvoiceById, mapInvoiceWithDetailsToDraft, deleteDraftInvoice, cancelInvoice } from '../../db/invoicesDb'
 import type { InvoiceDraft } from '../../db/types'

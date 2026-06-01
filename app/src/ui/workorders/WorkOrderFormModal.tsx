@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { WorkOrderWithClient, Client, Project } from '../../db/types'
 import type { ParsedWorkOrder } from '../../utils/parseWorkOrder'
 import { upsertWorkOrder, upsertWorkOrderItems, getWorkOrderItems } from '../../db/workOrdersDb'

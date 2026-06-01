@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import type { ProjectWithClient, Client } from '../../db/types'
 import { upsertProject } from '../../db/projectsDb'
 import { supabase } from '../../db/supabaseClient'

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { getSacCodes, upsertSacCode, deactivateSacCode, patchSettings } from '../../db/settingsDb'
 import type { SacCode, Settings } from '../../db/types'
 import { Field, PrimaryButton, cardStyle, sectionTitleStyle } from './_components'

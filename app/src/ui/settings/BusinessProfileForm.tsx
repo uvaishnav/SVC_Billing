@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { upsertSettings } from '../../db/settingsDb'
 import type { Settings } from '../../db/types'
 import { Field, PrimaryButton, SavedBadge, sectionTitleStyle } from './_components'

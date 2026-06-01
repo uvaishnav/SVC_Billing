@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import type { ClientWithGstins } from '../../db/types'
 import { getClients, deactivateClient } from '../../db/clientsDb'
 import ClientCard from './ClientCard'

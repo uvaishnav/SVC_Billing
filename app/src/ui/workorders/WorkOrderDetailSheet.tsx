@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { WorkOrderWithClient, WorkOrderItem } from '../../db/types'
 import { getWorkOrderItems } from '../../db/workOrdersDb'
 import { getWorkOrderPdfSignedUrl } from '../../utils/uploadWorkOrderPdf'

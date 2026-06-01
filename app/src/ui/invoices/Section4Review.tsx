@@ -1,7 +1,7 @@
 // Wizard Section 4: Review + Preview PDF + Save Draft / Finalize
 // Finalize calls invoicesDb.finalizeInvoice which assigns the
 // invoice number at this moment only — never earlier.
-import React, { useEffect } from 'react'
+import { useEffect } from 'react'
 import type { InvoiceDraft, InvoiceStatus } from '../../db/types'
 import { recomputeTotals } from './useInvoiceDraft'
 import { finalizeInvoice } from '../../db/invoicesDb'

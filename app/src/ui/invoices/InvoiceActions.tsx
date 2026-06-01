@@ -3,7 +3,7 @@
  * Reusable action row shown on a finalized invoice (detail sheet or list card).
  * Renders the "View PDF" button which opens InvoicePreviewModal.
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { InvoicePreviewModal } from './pdf/InvoicePreviewModal';
 
 interface Props {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { getBankAccounts, upsertBankAccount, deactivateBankAccount, patchSettings } from '../../db/settingsDb'
 import type { BankAccount, Settings } from '../../db/types'
 import { Field, PrimaryButton, cardStyle, sectionTitleStyle } from './_components'

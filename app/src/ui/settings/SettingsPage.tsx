@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import BusinessProfileForm from './BusinessProfileForm'
 import BankAccountsSection from './BankAccountsSection'
 import SacCodesSection from './SacCodesSection'

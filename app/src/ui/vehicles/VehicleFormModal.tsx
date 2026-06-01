@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import type { Vehicle } from '../../db/types'
 import { upsertVehicle } from '../../db/vehiclesDb'
 import { Field, PrimaryButton, sectionTitleStyle } from '../settings/_components'

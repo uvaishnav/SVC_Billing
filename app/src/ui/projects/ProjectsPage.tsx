@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import type { ProjectWithClient } from '../../db/types'
 import { getProjects, deactivateProject } from '../../db/projectsDb'
 import { sectionTitleStyle } from '../settings/_components'

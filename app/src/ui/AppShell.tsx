@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import DashboardPage from './dashboard/DashboardPage'
 import SettingsPage from './settings/SettingsPage'
 import ClientsPage from './clients/ClientsPage'
