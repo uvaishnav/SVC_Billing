@@ -258,20 +258,22 @@ export default function Section4Review({
   const [error, setError]           = React.useState<string | null>(null)
   const [showPdf, setShowPdf]       = React.useState(false)
 
-  // Fix: pass draft to the hook (it captures it internally for PDF generation),
-  // and alias the exported names to match what this component uses.
   const { open: generatePdf, loading: generating, pdfUrl } = usePdfPreview(draft)
 
-  // Recompute totals once on mount in case Section 4 is reached without
-  // a prior recompute (e.g. editing an existing draft)
+  // Fix B: recompute totals whenever the underlying taxable/gst/tds values change.
+  // Using specific numeric deps (not the whole draft object) avoids an infinite
+  // re-render loop — patch() inside only fires when the numbers actually differ.
   useEffect(() => {
     const updated = recomputeTotals(draft, draft.gst_rate, draft.tds_rate)
-    if (updated.total_taxable !== draft.total_taxable ||
-        updated.total_gst     !== draft.total_gst ||
-        updated.tds_amount    !== draft.tds_amount) {
+    if (
+      updated.total_taxable !== draft.total_taxable ||
+      updated.total_gst     !== draft.total_gst ||
+      updated.tds_amount    !== draft.tds_amount
+    ) {
       patch(updated)
     }
-  }, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.total_taxable, draft.total_gst, draft.tds_amount])
 
   async function handleFinalize() {
     setFinalizing(true)

@@ -43,6 +43,10 @@ function draftToRow(
     line_item_billing_type:  draft.line_item_billing_type,
     total_taxable:           draft.total_taxable,
     gst_rate:                draft.gst_rate,
+    // Split GST amounts — persisted so buildInvoicePayload reads them back correctly
+    cgst_amount:             draft.cgst_amount,
+    sgst_amount:             draft.sgst_amount,
+    igst_amount:             draft.igst_amount,
     total_gst:               draft.total_gst,
     total_amount:            draft.total_amount,
     tds_rate:                draft.tds_rate,
@@ -213,6 +217,9 @@ export async function mapInvoiceWithDetailsToDraft(inv: InvoiceWithDetails): Pro
     }),
     total_taxable:   inv.total_taxable,
     gst_rate:        inv.gst_rate,
+    cgst_amount:     inv.cgst_amount,
+    sgst_amount:     inv.sgst_amount,
+    igst_amount:     inv.igst_amount,
     total_gst:       inv.total_gst,
     total_amount:    inv.total_amount,
     tds_rate:        inv.tds_rate,
@@ -337,11 +344,12 @@ export async function finalizeInvoice(
 
   if (!inv) return null
   const invoiceId = inv.id
-  await _replaceChildren(invoiceId, draft)
+  // Fix D: pass draftWithNumber (which has the final invoice_number) instead of draft
+  await _replaceChildren(invoiceId, draftWithNumber)
 
   if (!isAlreadyFinal) {
-    await _updateBilledQty(draft)
-    await _writeVehicleLedger(invoiceId, draft, inv)
+    await _updateBilledQty(draftWithNumber)
+    await _writeVehicleLedger(invoiceId, draftWithNumber, inv)
   }
 
   return { invoice: inv, invoiceNumber }

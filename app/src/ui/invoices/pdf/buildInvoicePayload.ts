@@ -116,21 +116,20 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
   // ── 4. Derive computed totals ───────────────────────────────────────────────────────────────────────────────
   const taxMode: 'cgst_sgst' | 'igst' = inv.tax_mode;
   const totalTaxable: number = inv.total_taxable ?? 0;
-  const cgst: number  = inv.cgst_amount ?? 0;
-  const sgst: number  = inv.sgst_amount ?? 0;
-  const igst: number  = inv.igst_amount ?? 0;
+  // Fix A: use stored split amounts directly — no re-derivation needed.
+  // These are now persisted by draftToRow() via cgst_amount / sgst_amount / igst_amount.
+  const cgst: number = inv.cgst_amount ?? 0;
+  const sgst: number = inv.sgst_amount ?? 0;
+  const igst: number = inv.igst_amount ?? 0;
   const totalGst      = taxMode === 'igst' ? igst : (cgst + sgst);
-  const totalAmount   = inv.total_invoice_amount ?? (totalTaxable + totalGst);
+  const totalAmount   = inv.total_invoice_amount ?? inv.total_amount ?? (totalTaxable + totalGst);
   const tdsAmount     = inv.tds_amount ?? 0;
   const netReceivable = inv.net_receivable ?? (totalAmount - tdsAmount);
 
   // Derive GST rate from totals (percentage against taxable value)
   const gstRate = totalTaxable > 0 ? Math.round((totalGst / totalTaxable) * 100) : 0;
 
-  // FIX (Bug B): tdsRate must be derived using totalTaxable as the denominator,
-  // NOT totalAmount. TDS is calculated on taxable value only (before GST).
-  // Using totalAmount gave a smaller, wrong rate:
-  //   e.g. taxable=100, GST=18, TDS=2 → wrong: 2/118*100=1.69%, correct: 2/100*100=2%
+  // TDS rate derived using totalTaxable as denominator (correct — TDS is on taxable value)
   const tdsRate = totalTaxable > 0 ? Math.round((tdsAmount / totalTaxable) * 100) : 0;
 
   // ── 5. Assemble flat InvoicePdfProps ────────────────────────────────────────────────────────────────────────────
@@ -178,7 +177,9 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
     tds_rate:            tdsRate,
     tds_amount:          tdsAmount,
     net_receivable:      netReceivable,
-    amount_in_words:     toWords(netReceivable),
+    // Fix A: amount_in_words uses totalAmount (not netReceivable).
+    // The stored inv.amount_in_words was computed from totalAmount by recomputeTotals.
+    amount_in_words:     inv.amount_in_words ?? toWords(totalAmount),
     bank: (inv as any).bank_accounts
       ? {
           bank_name:      (inv as any).bank_accounts.bank_name,

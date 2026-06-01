@@ -58,6 +58,9 @@ export function emptyDraft(): InvoiceDraft {
     overall_description:     '',
     total_taxable:           0,
     gst_rate:                18,
+    cgst_amount:             0,
+    sgst_amount:             0,
+    igst_amount:             0,
     total_gst:               0,
     total_amount:            0,
     tds_rate:                0,
@@ -71,6 +74,9 @@ export function emptyDraft(): InvoiceDraft {
  *  Works for both billing types:
  *   - quantity: sum of line_items[].taxable_value
  *   - rental:   sum of rental_items[].subtotal
+ *
+ *  Also derives split GST amounts (cgst/sgst vs igst) from tax_mode.
+ *  These are persisted to the DB so buildInvoicePayload can read them back.
  */
 export function recomputeTotals(
   draft: InvoiceDraft,
@@ -88,11 +94,20 @@ export function recomputeTotals(
   const tds_amount     = parseFloat((total_taxable_rounded * tdsRate / 100).toFixed(2))
   const net_receivable = parseFloat((total_amount - tds_amount).toFixed(2))
 
+  // Derive split GST amounts based on tax mode
+  const half = parseFloat((total_gst / 2).toFixed(2))
+  const cgst_amount = draft.tax_mode === 'cgst_sgst' ? half : 0
+  const sgst_amount = draft.tax_mode === 'cgst_sgst' ? half : 0
+  const igst_amount = draft.tax_mode === 'igst'      ? total_gst : 0
+
   return {
     ...draft,
     gst_rate:      gstRate,
     tds_rate:      tdsRate,
     total_taxable: total_taxable_rounded,
+    cgst_amount,
+    sgst_amount,
+    igst_amount,
     total_gst,
     total_amount,
     tds_amount,
