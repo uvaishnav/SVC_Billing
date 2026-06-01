@@ -31,13 +31,9 @@ export interface WoFlag {
   utilizationPct?: number
 }
 
-export interface RecentInvoice {
-  id: number
-  invoiceNumber: string | null
-  clientName: string
-  totalAmount: number
-  status: string
-  invoiceDate: string
+export interface MonthlyTrend {
+  yearMonth: string   // 'YYYY-MM'
+  total: number
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -61,28 +57,34 @@ function toYearMonth(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
+/** Returns array of last N 'YYYY-MM' strings, oldest first */
+function lastNMonths(n: number): string[] {
+  const now = new Date()
+  const months: string[] = []
+  for (let i = n - 1; i >= 0; i--) {
+    months.push(toYearMonth(new Date(now.getFullYear(), now.getMonth() - i, 1)))
+  }
+  return months
+}
+
 // ─── KPIs ──────────────────────────────────────────────────────────────────────
 
 export async function fetchKpis(): Promise<KpiData> {
   const now = new Date()
-  const currentYM  = toYearMonth(now)                          // 'YYYY-MM'
-  const currentFY  = fyLabel()                                 // 'YY-YY'
+  const currentYM  = toYearMonth(now)
+  const currentFY  = fyLabel()
   const today      = now.toISOString().slice(0, 10)
   const in30Days   = new Date(now.getTime() + 30 * 86400000).toISOString().slice(0, 10)
 
   const [monthRes, fyRes, woRes] = await Promise.all([
-    // This month: sum amount from ledger where billing_month = 'YYYY-MM'
     supabase
       .from('vehicle_billing_ledger')
       .select('amount')
       .eq('billing_month', currentYM),
-
-    // This FY: sum amount from ledger where financial_year = 'YY-YY'
     supabase
       .from('vehicle_billing_ledger')
       .select('amount')
       .eq('financial_year', currentFY),
-
     supabase
       .from('work_orders')
       .select('id, valid_to')
@@ -98,7 +100,7 @@ export async function fetchKpis(): Promise<KpiData> {
   return { thisMonthRevenue, thisFyRevenue, activeWoCount, expiringWoCount }
 }
 
-// ─── Unbilled Vehicles ────────────────────────────────────────────────────────────
+// ─── Unbilled Vehicles ────────────────────────────────────────────────────────
 
 export async function fetchUnbilledVehicles(): Promise<UnbilledVehicle[]> {
   const now        = new Date()
@@ -108,7 +110,6 @@ export async function fetchUnbilledVehicles(): Promise<UnbilledVehicle[]> {
 
   const [vehiclesRes, ledgerRes, ignoresRes] = await Promise.all([
     supabase.from('vehicles').select('id, reg_number').eq('is_active', true),
-    // billing_month is 'YYYY-MM' text — use .in() directly
     supabase
       .from('vehicle_billing_ledger')
       .select('vehicle_id, billing_month')
@@ -145,7 +146,7 @@ export async function fetchUnbilledVehicles(): Promise<UnbilledVehicle[]> {
   return unbilled
 }
 
-// ─── Vehicle Revenue ────────────────────────────────────────────────────────────────
+// ─── Vehicle Revenue ─────────────────────────────────────────────────────────
 
 export async function fetchVehicleRevenue(period: 'month' | 'fy'): Promise<VehicleRevenue[]> {
   const now = new Date()
@@ -155,11 +156,11 @@ export async function fetchVehicleRevenue(period: 'month' | 'fy'): Promise<Vehic
       ? supabase
           .from('vehicle_billing_ledger')
           .select('vehicle_id, amount')
-          .eq('billing_month', toYearMonth(now))       // exact 'YYYY-MM' match
+          .eq('billing_month', toYearMonth(now))
       : supabase
           .from('vehicle_billing_ledger')
           .select('vehicle_id, amount')
-          .eq('financial_year', fyLabel()),             // exact 'YY-YY' match
+          .eq('financial_year', fyLabel()),
     supabase.from('vehicles').select('id, reg_number').eq('is_active', true),
   ])
 
@@ -176,7 +177,7 @@ export async function fetchVehicleRevenue(period: 'month' | 'fy'): Promise<Vehic
     .sort((a, b) => b.totalRevenue - a.totalRevenue)
 }
 
-// ─── Work Order Flags ───────────────────────────────────────────────────────────────
+// ─── Work Order Flags ─────────────────────────────────────────────────────────
 
 export async function fetchWoFlags(): Promise<WoFlag[]> {
   const now      = new Date()
@@ -235,26 +236,29 @@ export async function fetchWoFlags(): Promise<WoFlag[]> {
   })
 }
 
-// ─── Recent Invoices ──────────────────────────────────────────────────────────
+// ─── Monthly Billing Trend (last 6 months) ───────────────────────────────────
 
-export async function fetchRecentInvoices(): Promise<RecentInvoice[]> {
+export async function fetchMonthlyTrend(): Promise<MonthlyTrend[]> {
+  const months = lastNMonths(6)
+
   const { data } = await supabase
-    .from('invoices')
-    .select('id, invoice_number, total_amount, status, invoice_date, clients(name)')
-    .order('created_at', { ascending: false })
-    .limit(5)
+    .from('vehicle_billing_ledger')
+    .select('billing_month, amount')
+    .in('billing_month', months)
 
-  return (data ?? []).map((r: any) => ({
-    id: r.id,
-    invoiceNumber: r.invoice_number,
-    clientName: r.clients?.name ?? '—',
-    totalAmount: r.total_amount ?? 0,
-    status: r.status,
-    invoiceDate: r.invoice_date,
-  }))
+  // Aggregate client-side
+  const totals: Record<string, number> = {}
+  for (const ym of months) totals[ym] = 0
+  for (const row of (data ?? [])) {
+    if (totals[row.billing_month] !== undefined) {
+      totals[row.billing_month] += row.amount ?? 0
+    }
+  }
+
+  return months.map(ym => ({ yearMonth: ym, total: totals[ym] }))
 }
 
-// ─── Ignore / Unignore ──────────────────────────────────────────────────────────────
+// ─── Ignore / Unignore ───────────────────────────────────────────────────────
 
 export async function ignoreUnbilledMonth(vehicleId: number, yearMonth: string): Promise<void> {
   await supabase
