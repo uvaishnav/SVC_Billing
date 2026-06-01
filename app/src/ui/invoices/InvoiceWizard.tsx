@@ -1,22 +1,27 @@
 // Main Invoice Wizard — orchestrates all 4 sections
 import React from 'react'
-import type { InvoiceDraft, InvoiceStatus } from '../../db/types'
-import { useInvoiceDraft } from './useInvoiceDraft'
+import type { InvoiceDraft, InvoiceStatus, InvoiceRentalItemDraft, InvoiceItemDistributionDraft } from '../../db/types'
+import { useInvoiceDraft, recomputeTotals } from './useInvoiceDraft'
 import WizardNav from './WizardNav'
 import Section1Header from './Section1Header'
 import Section2Items from './Section2Items'
 import Section3Description from './Section3Description'
 import Section4Review from './Section4Review'
-import { recomputeTotals } from './useInvoiceDraft'
 
 export default function InvoiceWizard({
   initialDraft,
   existingStatus,
+  existingInvoiceId,
   onComplete,
   onSaveDraft,
 }: {
   initialDraft?: InvoiceDraft
   existingStatus?: InvoiceStatus
+  // The DB id of the invoice row when editing an existing draft.
+  // Must be provided when opening any previously-saved draft so that
+  // saveDraft and finalizeInvoice UPDATE the same row rather than
+  // inserting a new one.
+  existingInvoiceId?: number | null
   onComplete: () => void
   onSaveDraft?: () => void
 }) {
@@ -26,7 +31,27 @@ export default function InvoiceWizard({
     setRentalItems, setItemDistribution,
     activeSection, goToSection, visitedSections,
     saving, saveDraft,
-  } = useInvoiceDraft(initialDraft)
+    savedInvoiceId,
+  } = useInvoiceDraft(initialDraft, existingInvoiceId)
+
+  // FIX (rental TDS bug): setRentalItems alone only updates draft.rental_items.
+  // It never triggers recomputeTotals, so total_taxable / tds_amount / net_receivable
+  // stay 0 for the entire rental wizard flow. The Section4Review useEffect guard
+  // (updated.total_taxable !== draft.total_taxable) then evaluates 0 !== 0 = false
+  // and patch never fires — PDF preview receives tds_amount=0 and wrong totals.
+  //
+  // Fix: wrap setRentalItems so totals are recomputed immediately after each change,
+  // matching how the quantity path works (setLineItems already sets taxable_value
+  // per item so total_taxable is non-zero before Section4 mounts).
+  function handleSetRentalItems(items: InvoiceRentalItemDraft[]) {
+    const updatedDraft = { ...draft, rental_items: items }
+    const recomputed  = recomputeTotals(updatedDraft, draft.gst_rate, draft.tds_rate)
+    patch(recomputed)
+  }
+
+  function handleSetItemDistribution(dist: InvoiceItemDistributionDraft[]) {
+    setItemDistribution(dist)
+  }
 
   function handleSaveDraft() {
     const updated = recomputeTotals(draft, draft.gst_rate, draft.tds_rate)
@@ -56,13 +81,11 @@ export default function InvoiceWizard({
           <Section2Items
             draft={draft}
             setLineItems={setLineItems}
-            setRentalItems={setRentalItems}
-            setItemDistribution={setItemDistribution}
+            setRentalItems={handleSetRentalItems}
+            setItemDistribution={handleSetItemDistribution}
           />
         )}
         {activeSection === 3 && (
-          // For rental invoices, vehicles list is not used — Section3 skips the vehicle panel.
-          // Pass setVehicles regardless; Section3 reads draft.line_item_billing_type internally.
           <Section3Description draft={draft} setVehicles={setVehicles} patch={patch} />
         )}
         {activeSection === 4 && (
@@ -73,6 +96,7 @@ export default function InvoiceWizard({
             saveDraft={handleSaveDraft}
             onFinalized={() => onComplete()}
             existingStatus={existingStatus}
+            existingInvoiceId={savedInvoiceId}
           />
         )}
       </div>

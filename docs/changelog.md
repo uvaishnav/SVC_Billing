@@ -4,164 +4,177 @@
 
 ---
 
+## [2026-06-01] — Draft/Final UI Split + Draft Delete
+
+### Added
+- `app/src/db/invoicesDb.ts` — `deleteDraftInvoice(invoiceId: number)` function.
+  - First verifies `status === 'draft'` by fetching the row; returns `{ ok: false, error }` immediately if the invoice is not a draft — finalized invoices cannot be deleted through this path, only cancelled.
+  - Deletes all 4 child tables in order (`invoice_line_items`, `invoice_vehicles`, `invoice_rental_items`, `invoice_item_distribution`) before deleting the parent row to satisfy FK constraints.
+  - Returns `{ ok: true }` on success or `{ ok: false, error: string }` on DB failure.
+
+### Changed
+- `app/src/ui/invoices/InvoicesPage.tsx` — Invoice list split into two separate visual sections:
+  - **Drafts** (top): section label "DRAFTS — N" with horizontal rule. Each card has an amber left border (`var(--color-warning)`), tap-to-edit behaviour, and a 🗑 delete button in the top-right corner. The delete button is a two-step inline confirmation: first tap shows "Delete draft? [Yes, delete] [Cancel]" — no modal, no page navigation. Deletion is optimistic (row removed from local state immediately; DB call runs in background).
+  - **Finalised Invoices** (bottom): section label "FINALISED INVOICES — N" with horizontal rule. Cards are non-clickable (`cursor: default`). Status badge (green for final, red for cancelled) shown top-right. `InvoiceActions` (View/Download PDF button) rendered inline on each card.
+
+### Observations
+- `e.stopPropagation()` on the delete button is essential — without it, clicking delete also triggers the card's `onClick` (open wizard) event, causing a confusing state transition.
+- Optimistic removal gives instant feedback with no flicker; the full `load()` is not called on delete, avoiding a list re-sort.
+- The `InvoiceActions` component already existed with `if (status === 'draft') return null` — wiring it into the Finalised section required zero changes to `InvoiceActions` itself.
+
+---
+
+## [2026-06-01] — Invoice Identity Fix (Draft → Final same row)
+
+### Fixed
+- `app/src/db/invoicesDb.ts` — `saveDraftInvoice()` and `finalizeInvoice()` both accept a new optional `existingInvoiceId?: number | null` parameter.
+  - When provided: uses `UPDATE ... WHERE id = ?` — the same DB row is promoted in-place from draft to final. The `invoice_number` and `status` columns change; the `id` (and all FK references from child tables) stay the same.
+  - When null/undefined: falls back to the old `upsert by invoice_number` path — safe for the very first save of a brand-new draft.
+  - `saveDraftInvoice` now returns `{ invoice, savedId }` (was `Invoice | null`) so callers can capture the auto-assigned `id` from the first INSERT and use it for all subsequent saves and the final promote.
+
+- `app/src/ui/invoices/useInvoiceDraft.ts` — new `savedInvoiceId` state, initialised from optional `initialInvoiceId` prop.
+  - `saveDraft()` now passes `savedInvoiceId` to `saveDraftInvoice()`, captures the returned `savedId`, and stores it — so the **second and all further saves** of the same session UPDATE the correct row.
+  - Exposes `savedInvoiceId` for the wizard to pass down to Section 4.
+
+- `app/src/ui/invoices/InvoiceWizard.tsx` — new `existingInvoiceId` prop.
+  - Passes it as `initialInvoiceId` to `useInvoiceDraft`.
+  - Passes the live `savedInvoiceId` (from hook) to `Section4Review` as `existingInvoiceId` — so even a newly created draft that was saved mid-wizard carries the correct id into the finalize step.
+
+- `app/src/ui/invoices/InvoicesPage.tsx` — new `editInvoiceId` state.
+  - `openInvoice()` sets `editInvoiceId = inv.id` when loading a draft for editing.
+  - Passes `existingInvoiceId={editInvoiceId}` to `<InvoiceWizard>`.
+  - Clears `editInvoiceId` on `closeWizard()`.
+
+- `app/src/ui/invoices/Section4Review.tsx` — new `existingInvoiceId` prop.
+  - `handleFinalize()` passes it to `finalizeInvoice()` to select the UPDATE path.
+
+### Observations
+- The previous upsert-by-invoice_number approach failed because `DRAFT-{timestamp}` → `SVC/26-27/001` is a different key, so the upsert treated finalization as a new row INSERT, leaving the original draft row orphaned in the DB with `status='draft'` and `invoice_number='DRAFT-...'`.
+- The invariant now enforced: **one draft = one `invoices` row, forever**. The `id` is the permanent identity; `invoice_number` is a mutable label on that row.
+- Existing invoices edited from the list correctly carry their `id` through the entire wizard flow without any new INSERT.
+
+---
+
+## [2026-06-01] — TDS Calculation Fixes (3 Bugs) + Invoice Rollback
+
+### Fixed
+
+- `app/src/ui/invoices/Section4Review.tsx` — **TDS preview used wrong base (`total_amount` → `total_taxable`).**
+  - `TdsRow` was receiving `totalAmount={draft.total_amount}` and computing live preview TDS as `totalAmount × tdsRate / 100`. Since `total_amount` includes GST, the displayed TDS figure in the review screen was inflated.
+  - Fix: Added separate `taxableAmount` prop receiving `draft.total_taxable`. TDS preview now uses `taxableAmount × tdsRate / 100`. The `totalAmount` prop is retained only for the `net_receivable` display line.
+
+- `app/src/ui/invoices/pdf/buildInvoicePayload.ts` — **TDS rate back-derivation used wrong denominator (`total_amount` → `total_taxable`).**
+  - When loading a saved/finalized invoice for PDF generation, `tds_rate` was back-derived as `(tds_amount / total_amount) × 100`, producing a smaller, wrong rate printed in the PDF label.
+  - Fix: Changed denominator from `totalAmount` to `totalTaxable`.
+
+- `app/src/ui/invoices/InvoiceWizard.tsx` — **Rental TDS always 0 in PDF preview (root cause: `setRentalItems` never triggered `recomputeTotals`).**
+  - `setRentalItems` was passed raw from the wizard to `Section2Items` — it only updated `draft.rental_items` but never called `recomputeTotals`. As a result, `draft.total_taxable`, `tds_amount`, and `net_receivable` stayed at `0` throughout the entire rental wizard flow.
+  - Fix: Replaced raw `setRentalItems` pass-through with `handleSetRentalItems` wrapper that calls `recomputeTotals` immediately after updating items.
+
+### Data Recovery (Manual — Supabase SQL)
+
+- Invoice `id=6` was finalized accidentally before the sequence was reset, receiving number `SVC/26-27/003` instead of the intended `SVC/26-27/001`.
+- All finalization side effects were manually rolled back via SQL:
+
+  | Side Effect | Rollback SQL |
+  |---|---|
+  | Invoice status | `UPDATE invoices SET status='draft', invoice_number='DRAFT-6' WHERE id=6` |
+  | Sequence counter | `UPDATE settings SET current_sequence=0 WHERE id=1` |
+  | Vehicle ledger row | `DELETE FROM vehicle_billing_ledger WHERE invoice_id=6` |
+  | WO item 18 billed qty | `UPDATE work_order_items SET cumulative_billed_qty=0 WHERE id=18` |
+
+### Observations
+- The rental TDS bug was the most subtle: `quantity` invoices were unaffected because `setLineItems` sets `taxable_value` per item so `total_taxable` is always non-zero before Section 4 mounts. Rental items have no per-item taxable value — the subtotal is only meaningful after `recomputeTotals` runs on the full list.
+- TDS rule enforced everywhere: `TDS = tds_rate% × total_taxable` — never on `total_amount` which includes GST.
+
+---
+
+## [2026-06-01] — PDF Layout Fix 4: Gold Separator Row Position
+
+### Fixed
+- `app/src/ui/invoices/pdf/InvoicePdf.tsx` — Taxable Value row gold border moved from top to bottom.
+  - Removed `borderTopWidth: 1`, `borderTopColor: '#C8B89A'`, and `marginTop: 2` from `tableTaxableRow` style.
+  - Added `borderBottomWidth: 1`, `borderBottomColor: '#C8B89A'` to the same style.
+  - The gold line now seals the table below Taxable Value: header → data rows → **Taxable Value** → gold line → totals section.
+
+---
+
+## [2026-05-31] — PDF Layout Fixes (Session 2)
+
+### Fixed
+- `app/src/ui/invoices/pdf/InvoicePdf.tsx` — Header overlap fix: `lineHeight: 1.0` and `marginBottom: 4` on `headerBusinessName`.
+- `app/src/ui/invoices/pdf/InvoicePdf.tsx` — Logo size: `LOGO_SIZE` bumped to `100`.
+- `app/src/ui/invoices/pdf/InvoicePdf.tsx` — Description indent: removed `paddingHorizontal: 10` from `descBlock`.
+
+---
+
+## [2026-05-31] — Bug Fix: TDS Always Showing 0% (3 Root Causes)
+
+### Fixed
+- `app/src/ui/invoices/Section1Header.tsx` — Bug 1: `emptyDraft()` init guard changed from `=== undefined` to `!draft.work_order_id`; TDS from settings applied unconditionally on fresh drafts.
+- `app/src/ui/invoices/Section1Header.tsx` — Bug 2: new `useEffect` on WO selection reads `tds_applicable` flag and applies `default_tds_rate` from cached settings.
+- `app/src/ui/invoices/Section4Review.tsx` — Bug 3: always-visible `<TdsRow>` replacing the `tds_rate > 0` gated block; inline editable rate picker.
+
+---
+
+## [2026-05-31] — Analysis: AI Description Quality Gap — Rental vs Quantity
+
+### Identified (Not Yet Fixed)
+- Root cause 1: `line_items` is always `[]` for rental → `work_item_descriptions` sent to Edge Function is empty.
+- Root cause 2: `SYSTEM_INSTRUCTION_RENTAL` is too vague and passive.
+- Root cause 3: No fallback instruction when `work_item_descriptions` is empty.
+- Three planned fixes deferred to a future session.
+
+---
+
+## [2026-05-31] — Bug Fix: Invoice Date → Billing Period Auto-Recalculation
+
+### Fixed
+- `app/src/ui/invoices/useInvoiceDraft.ts` — `prevMonthRange()` accepts optional `baseDate` param and is now exported.
+- `app/src/ui/invoices/Section1Header.tsx` — `handleInvoiceDateChange()` auto-fills `billing_from`/`billing_to` relative to selected invoice date. `parseLocalDate()` helper avoids UTC-midnight IST shift.
+
+---
+
 ## [2026-05-31] — PDF Font CDN Fix
 
 ### Fixed
-- `app/src/ui/invoices/pdf/InvoicePdf.tsx` — all 6 `Font.register()` URLs updated from broken npm package-path format to the correct Fontsource jsDelivr CDN scheme
-  - Old (broken): `https://cdn.jsdelivr.net/npm/@fontsource/inter@4.5.15/files/inter-latin-400-normal.ttf`
-  - New (working): `https://cdn.jsdelivr.net/fontsource/fonts/inter@5/latin-400-normal.ttf`
-  - Same fix applied to Inter 500/600/700 and Lora 400/700
-
-### Observations
-- Fontsource migrated away from the npm `files/` path structure; the new CDN route is `cdn.jsdelivr.net/fontsource/fonts/{font}@{version}/{subset}-{weight}-{style}.{ext}`
-- `.ttf` format required (not `.woff2`) — `@react-pdf/renderer` fetches raw font bytes and cannot decode woff2
-- All 6 TTF URLs manually verified in browser before committing
-- The broken URLs caused a `PDF Error: Failed to fetch font … 404` that prevented any PDF from rendering
+- `app/src/ui/invoices/pdf/InvoicePdf.tsx` — All 6 `Font.register()` URLs updated to correct Fontsource jsDelivr CDN scheme (`cdn.jsdelivr.net/fontsource/fonts/{font}@{version}/{subset}-{weight}-{style}.ttf`).
 
 ---
 
 ## [2026-05-30] — PDF Invoice Generation — Part 3: PDF Rendering
 
 ### Added
-- `app/src/ui/invoices/pdf/InvoiceDocument.tsx` — main `@react-pdf/renderer` document component, portrait A4, dual-axis color system (tax mode × billing type), both Playfair Display + Work Sans fonts registered, full 10-section layout: header band → identity band → details+bill-to → SAC chip → description → line items → totals → amount in words → bank details → declaration+signature
-- `app/src/ui/invoices/pdf/QuantityLineItemsTable.tsx` — table component for quantity invoices: Sl. No / Description / Unit / Qty / Rate / Taxable Value columns with alternating row tint
-- `app/src/ui/invoices/pdf/RentalLineItemsTable.tsx` — table component for rental invoices: Vehicle / Billing Mode / Days / Monthly Rent / Subtotal columns + Work Items Covered informational block (from `invoice_item_distribution`)
-- `app/src/ui/invoices/pdf/invoicePayloadTypes.ts` — TypeScript interfaces for all PDF data (`InvoicePayload`, `SupplierPayload`, `ClientPayload`, `BankPayload`, `InvoiceMetaPayload`, `QuantityLineItemPayload`, `RentalLineItemPayload`, `DistributionItemPayload`)
-- `app/src/ui/invoices/pdf/pdfUtils.ts` — `formatCurrency()` (Indian rupee format), `formatDate()` (DD/MM/YYYY), `toWords()` (Indian place-value words with Crore/Lakh/Thousand)
-- `app/src/ui/invoices/pdf/buildInvoicePayload.ts` — async function that fetches invoice + FK joins + settings + billing-type-branched child items and assembles `InvoicePayload`
-- `app/src/ui/invoices/pdf/InvoicePreviewModal.tsx` — full-screen modal with `PDFViewer` (desktop) or download prompt (mobile), Download button (`PDFDownloadLink`), Share button (Web Share API with blob fallback), lazy PDF upload to Supabase Storage on open
-- `app/src/ui/invoices/InvoiceActions.tsx` — reusable "View / Download PDF" button component for invoice detail sheets and list cards; hides on draft invoices
-- `app/src/db/invoicePdfDb.ts` — `uploadInvoicePdf()` (uploads blob to `invoices` bucket, sets `pdf_url` on row) and `getInvoiceDownloadUrl()` (signed URL for private bucket access)
-- `supabase/migrations/007_invoices_pdf_url.sql` — adds `pdf_url TEXT` column to `invoices` table + 3 RLS policies for `storage.objects` (INSERT / SELECT / UPDATE on `invoices` bucket)
+- Complete `@react-pdf/renderer` document component, payload types, utilities, data assembler, preview modal, actions component, PDF storage DB helpers, and migration 007.
 
 ### Design Decisions Made
-- `@react-pdf/renderer` chosen over jsPDF + html2canvas (vector output, JSX layout, no coordinate math)
-- Portrait A4 orientation (Indian GST standard)
-- Dual-axis color system: tax mode drives accent color (gold = CGST/SGST, steel blue = IGST); billing type drives table header (parchment = quantity, cool blue-grey = rental)
-- SAC code as standalone chip between Bill To and description
-- Description of services placed above line items table
-- Work Items Covered block for rental invoices only (from `invoice_item_distribution`)
-- Invoice number as prominent right-aligned bordered box in document identity band
-
-### Observations
-- `@react-pdf/renderer` cannot use Tailwind or CSS variables — all styles are `StyleSheet.create()` objects; this is a deliberate PDF-only pattern and does NOT affect the app’s UI styling rules
-- `PDFViewer` is intentionally hidden on mobile (screen width < 768px) and replaced with a download prompt — PDFViewer renders an iframe which is heavy and poorly supported on mobile WebViews
-- PDF upload to Supabase Storage is intentionally non-blocking (fire-and-forget with console.warn on failure) — the user can still download the PDF even if the upload fails
-- Web Share API (`navigator.share`) with file sharing is supported on Android Chrome and iOS Safari 15.1+; desktop fallback triggers a download
-- `toWords()` in `pdfUtils.ts` is a self-contained Indian place-value implementation (Crore → Lakh → Thousand → Hundred) — no third-party dependency
-- `invoices` bucket must exist before running migration 007 (it was created manually on 2026-05-24)
-- **Note:** A secondary implementation (`generatePdf.ts` using jsPDF) also exists on this branch from an earlier brainstorm session — it is superseded by `InvoicePdf.tsx` and should be deleted before merge
+- `@react-pdf/renderer` over jsPDF (vector output, JSX layout).
+- Portrait A4, dual-axis color (tax mode × billing type), SAC chip standalone, description above line items.
 
 ---
 
 ## [2026-05-28] — Invoice Wizard — Phase 3 Parts 1–2 (Rental Billing + AI Description)
 
 ### Added
-- `supabase/migrations/006_rental_billing.sql` — adds `invoice_rental_items`, `invoice_item_distribution`, `vehicle_billing_ledger` tables; adds `line_item_billing_type` to `invoices`; adds `applicable_billing_type` to `sac_codes`
-- `invoicesDb.ts` updated with quantity + rental finalization paths, `cancelInvoice()`, `fetchInvoice()`
-- `Section2Items.tsx` — billing mode selector + rental sub-form (vehicle rows, billing mode, days, monthly rent) + distribution panel with equal-split default + live 100% sum guard
-- `Section3Description.tsx` — rental mode: read-only vehicle summary; quantity mode: multi-select WO items picker; both modes: AI description generation + manual edit textarea
-- `useInvoiceDraft.ts` updated with rental item + distribution draft state
-- `generate-invoice-description` Supabase Edge Function — rental-aware prompt (no per-day rate language)
-
-### Observations
-- Rental-aware AI prompt required explicit instruction to exclude per-day rate phrasing — Gemini/GPT defaulted to computing and stating a daily rate without this constraint
-- Distribution panel equal-split default (total / num_items, remainder cent on first item) is the most common real-world use case
+- Migration 006, rental billing DB schema, Section 2 rental sub-form, Section 3 description + AI, `generate-invoice-description` Edge Function.
 
 ---
 
 ## [2026-05-27] — Invoice Wizard — Phase 3 Part 1 (Wizard Shell + Section 1 Header)
 
 ### Added
-- Invoice tab added to AppShell (6th tab)
-- `InvoicesPage.tsx` — list of invoices with status chips, create button
-- `InvoiceWizard.tsx` — 4-section wizard orchestrator with slide-in animation
-- `WizardNav.tsx` — sticky progress bar with section breadcrumbs
-- `useInvoiceDraft.ts` — central wizard state hook, draft persistence
-- `Section1Header.tsx` — client picker, GSTIN picker, WO picker, date fields, billing type selector (quantity / rental), SAC picker (filtered by billing type), bank account picker, tax mode, TDS toggle
-- `Section4Review.tsx` — read-only summary of all sections, finalize button
-- `invoicesDb.ts` — `saveDraftInvoice()`, `finalizeInvoice()` (quantity path), `listInvoices()`
-- `invoiceNumberingDb.ts` — `generateInvoiceNumber()` via Edge Function
-
-### Observations
-- SAC dropdown filter by `applicable_billing_type` requires running migration 006 first
-- Wizard uses hash-based section navigation (§1–§4) to avoid page reload on section transition
+- Invoice tab, `InvoicesPage`, `InvoiceWizard`, `WizardNav`, `useInvoiceDraft`, `Section1Header`, `Section4Review`, `invoicesDb`, `invoiceNumberingDb`.
 
 ---
 
-## [2026-05-26] — Invoice Face Design (compliance-first layout decisions)
+## [2026-05-26] — Invoice Face Design
 
 ### Added
-- Compliance-first invoice section structure locked in `design-decisions.md`
-- TDS as informational summary line below GST total (not a GST field)
-- W.O. Reference in muted low-emphasis style in metadata block
-- No project name / vehicle block on invoice face (internal records only)
+- Compliance-first invoice section structure locked in `design-decisions.md`.
 
 ---
 
 ## [2026-05-24] — Work Orders Module — Part 2 (OCR + AI Parse)
 
 ### Added
-- `WorkOrderFormModal.tsx` updated with OCR + AI-prefill mode
-- `parse-work-order` Supabase Edge Function (OpenAI/Gemini-powered WO PDF parsing)
-- Tesseract.js in-browser OCR for PDF text extraction
-- `workOrdersDb.ts` — `uploadWorkOrderPdf()`, `saveExtractedText()`
-
-### Observations
-- Tesseract accuracy is sufficient for clean scanned WO PDFs from RSV Constructions
-- Supabase Edge Function env var for AI API key set via `supabase secrets set`
-
----
-
-## [2026-05-24] — Work Orders Module — Part 1 (Schema + CRUD)
-
-### Added
-- `supabase/migrations/004_invoice_numbering.sql`, `005_projects_and_work_orders.sql`
-- `WorkOrdersPage.tsx`, `WorkOrderCard.tsx`, `WorkOrderFormModal.tsx`, `WorkOrderDetailSheet.tsx`
-- `workOrdersDb.ts` — CRUD + `computeWOStatus()`
-- `projectsDb.ts`, `ProjectsPage.tsx`, `ProjectCard.tsx`, `ProjectFormModal.tsx`
-- AppShell updated to 5 tabs (added Work Orders + Projects)
-
-### Observations
-- `wo_reference` used over `wo_number` (see design-decisions.md)
-- Client-side `computeWOStatus()` is zero-infrastructure — never stale
-
----
-
-## [2026-05-23] — Vehicles Module
-
-### Added
-- `supabase/migrations/003_vehicles.sql`
-- `VehiclesPage.tsx`, `VehicleCard.tsx`, `VehicleFormModal.tsx`, `VehicleDetailSheet.tsx`
-- `vehiclesDb.ts` — CRUD with soft delete
-- AppShell updated to 4 tabs (added Vehicles)
-
-### Observations
-- `default_monthly_rent` on vehicles is a pre-fill hint only; not authoritative
-
----
-
-## [2026-05-23] — Clients Module
-
-### Added
-- `supabase/migrations/002_clients.sql`
-- `ClientsPage.tsx`, `ClientCard.tsx`, `ClientFormModal.tsx`, `ClientDetailSheet.tsx`
-- `clientsDb.ts` — CRUD with GSTIN management
-
-### Observations
-- Address on `client_gstins` not `clients` — multi-state clients have different registered addresses per GSTIN
-- `GstinDraft` pattern prevents stale-state race conditions
-
----
-
-## [2026-05-23] — Settings Module
-
-### Added
-- `supabase/migrations/001_settings.sql`
-- `SettingsPage.tsx`, `BusinessProfileForm.tsx`, `BankAccountsSection.tsx`, `SacCodesSection.tsx`, `BillingDefaultsForm.tsx`
-- `settingsDb.ts` — `upsertSettings()`, `patchSettings()`
-- `_components.tsx` — shared UI primitives: `Field`, `PrimaryButton`, `cardStyle`, `sectionTitleStyle`, `inputStyle`, `labelStyle`
-
-### Observations
-- `patchSettings` vs `upsertSettings` separation prevents NOT NULL constraint violations on partial updates
-- Single-row typed table preferred over key-value store for type safety
+- OCR + AI-prefill mode, `parse-work-order` Edge Function, Tesseract.js.

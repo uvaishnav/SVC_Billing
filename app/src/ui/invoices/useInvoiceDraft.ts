@@ -19,10 +19,16 @@ function localISO(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
-function prevMonthRange(): { from: string; to: string } {
-  const now = new Date()
-  const from = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-  const to   = new Date(now.getFullYear(), now.getMonth(), 0)
+/**
+ * Returns the first and last date of the month BEFORE the given base date.
+ * baseDate defaults to today when not provided (used for emptyDraft).
+ * When invoice_date changes, pass the new date here so billing_from/to
+ * track the previous month relative to the selected invoice date.
+ */
+export function prevMonthRange(baseDate?: Date): { from: string; to: string } {
+  const ref = baseDate ?? new Date()
+  const from = new Date(ref.getFullYear(), ref.getMonth() - 1, 1)
+  const to   = new Date(ref.getFullYear(), ref.getMonth(), 0)
   return { from: localISO(from), to: localISO(to) }
 }
 
@@ -115,7 +121,6 @@ export function equalSplitDistribution(
   if (distribution.length === 0) return []
   const pct = parseFloat((100 / distribution.length).toFixed(3))
   return distribution.map((d, i) => {
-    // Last item gets remainder to avoid floating-point drift
     const thisPct = i === distribution.length - 1
       ? parseFloat((100 - pct * (distribution.length - 1)).toFixed(3))
       : pct
@@ -161,9 +166,7 @@ export function isSectionComplete(draft: InvoiceDraft, section: WizardSection): 
     )
     case 2:
       if (draft.line_item_billing_type === 'rental') {
-        // At least one rental item with a valid subtotal
         const hasItems = draft.rental_items.length > 0 && draft.rental_items.every(ri => ri.subtotal > 0)
-        // Distribution must sum to exactly 100% (within 0.01 tolerance)
         const distTotal = draft.item_distribution.reduce((s, d) => s + d.allocation_pct, 0)
         const distOk = draft.item_distribution.length === 0 || Math.abs(distTotal - 100) < 0.1
         return hasItems && distOk
@@ -174,11 +177,16 @@ export function isSectionComplete(draft: InvoiceDraft, section: WizardSection): 
   }
 }
 
-export function useInvoiceDraft(initialDraft?: InvoiceDraft) {
+export function useInvoiceDraft(initialDraft?: InvoiceDraft, initialInvoiceId?: number | null) {
   const [draft, setDraft] = useState<InvoiceDraft>(initialDraft ?? emptyDraft())
   const [saving, setSaving] = useState(false)
   const [activeSection, setActiveSection] = useState<WizardSection>(1)
   const [visitedSections, setVisitedSections] = useState<Set<WizardSection>>(new Set([1]))
+
+  // Tracks the DB row id once the draft has been saved at least once.
+  // This is the key that ensures saveDraft and finalizeInvoice always
+  // UPDATE the same row rather than inserting a new one.
+  const [savedInvoiceId, setSavedInvoiceId] = useState<number | null>(initialInvoiceId ?? null)
 
   const patch = useCallback((updates: Partial<InvoiceDraft>) => {
     setDraft(d => ({ ...d, ...updates }))
@@ -216,9 +224,15 @@ export function useInvoiceDraft(initialDraft?: InvoiceDraft) {
 
   const saveDraft = useCallback(async () => {
     setSaving(true)
-    await saveDraftInvoice(draft)
+    const result = await saveDraftInvoice(draft, savedInvoiceId)
+    if (result) {
+      // Capture the id from the first INSERT so all future saves UPDATE the same row
+      setSavedInvoiceId(result.savedId)
+      // Patch the invoice_number back into draft state (in case it was auto-generated)
+      setDraft(d => ({ ...d, invoice_number: result.invoice.invoice_number }))
+    }
     setSaving(false)
-  }, [draft])
+  }, [draft, savedInvoiceId])
 
   return {
     draft, patch, patchLineItem,
@@ -226,5 +240,6 @@ export function useInvoiceDraft(initialDraft?: InvoiceDraft) {
     setRentalItems, setItemDistribution,
     activeSection, goToSection, visitedSections,
     saving, saveDraft,
+    savedInvoiceId,
   }
 }

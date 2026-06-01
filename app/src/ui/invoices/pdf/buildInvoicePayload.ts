@@ -12,7 +12,7 @@ import type { InvoicePdfProps, PdfLineItem, PdfRentalItem, PdfDistributionItem }
 import { toWords } from './pdfUtils';
 
 export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdfProps> {
-  // ── 1. Invoice row + FK joins ───────────────────────────────────────────────────────
+  // ── 1. Invoice row + FK joins ─────────────────────────────────────────────────────────────────────
   const { data: inv, error: invErr } = await supabase
     .from('invoices')
     .select(`
@@ -28,7 +28,7 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
 
   if (invErr || !inv) throw new Error(`Invoice ${invoiceId} not found: ${invErr?.message}`);
 
-  // ── 2. Settings (supplier identity) ───────────────────────────────────────────────
+  // ── 2. Settings (supplier identity) ──────────────────────────────────────────────────────────────────────
   const { data: settings, error: settingsErr } = await supabase
     .from('settings')
     .select('*')
@@ -37,7 +37,7 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
 
   if (settingsErr || !settings) throw new Error('Settings not found');
 
-  // ── 3. Line items (branched on billing type) ───────────────────────────────────────────
+  // ── 3. Line items (branched on billing type) ────────────────────────────────────────────────────────────────
   let lineItems: PdfLineItem[] = [];
   let rentalItems: PdfRentalItem[] = [];
   let distributionItems: PdfDistributionItem[] = [];
@@ -65,17 +65,33 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
       amount:       r.subtotal ?? 0,
     }));
 
+    // ── Fetch distribution rows, then explicitly look up work_order_items
+    // (avoids PostgREST FK auto-join which can silently return null if
+    //  the schema cache hasn't refreshed after the FK migration)
     const { data: di, error: diErr } = await supabase
       .from('invoice_item_distribution')
-      .select('*, work_order_items(description, sub_work_ref)')
+      .select('work_order_item_id, allocation_pct')
       .eq('invoice_id', invoiceId)
       .order('id');
 
     if (diErr) throw new Error(`Distribution fetch failed: ${diErr.message}`);
 
+    const woItemIds: number[] = (di ?? []).map((d: any) => d.work_order_item_id).filter(Boolean);
+
+    let woMap: Record<number, { description: string; sub_work_ref: string | null }> = {};
+    if (woItemIds.length > 0) {
+      const { data: woItems } = await supabase
+        .from('work_order_items')
+        .select('id, description, sub_work_ref')
+        .in('id', woItemIds);
+      woMap = Object.fromEntries(
+        (woItems ?? []).map((w: any) => [w.id, { description: w.description, sub_work_ref: w.sub_work_ref ?? null }])
+      );
+    }
+
     distributionItems = (di ?? []).map((d: any): PdfDistributionItem => ({
-      description:    d.work_order_items?.description ?? '–',
-      sub_work_ref:   d.work_order_items?.sub_work_ref ?? null,
+      description:    woMap[d.work_order_item_id]?.description ?? '–',
+      sub_work_ref:   woMap[d.work_order_item_id]?.sub_work_ref ?? null,
       allocation_pct: d.allocation_pct ?? 0,
     }));
   } else {
@@ -97,7 +113,7 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
     }));
   }
 
-  // ── 4. Derive computed totals ────────────────────────────────────────────────────────
+  // ── 4. Derive computed totals ───────────────────────────────────────────────────────────────────────────────
   const taxMode: 'cgst_sgst' | 'igst' = inv.tax_mode;
   const totalTaxable: number = inv.total_taxable ?? 0;
   const cgst: number  = inv.cgst_amount ?? 0;
@@ -108,12 +124,16 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
   const tdsAmount     = inv.tds_amount ?? 0;
   const netReceivable = inv.net_receivable ?? (totalAmount - tdsAmount);
 
-  // Derive GST rate from totals (percentage)
+  // Derive GST rate from totals (percentage against taxable value)
   const gstRate = totalTaxable > 0 ? Math.round((totalGst / totalTaxable) * 100) : 0;
-  // Derive TDS rate
-  const tdsRate = totalAmount > 0 ? Math.round((tdsAmount / totalAmount) * 100) : 0;
 
-  // ── 5. Assemble flat InvoicePdfProps ────────────────────────────────────────────────────
+  // FIX (Bug B): tdsRate must be derived using totalTaxable as the denominator,
+  // NOT totalAmount. TDS is calculated on taxable value only (before GST).
+  // Using totalAmount gave a smaller, wrong rate:
+  //   e.g. taxable=100, GST=18, TDS=2 → wrong: 2/118*100=1.69%, correct: 2/100*100=2%
+  const tdsRate = totalTaxable > 0 ? Math.round((tdsAmount / totalTaxable) * 100) : 0;
+
+  // ── 5. Assemble flat InvoicePdfProps ────────────────────────────────────────────────────────────────────────────
   return {
     supplier: {
       business_name:        settings.business_name,

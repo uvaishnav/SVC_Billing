@@ -140,11 +140,24 @@ function mapInvoiceRow(row: any): InvoiceWithDetails {
   }
 }
 
-/**
- * Converts a saved InvoiceWithDetails back into an InvoiceDraft
- * so it can be loaded into the wizard for editing.
- */
-export function mapInvoiceWithDetailsToDraft(inv: InvoiceWithDetails): InvoiceDraft {
+export async function mapInvoiceWithDetailsToDraft(inv: InvoiceWithDetails): Promise<InvoiceDraft> {
+  let woItemMap: Map<number, { description: string; sub_work_ref: string | null }> = new Map()
+
+  if (inv.item_distribution.length > 0) {
+    const ids = inv.item_distribution.map(d => d.work_order_item_id)
+    const { data: woItems, error } = await supabase
+      .from('work_order_items')
+      .select('id, description, sub_work_ref')
+      .in('id', ids)
+    if (error) {
+      console.error('mapInvoiceWithDetailsToDraft — failed to fetch WO items:', error)
+    } else {
+      for (const item of woItems ?? []) {
+        woItemMap.set(item.id, { description: item.description, sub_work_ref: item.sub_work_ref ?? null })
+      }
+    }
+  }
+
   return {
     invoice_number:          inv.invoice_number,
     invoice_date:            inv.invoice_date,
@@ -161,7 +174,6 @@ export function mapInvoiceWithDetailsToDraft(inv: InvoiceWithDetails): InvoiceDr
     reverse_charge:          inv.reverse_charge,
     line_item_billing_type:  inv.line_item_billing_type,
     overall_description:     inv.overall_description ?? '',
-    // Quantity invoice children
     line_items: inv.line_items.map(li => ({
       work_order_item_id: li.work_order_item_id,
       sl_no:              li.sl_no,
@@ -179,7 +191,6 @@ export function mapInvoiceWithDetailsToDraft(inv: InvoiceWithDetails): InvoiceDr
       vehicle_type:           v.vehicle_type,
       include_in_description: v.include_in_description,
     })),
-    // Rental invoice children
     rental_items: inv.rental_items.map(ri => ({
       vehicle_id:   ri.vehicle_id,
       reg_number:   ri.reg_number ?? '',
@@ -190,14 +201,16 @@ export function mapInvoiceWithDetailsToDraft(inv: InvoiceWithDetails): InvoiceDr
       subtotal:     ri.subtotal,
       sort_order:   ri.sort_order,
     })),
-    item_distribution: inv.item_distribution.map(d => ({
-      work_order_item_id: d.work_order_item_id,
-      description:        '',   // not stored on InvoiceItemDistribution; will be empty
-      sub_work_ref:       null,
-      allocation_pct:     d.allocation_pct,
-      allocated_amount:   d.allocated_amount,
-    })),
-    // Totals
+    item_distribution: inv.item_distribution.map(d => {
+      const woItem = woItemMap.get(d.work_order_item_id)
+      return {
+        work_order_item_id: d.work_order_item_id,
+        description:        woItem?.description ?? '',
+        sub_work_ref:       woItem?.sub_work_ref ?? null,
+        allocation_pct:     d.allocation_pct,
+        allocated_amount:   d.allocated_amount,
+      }
+    }),
     total_taxable:   inv.total_taxable,
     gst_rate:        inv.gst_rate,
     total_gst:       inv.total_gst,
@@ -211,7 +224,10 @@ export function mapInvoiceWithDetailsToDraft(inv: InvoiceWithDetails): InvoiceDr
 
 // ─── Save Draft ───────────────────────────────────────────────
 
-export async function saveDraftInvoice(draft: InvoiceDraft): Promise<Invoice | null> {
+export async function saveDraftInvoice(
+  draft: InvoiceDraft,
+  existingInvoiceId?: number | null,
+): Promise<{ invoice: Invoice; savedId: number } | null> {
   const row = draftToRow(draft, 'draft')
 
   if (!row.invoice_number || row.invoice_number === 'DRAFT') {
@@ -220,23 +236,68 @@ export async function saveDraftInvoice(draft: InvoiceDraft): Promise<Invoice | n
       : `DRAFT-${Date.now()}`
   }
 
-  const { data: inv, error: invErr } = await supabase
-    .from('invoices')
-    .upsert(row, { onConflict: 'invoice_number' })
-    .select()
-    .single()
-  if (invErr) { console.error('saveDraftInvoice header:', invErr); return null }
+  let inv: Invoice | null = null
 
+  if (existingInvoiceId) {
+    const { data, error } = await supabase
+      .from('invoices')
+      .update(row)
+      .eq('id', existingInvoiceId)
+      .select()
+      .single()
+    if (error) { console.error('saveDraftInvoice update:', error); return null }
+    inv = data
+  } else {
+    const { data, error } = await supabase
+      .from('invoices')
+      .upsert(row, { onConflict: 'invoice_number' })
+      .select()
+      .single()
+    if (error) { console.error('saveDraftInvoice upsert:', error); return null }
+    inv = data
+  }
+
+  if (!inv) return null
   const invoiceId = inv.id
   await _replaceChildren(invoiceId, draft)
 
-  return { ...inv, invoice_number: row.invoice_number }
+  return { invoice: { ...inv, invoice_number: row.invoice_number }, savedId: invoiceId }
+}
+
+// ─── Delete Draft ──────────────────────────────────────────────
+// Safety guard: refuses to delete anything that is not a draft.
+// All child rows are deleted first to satisfy FK constraints.
+
+export async function deleteDraftInvoice(invoiceId: number): Promise<{ ok: boolean; error?: string }> {
+  // Verify it's actually a draft before touching anything
+  const { data: inv, error: fetchErr } = await supabase
+    .from('invoices')
+    .select('id, status')
+    .eq('id', invoiceId)
+    .single()
+  if (fetchErr || !inv) return { ok: false, error: 'Invoice not found.' }
+  if (inv.status !== 'draft') return { ok: false, error: 'Only draft invoices can be deleted.' }
+
+  // Delete all child rows first
+  await supabase.from('invoice_line_items').delete().eq('invoice_id', invoiceId)
+  await supabase.from('invoice_vehicles').delete().eq('invoice_id', invoiceId)
+  await supabase.from('invoice_rental_items').delete().eq('invoice_id', invoiceId)
+  await supabase.from('invoice_item_distribution').delete().eq('invoice_id', invoiceId)
+
+  const { error: delErr } = await supabase
+    .from('invoices')
+    .delete()
+    .eq('id', invoiceId)
+  if (delErr) { console.error('deleteDraftInvoice:', delErr); return { ok: false, error: delErr.message } }
+
+  return { ok: true }
 }
 
 // ─── Finalize Invoice ─────────────────────────────────────────
 
 export async function finalizeInvoice(
   draft: InvoiceDraft,
+  existingInvoiceId?: number | null,
   currentStatus?: InvoiceStatus,
 ): Promise<{ invoice: Invoice; invoiceNumber: string } | null> {
 
@@ -253,13 +314,28 @@ export async function finalizeInvoice(
   const draftWithNumber: InvoiceDraft = { ...draft, invoice_number: invoiceNumber }
   const row = draftToRow(draftWithNumber, 'final')
 
-  const { data: inv, error: invErr } = await supabase
-    .from('invoices')
-    .upsert(row, { onConflict: 'invoice_number' })
-    .select()
-    .single()
-  if (invErr) { console.error('finalizeInvoice upsert:', invErr); return null }
+  let inv: Invoice | null = null
 
+  if (existingInvoiceId) {
+    const { data, error } = await supabase
+      .from('invoices')
+      .update(row)
+      .eq('id', existingInvoiceId)
+      .select()
+      .single()
+    if (error) { console.error('finalizeInvoice update:', error); return null }
+    inv = data
+  } else {
+    const { data, error } = await supabase
+      .from('invoices')
+      .insert(row)
+      .select()
+      .single()
+    if (error) { console.error('finalizeInvoice insert:', error); return null }
+    inv = data
+  }
+
+  if (!inv) return null
   const invoiceId = inv.id
   await _replaceChildren(invoiceId, draft)
 

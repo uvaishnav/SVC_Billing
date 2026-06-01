@@ -1,7 +1,14 @@
 // Wizard Section 3: Vehicles + AI Description
+//
+// DESIGN: AI generation is NEVER triggered automatically.
+// The user must explicitly click one of the three action buttons:
+//   1. "Generate with AI"  — shown only when description is empty
+//   2. "↺ Regenerate"      — shown only when description already has content
+//   3. "Improve with AI"   — refine existing text via a typed instruction
+//                            (disabled if description is empty)
+//
 // Rental mode: vehicles panel is hidden (they are already in Section 2 rental_items).
-//              Auto-generate triggers on rental_items instead of line_items.
-// Quantity mode: original vehicles panel + line_items trigger (unchanged).
+// Quantity mode: original vehicles panel (unchanged).
 import React, { useEffect, useState, useRef } from 'react'
 import type { InvoiceDraft, Vehicle, InvoiceVehicleDraft } from '../../db/types'
 import { getVehicles } from '../../db/vehiclesDb'
@@ -56,22 +63,10 @@ export default function Section3Description({
     loadContext()
   }, [draft.work_order_id, draft.sac_id])
 
-  // Auto-generate when section first loads with enough context.
-  // Trigger condition differs by billing type:
-  //   quantity: wait for at least one line item
-  //   rental:   wait for at least one confirmed rental item
-  const hasGenerated = useRef(false)
-  const quantityReady = !isRental && draft.line_items.length > 0
-  const rentalReady   =  isRental
-    && draft.rental_items.filter(ri => ri.vehicle_id !== null).length > 0
-
-  useEffect(() => {
-    if (!hasGenerated.current && (quantityReady || rentalReady)) {
-      hasGenerated.current = true
-      handleGenerate()
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quantityReady, rentalReady])
+  // ── NO auto-generate useEffect ─────────────────────────────────
+  // AI is only triggered on explicit user action (button click).
+  // hasGenerated ref removed — it was causing re-generation on every
+  // remount (e.g. navigating back to this section, or reopening a draft).
 
   async function handleGenerate() {
     setGenerating(true)
@@ -124,7 +119,7 @@ export default function Section3Description({
       include_in_description: true,
     }])
     setShowPicker(false)
-    hasGenerated.current = false
+    // No hasGenerated reset needed — user decides when to generate
   }
 
   function removeVehicle(vehicleId: number) {
@@ -137,7 +132,9 @@ export default function Section3Description({
     ))
   }
 
-  const charOverLimit = charCount > CHAR_LIMIT
+  const charOverLimit        = charCount > CHAR_LIMIT
+  const hasDescription       = draft.overall_description.trim().length > 0
+  const isAiWorking          = generating || refining
 
   return (
     <div style={{ padding: '16px', paddingBottom: 24 }}>
@@ -255,30 +252,21 @@ export default function Section3Description({
 
       {/* ── Description block ── */}
       <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            ✨ Overall Description
-          </span>
-          <button
-            type="button" onClick={handleGenerate} disabled={generating}
-            style={{
-              padding: '6px 14px', borderRadius: 20,
-              border: '1.5px solid var(--color-border)',
-              background: 'transparent', color: 'var(--color-text-muted)',
-              fontSize: 12, fontWeight: 600, cursor: 'pointer',
-            }}
-          >
-            {generating ? '⌛ Generating...' : '↺ Regenerate'}
-          </button>
-        </div>
+        {/* Section label */}
+        <span style={{
+          fontSize: 13, fontWeight: 600, color: 'var(--color-text-muted)',
+          textTransform: 'uppercase', letterSpacing: '0.5px',
+          display: 'block', marginBottom: 10,
+        }}>
+          ✍️ Description of Services
+        </span>
 
-        {generating && (
+        {/* Textarea — always visible and editable */}
+        {generating ? (
           <div style={{ ...cardStyle, height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-            <span style={{ color: 'var(--color-text-faint)', fontSize: 14 }}>Generating description…</span>
+            <span style={{ color: 'var(--color-text-faint)', fontSize: 14 }}>✨ Generating description…</span>
           </div>
-        )}
-
-        {!generating && (
+        ) : (
           <>
             <textarea
               ref={descRef}
@@ -288,7 +276,7 @@ export default function Section3Description({
                 patch({ overall_description: e.target.value })
                 setCharCount(e.target.value.length)
               }}
-              placeholder="AI-generated description will appear here. You can edit it directly."
+              placeholder="Write the description yourself, or use one of the AI options below."
               style={{
                 ...inputStyle,
                 resize: 'vertical',
@@ -298,7 +286,7 @@ export default function Section3Description({
               }}
             />
             <div style={{
-              textAlign: 'right', fontSize: 11, marginBottom: 12,
+              textAlign: 'right', fontSize: 11, marginBottom: 16,
               color: charOverLimit ? 'var(--color-warning)' : 'var(--color-text-faint)',
               fontWeight: charOverLimit ? 600 : 400,
             }}>
@@ -311,9 +299,58 @@ export default function Section3Description({
           <div style={{ color: 'var(--color-error)', fontSize: 13, marginBottom: 12 }}>⚠️ {genError}</div>
         )}
 
-        {/* Refinement input */}
+        {/* ── AI Action Row ── */}
+        <div style={{
+          display: 'flex', gap: 10, flexWrap: 'wrap',
+          padding: '12px 14px',
+          background: 'var(--color-surface-offset)',
+          borderRadius: 12,
+          border: '1px solid var(--color-border)',
+          marginBottom: 16,
+          alignItems: 'center',
+        }}>
+          <span style={{ fontSize: 12, color: 'var(--color-text-faint)', marginRight: 4 }}>✨ AI</span>
+
+          {/* Generate with AI — only shown when description is empty */}
+          {!hasDescription && (
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={isAiWorking}
+              style={{
+                padding: '7px 16px', borderRadius: 20,
+                border: '1.5px solid var(--color-accent)',
+                background: 'var(--color-accent)', color: '#fff',
+                fontSize: 13, fontWeight: 600, cursor: isAiWorking ? 'not-allowed' : 'pointer',
+                opacity: isAiWorking ? 0.6 : 1,
+              }}
+            >
+              {generating ? '⌛ Generating…' : '✨ Generate with AI'}
+            </button>
+          )}
+
+          {/* Regenerate — only shown when description already has content */}
+          {hasDescription && (
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={isAiWorking}
+              style={{
+                padding: '7px 16px', borderRadius: 20,
+                border: '1.5px solid var(--color-border)',
+                background: 'transparent', color: 'var(--color-text-muted)',
+                fontSize: 13, fontWeight: 600, cursor: isAiWorking ? 'not-allowed' : 'pointer',
+                opacity: isAiWorking ? 0.6 : 1,
+              }}
+            >
+              {generating ? '⌛ Regenerating…' : '↺ Regenerate'}
+            </button>
+          )}
+        </div>
+
+        {/* ── Improve with AI (refinement) ── */}
         <div style={{ marginTop: 4 }}>
-          <label style={labelStyle}>How should I edit the description?</label>
+          <label style={labelStyle}>Improve with AI — describe your edit</label>
           <div style={{ display: 'flex', gap: 8 }}>
             <input
               type="text"
@@ -324,15 +361,20 @@ export default function Section3Description({
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleRefine() } }}
             />
             <button
-              type="button" onClick={handleRefine}
-              disabled={refining || !refinement.trim()}
+              type="button"
+              onClick={handleRefine}
+              disabled={refining || !refinement.trim() || !hasDescription}
+              title={!hasDescription ? 'Write or generate a description first' : ''}
               style={{
                 padding: '0 18px', borderRadius: 12, border: 'none',
-                background: refinement.trim() ? 'var(--color-accent)' : 'var(--color-border)',
-                color: '#fff', fontWeight: 600, fontSize: 14, cursor: 'pointer', whiteSpace: 'nowrap',
+                background: (refinement.trim() && hasDescription) ? 'var(--color-accent)' : 'var(--color-border)',
+                color: '#fff', fontWeight: 600, fontSize: 14,
+                cursor: (refinement.trim() && hasDescription) ? 'pointer' : 'not-allowed',
+                whiteSpace: 'nowrap',
+                opacity: (!refinement.trim() || !hasDescription) ? 0.5 : 1,
               }}
             >
-              {refining ? '...' : 'Apply'}
+              {refining ? '…' : 'Apply'}
             </button>
           </div>
           <p style={{ fontSize: 11, color: 'var(--color-text-faint)', marginTop: 6 }}>

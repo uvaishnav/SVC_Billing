@@ -34,7 +34,6 @@ function Row({ label, value, bold, accent, faint }: {
 
 // ─── PDF Preview Modal ────────────────────────────────────────────────────────
 function PdfPreviewModal({ url, onClose }: { url: string; onClose: () => void }) {
-  // Close on Escape key
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', handler)
@@ -51,7 +50,6 @@ function PdfPreviewModal({ url, onClose }: { url: string; onClose: () => void })
         alignItems: 'center', justifyContent: 'center',
       }}
     >
-      {/* Header bar */}
       <div
         onClick={e => e.stopPropagation()}
         style={{
@@ -97,7 +95,6 @@ function PdfPreviewModal({ url, onClose }: { url: string; onClose: () => void })
         </div>
       </div>
 
-      {/* iframe */}
       <div
         onClick={e => e.stopPropagation()}
         style={{
@@ -212,19 +209,22 @@ function QuantityItemsSummary({ draft }: { draft: InvoiceDraft }) {
         fontSize: 13, fontWeight: 600, color: 'var(--color-text-muted)',
         textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10,
       }}>Line Items</p>
+
       {draft.line_items.map((item, i) => (
         <div key={i} style={{
-          display: 'flex', justifyContent: 'space-between',
-          padding: '8px 0', borderBottom: '1px solid var(--color-border)',
-          fontSize: 13,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+          padding: '10px 0', borderBottom: '1px solid var(--color-border)',
+          fontSize: 13, gap: 12,
         }}>
-          <span style={{ flex: 1, color: 'var(--color-text)', paddingRight: 12 }}>
-            {i + 1}. {item.description.slice(0, 50)}{item.description.length > 50 ? '…' : ''}
-          </span>
-          <span style={{ color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
-            {item.qty} {item.unit ?? ''} × ₹{fmt(item.rate)}
-          </span>
-          <span className="tabular" style={{ fontWeight: 600, minWidth: 80, textAlign: 'right', color: 'var(--color-text)' }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, color: 'var(--color-text)', marginBottom: 2 }}>
+              {item.sl_no}. {item.description}
+            </div>
+            <div style={{ color: 'var(--color-text-muted)' }}>
+              {item.qty} {item.unit} × ₹{fmt(item.rate)}
+            </div>
+          </div>
+          <span className="tabular" style={{ fontWeight: 600, whiteSpace: 'nowrap', color: 'var(--color-text)' }}>
             ₹{fmt(item.taxable_value)}
           </span>
         </div>
@@ -233,30 +233,42 @@ function QuantityItemsSummary({ draft }: { draft: InvoiceDraft }) {
   )
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Main Section4Review component ───────────────────────────────────────────
 export default function Section4Review({
-  draft, patch, saving, saveDraft, onFinalized, existingStatus,
+  draft,
+  patch,
+  saving,
+  saveDraft,
+  onFinalized,
+  existingStatus,
+  existingInvoiceId,
 }: {
   draft: InvoiceDraft
-  patch: (u: Partial<InvoiceDraft>) => void
+  patch: (updates: Partial<InvoiceDraft>) => void
   saving: boolean
-  saveDraft: () => Promise<void>
+  saveDraft: () => void
   onFinalized: (invoiceNumber: string) => void
   existingStatus?: InvoiceStatus
+  // The DB row id of the invoice being edited. Passed to finalizeInvoice
+  // so it UPDATEs the existing draft row instead of INSERTing a new one.
+  existingInvoiceId?: number | null
 }) {
   const [finalizing, setFinalizing] = React.useState(false)
-  const [error, setError]           = React.useState<string | null>(null)
   const [doneNumber, setDoneNumber] = React.useState<string | null>(null)
+  const [error, setError]           = React.useState<string | null>(null)
+  const [showPdf, setShowPdf]       = React.useState(false)
 
-  const { open: openPreview, close: closePreview, pdfUrl, loading: pdfLoading, error: pdfError } = usePdfPreview(draft)
+  // Fix: pass draft to the hook (it captures it internally for PDF generation),
+  // and alias the exported names to match what this component uses.
+  const { open: generatePdf, loading: generating, pdfUrl } = usePdfPreview(draft)
 
+  // Recompute totals once on mount in case Section 4 is reached without
+  // a prior recompute (e.g. editing an existing draft)
   useEffect(() => {
     const updated = recomputeTotals(draft, draft.gst_rate, draft.tds_rate)
-    if (
-      updated.total_taxable !== draft.total_taxable ||
-      updated.total_gst     !== draft.total_gst     ||
-      updated.total_amount  !== draft.total_amount
-    ) {
+    if (updated.total_taxable !== draft.total_taxable ||
+        updated.total_gst     !== draft.total_gst ||
+        updated.tds_amount    !== draft.tds_amount) {
       patch(updated)
     }
   }, [])
@@ -265,178 +277,122 @@ export default function Section4Review({
     setFinalizing(true)
     setError(null)
     try {
-      const result = await finalizeInvoice(draft, existingStatus)
-      if (!result) throw new Error('Failed to finalize invoice.')
+      const result = await finalizeInvoice(draft, existingInvoiceId, existingStatus)
+      if (!result) { setError('Finalization failed. Please try again.'); return }
       patch({ invoice_number: result.invoiceNumber })
       setDoneNumber(result.invoiceNumber)
       setTimeout(() => onFinalized(result.invoiceNumber), 1400)
     } catch (e: any) {
-      setError(e.message ?? 'Finalization failed')
+      setError(e?.message ?? 'Unexpected error during finalization.')
     } finally {
       setFinalizing(false)
     }
   }
 
-  const isEditingFinal = existingStatus === 'final'
-
-  if (doneNumber) return (
-    <div style={{ padding: '48px 24px', textAlign: 'center' }}>
-      <div style={{ fontSize: 56, marginBottom: 16 }}>✅</div>
-      <h2 style={{ fontFamily: 'Playfair Display, serif', marginBottom: 8 }}>
-        {isEditingFinal ? 'Invoice Updated!' : 'Invoice Finalized!'}
-      </h2>
-      <p style={{
-        fontFamily: 'monospace', fontSize: 18, fontWeight: 700,
-        color: 'var(--color-accent)', marginTop: 8,
-      }}>{doneNumber}</p>
-    </div>
-  )
-
-  return (
-    <div style={{ padding: '16px', paddingBottom: 32 }}>
-
-      {/* PDF Preview Modal */}
-      {pdfUrl && <PdfPreviewModal url={pdfUrl} onClose={closePreview} />}
-
-      {/* Finalize notice for already-final invoices */}
-      {isEditingFinal && (
-        <div style={{
-          background: 'var(--color-surface-offset)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 10, padding: '10px 14px',
-          fontSize: 13, color: 'var(--color-text-muted)',
-          marginBottom: 20, display: 'flex', gap: 8, alignItems: 'flex-start',
-        }}>
-          <span>🔒</span>
-          <span>
-            This invoice is already finalized. Invoice number{' '}
-            <strong style={{ color: 'var(--color-text)' }}>{draft.invoice_number}</strong>{' '}
-            will be preserved.
-          </span>
-        </div>
-      )}
-
-      {/* Billing type badge */}
-      <div style={{ marginBottom: 16 }}>
-        <span style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-          padding: '4px 12px', borderRadius: 20,
-          fontSize: 12, fontWeight: 700,
-          background: draft.line_item_billing_type === 'rental'
-            ? 'var(--color-primary-highlight)'
-            : 'var(--color-surface-offset)',
-          color: draft.line_item_billing_type === 'rental'
-            ? 'var(--color-primary)'
-            : 'var(--color-text-muted)',
-          border: `1px solid ${
-            draft.line_item_billing_type === 'rental'
-              ? 'var(--color-primary)'
-              : 'var(--color-border)'
-          }`,
-        }}>
-          {draft.line_item_billing_type === 'rental' ? '🚛 Monthly Rental' : '📦 Per Quantity'}
-        </span>
+  // ── Success screen ────────────────────────────────────────────────────────
+  if (doneNumber) {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', minHeight: '60vh', gap: 16, padding: 32,
+      }}>
+        <div style={{ fontSize: 56 }}>✅</div>
+        <h2 style={{ fontSize: 22, textAlign: 'center' }}>Invoice Finalised!</h2>
+        <p style={{ fontSize: 15, color: 'var(--color-text-muted)', textAlign: 'center' }}>
+          Invoice <strong>{doneNumber}</strong> has been created.
+        </p>
       </div>
+    )
+  }
 
-      {/* Items summary — branches on billing type */}
+  // ── Main review UI ────────────────────────────────────────────────────────
+  return (
+    <div style={{ padding: '20px 16px 120px' }}>
+      {showPdf && pdfUrl && <PdfPreviewModal url={pdfUrl} onClose={() => setShowPdf(false)} />}
+
+      <h2 style={{ fontSize: 18, marginBottom: 20 }}>Review & Finalise</h2>
+
+      {/* Items summary */}
       {draft.line_item_billing_type === 'rental'
         ? <RentalItemsSummary draft={draft} />
         : <QuantityItemsSummary draft={draft} />
       }
 
-      {/* Totals */}
-      <div style={{ marginBottom: 24 }}>
-        <Row label="Taxable Value" value={`₹${fmt(draft.total_taxable)}`} />
-        {draft.tax_mode === 'cgst_sgst' ? (
-          <>
-            <Row label={`CGST @ ${draft.gst_rate / 2}%`} value={`₹${fmt(draft.total_gst / 2)}`} />
-            <Row label={`SGST @ ${draft.gst_rate / 2}%`} value={`₹${fmt(draft.total_gst / 2)}`} />
-          </>
-        ) : (
-          <Row label={`IGST @ ${draft.gst_rate}%`} value={`₹${fmt(draft.total_gst)}`} />
-        )}
-        <Row label="Total Invoice Amount" value={`₹${fmt(draft.total_amount)}`} bold accent />
+      {/* Financial totals */}
+      <div style={{ marginBottom: 28 }}>
+        <Row label="Taxable Amount" value={`₹${fmt(draft.total_taxable)}`} />
+        <Row label={`GST (${draft.gst_rate}%)`} value={`₹${fmt(draft.total_gst)}`} />
+        <Row label="Total Amount" value={`₹${fmt(draft.total_amount)}`} bold />
         {draft.tds_rate > 0 && (
-          <>
-            <Row label={`TDS @ ${draft.tds_rate}% (deducted by client)`} value={`₹${fmt(draft.tds_amount)}`} faint />
-            <Row label="Net Receivable" value={`₹${fmt(draft.net_receivable)}`} bold />
-          </>
+          <Row label={`TDS (${draft.tds_rate}%)`} value={`− ₹${fmt(draft.tds_amount)}`} faint />
         )}
+        <Row label="Net Receivable" value={`₹${fmt(draft.net_receivable)}`} bold accent />
+        <Row label="Amount in Words" value={draft.amount_in_words} faint />
       </div>
 
-      {draft.amount_in_words && (
-        <div style={{ fontSize: 13, color: 'var(--color-text-muted)', fontStyle: 'italic', marginBottom: 24, lineHeight: 1.5 }}>
-          {draft.amount_in_words}
+      {/* Error */}
+      {error && (
+        <div style={{
+          padding: '12px 16px', borderRadius: 10, marginBottom: 16,
+          background: 'var(--color-error-highlight)',
+          color: 'var(--color-error)', fontSize: 13,
+        }}>
+          ⚠️ {error}
         </div>
       )}
 
-      {/* PDF error */}
-      {pdfError && (
-        <div style={{ color: 'var(--color-error)', fontSize: 13, marginBottom: 12 }}>⚠️ PDF Error: {pdfError}</div>
-      )}
-
-      {error && (
-        <div style={{ color: 'var(--color-error)', fontSize: 13, marginBottom: 16 }}>⚠️ {error}</div>
-      )}
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {/* Preview PDF button — always visible in Section 4 */}
+      {/* Action buttons */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {/* PDF Preview */}
         <button
           type="button"
-          onClick={openPreview}
-          disabled={pdfLoading || finalizing || saving}
+          onClick={async () => {
+            await generatePdf()
+            setShowPdf(true)
+          }}
+          disabled={generating}
           style={{
-            padding: '14px', borderRadius: 12,
-            border: '1.5px solid var(--color-primary)',
-            background: 'transparent',
-            color: pdfLoading ? 'var(--color-text-faint)' : 'var(--color-primary)',
-            fontWeight: 600, fontSize: 15,
-            cursor: pdfLoading ? 'not-allowed' : 'pointer',
-            width: '100%',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            padding: '13px', borderRadius: 12,
+            border: '1.5px solid var(--color-border)',
+            background: 'transparent', color: 'var(--color-text-muted)',
+            fontWeight: 600, fontSize: 14, cursor: 'pointer',
           }}
         >
-          {pdfLoading ? (
-            <><span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⏳</span> Generating Preview…</>
-          ) : (
-            '👁 Preview PDF'
-          )}
+          {generating ? 'Generating PDF…' : '📄 Preview PDF'}
         </button>
 
-        <button
-          type="button"
-          onClick={handleFinalize}
-          disabled={finalizing || saving || pdfLoading}
-          style={{
-            padding: '16px', borderRadius: 12, border: 'none',
-            background: finalizing ? 'var(--color-text-faint)' : 'var(--color-primary)',
-            color: 'var(--color-bg)', fontWeight: 700, fontSize: 16,
-            cursor: finalizing ? 'not-allowed' : 'pointer', width: '100%',
-          }}
-        >
-          {finalizing
-            ? 'Finalizing…'
-            : isEditingFinal
-              ? '💾 Save Changes'
-              : '📄 Finalize Invoice'
-          }
-        </button>
-        {!isEditingFinal && (
+        {/* Save Draft */}
+        {existingStatus !== 'final' && (
           <button
             type="button"
             onClick={saveDraft}
-            disabled={saving || finalizing || pdfLoading}
+            disabled={saving}
             style={{
-              padding: '14px', borderRadius: 12,
+              padding: '13px', borderRadius: 12,
               border: '1.5px solid var(--color-border)',
               background: 'transparent', color: 'var(--color-text-muted)',
-              fontWeight: 600, fontSize: 15,
-              cursor: 'pointer', width: '100%',
+              fontWeight: 600, fontSize: 14, cursor: 'pointer',
             }}
           >
             {saving ? 'Saving…' : '💾 Save Draft'}
           </button>
         )}
+
+        {/* Finalize */}
+        <button
+          type="button"
+          onClick={handleFinalize}
+          disabled={finalizing || saving}
+          style={{
+            padding: '15px', borderRadius: 12,
+            border: 'none',
+            background: finalizing ? 'var(--color-border)' : 'var(--color-primary)',
+            color: finalizing ? 'var(--color-text-muted)' : 'var(--color-bg)',
+            fontWeight: 700, fontSize: 16, cursor: finalizing ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {finalizing ? 'Finalising…' : existingStatus === 'final' ? '🔄 Re-finalise Invoice' : '📄 Finalise Invoice'}
+        </button>
       </div>
     </div>
   )
