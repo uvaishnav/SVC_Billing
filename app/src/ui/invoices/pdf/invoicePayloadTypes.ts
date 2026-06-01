@@ -72,7 +72,8 @@ export interface InvoicePdfProps {
   billing_from: string;
   billing_to: string;
   place_of_supply: string;
-  place_of_supply_code: string;
+  place_of_supply_code: string;  // stored fact — NOT used for PDF State Code display
+  supplier_state_code: string;   // always = settings.state_code — shown as "State Code" in Invoice Details
   reverse_charge: boolean;
   work_order_reference?: string | null;
 

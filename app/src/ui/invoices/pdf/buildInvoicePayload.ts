@@ -92,7 +92,7 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
     }
 
     distributionItems = (di ?? []).map((d: any): PdfDistributionItem => ({
-      description:    woMap[d.work_order_item_id]?.description ?? '\u2013',
+      description:    woMap[d.work_order_item_id]?.description ?? '–',
       sub_work_ref:   woMap[d.work_order_item_id]?.sub_work_ref ?? null,
       allocation_pct: d.allocation_pct ?? 0,
     }));
@@ -116,9 +116,6 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
   }
 
   // ── 4. Totals — read directly from DB columns ────────────────────────────────
-  // All values persisted by draftToRow() via recomputeTotals().
-  // GST split is NOT stored separately — InvoicePdf.tsx derives CGST/SGST from
-  // total_gst / 2, and IGST from total_gst, based on tax_mode at render time.
   const taxMode: 'cgst_sgst' | 'igst' = inv.tax_mode;
   const totalTaxable: number  = inv.total_taxable  ?? 0;
   const totalGst: number      = inv.total_gst       ?? 0;
@@ -148,6 +145,9 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
     billing_to:           inv.billing_to,
     place_of_supply:      inv.place_of_supply ?? '',
     place_of_supply_code: inv.place_of_supply_code ?? '',
+    // supplier_state_code: always taken from settings — this is OUR state code,
+    // shown as "State Code" in the Invoice Details block (not the recipient's).
+    supplier_state_code:  settings.state_code,
     reverse_charge:       inv.reverse_charge ?? false,
     work_order_reference: (inv as any).work_orders?.wo_reference ?? null,
     recipient: (inv as any).client_gstins
@@ -173,8 +173,6 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
     tds_rate:            tdsRate,
     tds_amount:          tdsAmount,
     net_receivable:      netReceivable,
-    // amount_in_words is stored by recomputeTotals() using toWords(total_amount).
-    // Fall back to re-computing only if the DB value is somehow missing.
     amount_in_words:     inv.amount_in_words ?? toWords(totalAmount),
     bank: (inv as any).bank_accounts
       ? {

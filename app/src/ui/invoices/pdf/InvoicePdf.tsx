@@ -14,6 +14,13 @@
  *   8. Tax / totals summary
  *   9. Amount in words
  *  10. Footer: bank details | signature
+ *
+ * Invoice Details row order:
+ *   Invoice No. → Invoice Date → Billing Period → State Code (supplier) →
+ *   Reverse Charge → Place of Supply → Work Order Ref
+ *
+ * Recipient block:
+ *   Name → GSTIN → Address → State (separate row) → State Code (separate row)
  */
 
 import React from 'react';
@@ -280,7 +287,7 @@ const s = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  // ── Description block ──────────────────────────────────────────────────────
+  // ── Description block ─────────────────────────────────────────────────────
   descBlock: {
     paddingVertical: 8,
     borderBottomWidth: 1,
@@ -300,7 +307,7 @@ const s = StyleSheet.create({
     lineHeight: 1.5,
   },
 
-  // ── Table shared ───────────────────────────────────────────────────────────
+  // ── Table shared ──────────────────────────────────────────────────────────
   table: {
     width: '100%',
     marginBottom: 8,
@@ -357,7 +364,7 @@ const s = StyleSheet.create({
     textAlign: 'right',
   },
 
-  // ── Quantity table column widths ───────────────────────────────────────────
+  // ── Quantity table column widths ──────────────────────────────────────────
   qColSl:   { width: '6%' },
   qColDesc: { width: '40%' },
   qColUnit: { width: '12%', textAlign: 'center' },
@@ -365,7 +372,7 @@ const s = StyleSheet.create({
   qColRate: { width: '15%', textAlign: 'right' },
   qColAmt:  { width: '15%', textAlign: 'right' },
 
-  // ── Rental table column widths ─────────────────────────────────────────────
+  // ── Rental table column widths ────────────────────────────────────────────
   rColSl:     { width: '5%' },
   rColVeh:    { width: '14%' },
   rColType:   { width: '10%' },
@@ -375,7 +382,7 @@ const s = StyleSheet.create({
   rColRent:   { width: '16%', textAlign: 'right' },
   rColAmt:    { width: '15%', textAlign: 'right' },
 
-  // ── Work items block ───────────────────────────────────────────────────────
+  // ── Work items block ──────────────────────────────────────────────────────
   workItemsBlock: {
     backgroundColor: '#F7F5F0',
     borderWidth: 0.75,
@@ -460,7 +467,7 @@ const s = StyleSheet.create({
     textAlign: 'right',
   },
 
-  // ── Amount in words ────────────────────────────────────────────────────────
+  // ── Amount in words ───────────────────────────────────────────────────────
   amountInWords: {
     flexDirection: 'row',
     paddingVertical: 7,
@@ -484,7 +491,7 @@ const s = StyleSheet.create({
     flex: 1,
   },
 
-  // ── Footer ─────────────────────────────────────────────────────────────────
+  // ── Footer ────────────────────────────────────────────────────────────────
   footer: {
     flexDirection: 'row',
     borderTopWidth: 1,
@@ -615,9 +622,7 @@ function HeaderBand({ supplier }: { supplier: InvoicePdfProps['supplier'] }) {
 
 /**
  * Full-width ESPRESSO strip — seals the header band.
- * GSTIN label and number use identical style: same size, same color, same weight.
- * A warm muted · dot separates label from number without creating visual hierarchy.
- * Thin #C8B89A top-border acts as crisp transition line from cream to espresso.
+ * A warm muted · dot separates label from number.
  */
 function GstinStrip({ gstin }: { gstin: string }) {
   return (
@@ -639,40 +644,61 @@ function TaxInvoiceStamp({ taxMode }: { taxMode: 'cgst_sgst' | 'igst' }) {
   );
 }
 
+/**
+ * TwoColumnMeta
+ *
+ * LEFT — INVOICE DETAILS
+ *   Row order: Invoice No. → Invoice Date → Billing Period →
+ *              State Code (supplier's own state code from settings) →
+ *              Reverse Charge → Place of Supply → Work Order Ref
+ *
+ * RIGHT — DETAILS OF RECIPIENT OF SERVICE
+ *   Row order: Name → GSTIN → Address → State → State Code
+ *   State and State Code are in SEPARATE rows (not combined).
+ */
 function TwoColumnMeta({ props }: { props: InvoicePdfProps }) {
   const {
     invoice_number, invoice_date, billing_from, billing_to,
-    place_of_supply, place_of_supply_code,
+    place_of_supply, supplier_state_code,
     reverse_charge, work_order_reference, recipient,
   } = props;
   return (
     <View style={s.twoCol}>
+      {/* ── LEFT: Invoice Details ── */}
       <View style={s.twoColLeft}>
         <Text style={s.colSectionLabel}>INVOICE DETAILS</Text>
+
         <View style={s.metaRow}>
           <Text style={s.metaLabel}>Invoice No.</Text>
           <Text style={s.invoiceNumberValue}>{invoice_number}</Text>
         </View>
+
         <View style={s.metaRow}>
           <Text style={s.metaLabel}>Invoice Date</Text>
           <Text style={s.metaValue}>{formatDate(invoice_date)}</Text>
         </View>
+
         <View style={s.metaRow}>
           <Text style={s.metaLabel}>Billing Period</Text>
           <Text style={s.metaValue}>{formatBillingPeriod(billing_from, billing_to)}</Text>
         </View>
-        <View style={s.metaRow}>
-          <Text style={s.metaLabel}>Place of Supply</Text>
-          <Text style={s.metaValue}>{place_of_supply}</Text>
-        </View>
+
+        {/* State Code = supplier's own registration state code, always from settings */}
         <View style={s.metaRow}>
           <Text style={s.metaLabel}>State Code</Text>
-          <Text style={s.metaValue}>{place_of_supply_code}</Text>
+          <Text style={s.metaValue}>{supplier_state_code}</Text>
         </View>
+
         <View style={s.metaRow}>
           <Text style={s.metaLabel}>Reverse Charge</Text>
           <Text style={s.metaValue}>{reverse_charge ? 'Yes' : 'No'}</Text>
         </View>
+
+        <View style={s.metaRow}>
+          <Text style={s.metaLabel}>Place of Supply</Text>
+          <Text style={s.metaValue}>{place_of_supply}</Text>
+        </View>
+
         {work_order_reference ? (
           <View style={s.metaRow}>
             <Text style={s.metaLabel}>Work Order Ref</Text>
@@ -681,6 +707,7 @@ function TwoColumnMeta({ props }: { props: InvoicePdfProps }) {
         ) : null}
       </View>
 
+      {/* ── RIGHT: Recipient Details ── */}
       <View style={s.twoColRight}>
         <Text style={s.colSectionLabel}>DETAILS OF RECIPIENT OF SERVICE</Text>
         {recipient ? (
@@ -699,9 +726,14 @@ function TwoColumnMeta({ props }: { props: InvoicePdfProps }) {
               <Text style={s.metaLabel}>Address</Text>
               <Text style={s.metaValue}>{recipient.address}</Text>
             </View>
+            {/* State and State Code as SEPARATE rows */}
             <View style={s.metaRow}>
               <Text style={s.metaLabel}>State</Text>
-              <Text style={s.metaValue}>{recipient.state} ({recipient.state_code})</Text>
+              <Text style={s.metaValue}>{recipient.state}</Text>
+            </View>
+            <View style={s.metaRow}>
+              <Text style={s.metaLabel}>State Code</Text>
+              <Text style={s.metaValue}>{recipient.state_code}</Text>
             </View>
           </View>
         ) : (
@@ -864,13 +896,6 @@ function WorkItemsBlock({ items }: { items: InvoicePdfProps['item_distribution']
  *
  * Renders the billing summary: taxable amount, GST split (CGST+SGST or IGST),
  * total amount, TDS deduction, net receivable, and amount in words.
- *
- * All values are read directly from props — recomputeTotals() is the single
- * source of truth and has already produced correct numbers before this renders.
- * No re-derivation happens here.
- *
- * GST split is derived from total_gst / 2 for intrastate (cgst_sgst) since
- * CGST == SGST by law, and total_gst for interstate (igst).
  */
 function TotalsSection({ props }: { props: InvoicePdfProps }) {
   const {

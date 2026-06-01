@@ -152,6 +152,9 @@ function buildProps(
     billing_to:            draft.billing_to,
     place_of_supply:       draft.place_of_supply,
     place_of_supply_code:  draft.place_of_supply_code,
+    // supplier_state_code: always from settings — OUR registration state code.
+    // This is what appears as "State Code" in the Invoice Details block.
+    supplier_state_code:   settings.state_code,
     reverse_charge:        draft.reverse_charge,
     work_order_reference:  woRef,
     billing_type:          draft.line_item_billing_type,
