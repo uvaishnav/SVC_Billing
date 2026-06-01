@@ -1,13 +1,12 @@
 // Main Invoice Wizard — orchestrates all 4 sections
 import React from 'react'
-import type { InvoiceDraft, InvoiceStatus } from '../../db/types'
-import { useInvoiceDraft } from './useInvoiceDraft'
+import type { InvoiceDraft, InvoiceStatus, InvoiceRentalItemDraft, InvoiceItemDistributionDraft } from '../../db/types'
+import { useInvoiceDraft, recomputeTotals } from './useInvoiceDraft'
 import WizardNav from './WizardNav'
 import Section1Header from './Section1Header'
 import Section2Items from './Section2Items'
 import Section3Description from './Section3Description'
 import Section4Review from './Section4Review'
-import { recomputeTotals } from './useInvoiceDraft'
 
 export default function InvoiceWizard({
   initialDraft,
@@ -27,6 +26,27 @@ export default function InvoiceWizard({
     activeSection, goToSection, visitedSections,
     saving, saveDraft,
   } = useInvoiceDraft(initialDraft)
+
+  // FIX (rental TDS bug): setRentalItems alone only updates draft.rental_items.
+  // It never triggers recomputeTotals, so total_taxable / tds_amount / net_receivable
+  // stay 0 for the entire rental wizard flow. The Section4Review useEffect guard
+  // (updated.total_taxable !== draft.total_taxable) then evaluates 0 !== 0 = false
+  // and patch never fires — PDF preview receives tds_amount=0 and wrong totals.
+  //
+  // Fix: wrap setRentalItems so totals are recomputed immediately after each change,
+  // matching how the quantity path works (setLineItems already sets taxable_value
+  // per item so total_taxable is non-zero before Section4 mounts).
+  function handleSetRentalItems(items: InvoiceRentalItemDraft[]) {
+    const updatedDraft = { ...draft, rental_items: items }
+    const recomputed  = recomputeTotals(updatedDraft, draft.gst_rate, draft.tds_rate)
+    patch(recomputed)
+  }
+
+  // Keep item_distribution in sync too — distribution changes don't affect
+  // financial totals but patching via recomputeTotals keeps the draft consistent.
+  function handleSetItemDistribution(dist: InvoiceItemDistributionDraft[]) {
+    setItemDistribution(dist)
+  }
 
   function handleSaveDraft() {
     const updated = recomputeTotals(draft, draft.gst_rate, draft.tds_rate)
@@ -56,8 +76,8 @@ export default function InvoiceWizard({
           <Section2Items
             draft={draft}
             setLineItems={setLineItems}
-            setRentalItems={setRentalItems}
-            setItemDistribution={setItemDistribution}
+            setRentalItems={handleSetRentalItems}
+            setItemDistribution={handleSetItemDistribution}
           />
         )}
         {activeSection === 3 && (
