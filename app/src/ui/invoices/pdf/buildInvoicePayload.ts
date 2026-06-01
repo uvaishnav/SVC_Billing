@@ -12,7 +12,7 @@ import type { InvoicePdfProps, PdfLineItem, PdfRentalItem, PdfDistributionItem }
 import { toWords } from './pdfUtils';
 
 export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdfProps> {
-  // ── 1. Invoice row + FK joins ─────────────────────────────────────────────────────────────────────
+  // ── 1. Invoice row + FK joins ────────────────────────────────────────────────
   const { data: inv, error: invErr } = await supabase
     .from('invoices')
     .select(`
@@ -28,7 +28,7 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
 
   if (invErr || !inv) throw new Error(`Invoice ${invoiceId} not found: ${invErr?.message}`);
 
-  // ── 2. Settings (supplier identity) ──────────────────────────────────────────────────────────────────────
+  // ── 2. Settings (supplier identity) ─────────────────────────────────────────
   const { data: settings, error: settingsErr } = await supabase
     .from('settings')
     .select('*')
@@ -37,7 +37,7 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
 
   if (settingsErr || !settings) throw new Error('Settings not found');
 
-  // ── 3. Line items (branched on billing type) ────────────────────────────────────────────────────────────────
+  // ── 3. Line items (branched on billing type) ─────────────────────────────────
   let lineItems: PdfLineItem[] = [];
   let rentalItems: PdfRentalItem[] = [];
   let distributionItems: PdfDistributionItem[] = [];
@@ -65,9 +65,6 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
       amount:       r.subtotal ?? 0,
     }));
 
-    // ── Fetch distribution rows, then explicitly look up work_order_items
-    // (avoids PostgREST FK auto-join which can silently return null if
-    //  the schema cache hasn't refreshed after the FK migration)
     const { data: di, error: diErr } = await supabase
       .from('invoice_item_distribution')
       .select('work_order_item_id, allocation_pct')
@@ -113,26 +110,23 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
     }));
   }
 
-  // ── 4. Derive computed totals ───────────────────────────────────────────────────────────────────────────────
+  // ── 4. Totals — read directly from DB columns, no re-derivation ─────────────
+  // All of these are persisted by draftToRow() via recomputeTotals().
+  // buildInvoicePayload must be a pure reader — never re-derive what the wizard
+  // already computed, to guarantee preview === final PDF.
   const taxMode: 'cgst_sgst' | 'igst' = inv.tax_mode;
-  const totalTaxable: number = inv.total_taxable ?? 0;
-  // Fix A: use stored split amounts directly — no re-derivation needed.
-  // These are now persisted by draftToRow() via cgst_amount / sgst_amount / igst_amount.
-  const cgst: number = inv.cgst_amount ?? 0;
-  const sgst: number = inv.sgst_amount ?? 0;
-  const igst: number = inv.igst_amount ?? 0;
-  const totalGst      = taxMode === 'igst' ? igst : (cgst + sgst);
-  const totalAmount   = inv.total_invoice_amount ?? inv.total_amount ?? (totalTaxable + totalGst);
-  const tdsAmount     = inv.tds_amount ?? 0;
-  const netReceivable = inv.net_receivable ?? (totalAmount - tdsAmount);
+  const totalTaxable: number  = inv.total_taxable  ?? 0;
+  const cgst: number          = inv.cgst_amount     ?? 0;
+  const sgst: number          = inv.sgst_amount     ?? 0;
+  const igst: number          = inv.igst_amount     ?? 0;
+  const totalGst: number      = inv.total_gst       ?? 0;
+  const totalAmount: number   = inv.total_amount    ?? 0;
+  const tdsAmount: number     = inv.tds_amount      ?? 0;
+  const netReceivable: number = inv.net_receivable  ?? 0;
+  const gstRate: number       = inv.gst_rate        ?? 0;
+  const tdsRate: number       = inv.tds_rate        ?? 0;
 
-  // Derive GST rate from totals (percentage against taxable value)
-  const gstRate = totalTaxable > 0 ? Math.round((totalGst / totalTaxable) * 100) : 0;
-
-  // TDS rate derived using totalTaxable as denominator (correct — TDS is on taxable value)
-  const tdsRate = totalTaxable > 0 ? Math.round((tdsAmount / totalTaxable) * 100) : 0;
-
-  // ── 5. Assemble flat InvoicePdfProps ────────────────────────────────────────────────────────────────────────────
+  // ── 5. Assemble flat InvoicePdfProps ────────────────────────────────────────
   return {
     supplier: {
       business_name:        settings.business_name,
@@ -164,7 +158,9 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
         }
       : null,
     sac_code:            (inv as any).sac_codes?.sac_code ?? null,
-    overall_description: inv.description ?? '',
+    // overall_description is stored in the invoices.overall_description column.
+    // (NOT inv.description — that field does not exist on the invoices table.)
+    overall_description: inv.overall_description ?? '',
     billing_type:        isRental ? 'rental' : 'quantity',
     tax_mode:            taxMode,
     line_items:          lineItems,
@@ -172,13 +168,16 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
     item_distribution:   distributionItems,
     total_taxable:       totalTaxable,
     gst_rate:            gstRate,
+    cgst_amount:         cgst,
+    sgst_amount:         sgst,
+    igst_amount:         igst,
     total_gst:           totalGst,
     total_amount:        totalAmount,
     tds_rate:            tdsRate,
     tds_amount:          tdsAmount,
     net_receivable:      netReceivable,
-    // Fix A: amount_in_words uses totalAmount (not netReceivable).
-    // The stored inv.amount_in_words was computed from totalAmount by recomputeTotals.
+    // amount_in_words is stored by recomputeTotals() using total_amount.
+    // Use the stored value; fall back to re-computing from total_amount only.
     amount_in_words:     inv.amount_in_words ?? toWords(totalAmount),
     bank: (inv as any).bank_accounts
       ? {

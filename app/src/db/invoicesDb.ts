@@ -43,6 +43,11 @@ function draftToRow(
     line_item_billing_type:  draft.line_item_billing_type,
     total_taxable:           draft.total_taxable,
     gst_rate:                draft.gst_rate,
+    // Persist split GST amounts so buildInvoicePayload reads them back correctly.
+    // recomputeTotals() always derives these from tax_mode — they are never undefined.
+    cgst_amount:             draft.cgst_amount,
+    sgst_amount:             draft.sgst_amount,
+    igst_amount:             draft.igst_amount,
     total_gst:               draft.total_gst,
     total_amount:            draft.total_amount,
     tds_rate:                draft.tds_rate,
@@ -213,6 +218,10 @@ export async function mapInvoiceWithDetailsToDraft(inv: InvoiceWithDetails): Pro
     }),
     total_taxable:   inv.total_taxable,
     gst_rate:        inv.gst_rate,
+    // Restore split GST amounts from DB — persisted by draftToRow()
+    cgst_amount:     inv.cgst_amount ?? 0,
+    sgst_amount:     inv.sgst_amount ?? 0,
+    igst_amount:     inv.igst_amount ?? 0,
     total_gst:       inv.total_gst,
     total_amount:    inv.total_amount,
     tds_rate:        inv.tds_rate,
@@ -375,15 +384,14 @@ export async function finalizeInvoice(
 
   // When re-finalizing an already-final invoice:
   // reverse old billed qty + ledger BEFORE writing new values.
-  // Uses existingInvoiceId because child rows still belong to the same invoice row.
   if (isAlreadyFinal && existingInvoiceId) {
     await _reverseBilledQty(existingInvoiceId)
     await _reverseVehicleLedger(existingInvoiceId)
   }
 
-  await _replaceChildren(invoiceId, draft)
-  await _updateBilledQty(draft)
-  await _writeVehicleLedger(invoiceId, draft, inv)
+  await _replaceChildren(invoiceId, draftWithNumber)
+  await _updateBilledQty(draftWithNumber)
+  await _writeVehicleLedger(invoiceId, draftWithNumber, inv)
 
   return { invoice: inv, invoiceNumber }
 }
@@ -537,9 +545,6 @@ async function _writeVehicleLedger(
 }
 
 // ─── _reverseBilledQty ────────────────────────────────────────
-// Reads the CURRENT child rows from DB for this invoice and decrements
-// cumulative_billed_qty on each referenced work_order_item.
-// Called by: cancelInvoice(), finalizeInvoice() when re-finalizing.
 
 async function _reverseBilledQty(invoiceId: number): Promise<void> {
   const { data: invRow, error: invErr } = await supabase
@@ -591,10 +596,6 @@ async function _reverseBilledQty(invoiceId: number): Promise<void> {
     }
   }
 }
-
-// ─── _reverseVehicleLedger ────────────────────────────────────
-// Deletes all vehicle_billing_ledger rows for this invoice.
-// Called by: cancelInvoice(), finalizeInvoice() when re-finalizing.
 
 async function _reverseVehicleLedger(invoiceId: number): Promise<void> {
   const { error } = await supabase
