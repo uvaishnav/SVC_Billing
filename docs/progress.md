@@ -4,7 +4,7 @@
 
 ---
 
-## Current Phase: Phase 4 — Polish & Analytics (Dashboard in progress on `feature/dashboard-home-20260601`)
+## Current Phase: Phase 4 — Polish & Analytics
 
 ---
 
@@ -29,51 +29,43 @@
 - ✅ Invoice Wizard Part 1 (shell + Section 1 Header, Section 4 Review, finalize)
 - ✅ Invoice Wizard Part 2 (Section 2 rental billing + distribution, Section 3 description + AI)
 - 🔧 **PDF Rendering Part 3** — code is on branch `feature/pdf-rendering-part3-20260530`, needs testing + wiring
-  - ✅ `InvoicePdf.tsx` — complete A4 PDF layout using `@react-pdf/renderer` (11-section layout, both quantity + rental paths)
-  - ✅ `invoicePayloadTypes.ts` — TypeScript interfaces for PDF data
-  - ✅ `pdfUtils.ts` — `formatCurrency()`, `formatDate()`, `toWords()` (Indian place-value)
-  - ✅ `buildInvoicePayload.ts` — async data assembler (invoice + FK joins + settings)
-  - ✅ `InvoicePreviewModal.tsx` — full-screen preview modal, download + share + Supabase upload
-  - ✅ `InvoiceActions.tsx` — reusable PDF action button component
-  - ✅ `invoicePdfDb.ts` — `uploadInvoicePdf()` + `getInvoiceDownloadUrl()`
-  - ✅ `supabase/migrations/007_invoices_pdf_url.sql` — adds `pdf_url` column + storage RLS policies
-  - ⬜ NOT YET: End-to-end test (open preview modal → PDF renders → download works)
-  - ⬜ NOT YET: `npm install @react-pdf/renderer` confirmed in `package.json`
-  - ⬜ NOT YET: Migration 007 run in Supabase SQL Editor
+  - ✅ `InvoicePdf.tsx` — complete A4 PDF layout
+  - ✅ `invoicePayloadTypes.ts`, `pdfUtils.ts`, `buildInvoicePayload.ts`
+  - ✅ `InvoicePreviewModal.tsx`, `InvoiceActions.tsx`, `invoicePdfDb.ts`
+  - ✅ `supabase/migrations/007_invoices_pdf_url.sql`
+  - ⬜ NOT YET: End-to-end test + `npm install @react-pdf/renderer` + migration 007 run
 
 ### Bug Fixes — `bugfix/pre-feature-fixes-20260531` (merged to main)
 - ✅ Bug 1–7: TDS, rental recompute, invoice identity, draft deletion, UI separation
 - ✅ PDF Fix 1–4: Header overlap, logo size, description indent, gold separator line
 
 ### Phase 4 — Polish & Analytics
-- 🔧 **Dashboard / Home tab** — in progress on `feature/dashboard-home-20260601`
-  - ✅ Migration `008_dashboard_ignores.sql` — `dashboard_ignores` table (vehicle_id + year_month, UNIQUE constraint, RLS)
-  - ✅ `dashboardDb.ts` — `fetchKpis()`, `fetchUnbilledVehicles()`, `fetchVehicleRevenue()`, `fetchWoFlags()`, `fetchRecentInvoices()`, `ignoreUnbilledMonth()`, `unignoreUnbilledMonth()`
-  - ✅ `DashboardPage.tsx` — full dashboard: sticky header, unbilled alert (expandable, ignore/restore), KPI 2×2 grid, vehicle revenue Chart.js horizontal bar (month/FY toggle), WO flags (expiring + near-limit), recent invoices list
-  - ✅ `AppShell.tsx` updated — 🏠 Home as tab 0, default active tab changed from `invoices` to `home`
+- ✅ **Dashboard / Home Tab** — complete on `feature/dashboard-home-20260601`
+  - ✅ Migration `008_dashboard_ignores.sql` — `dashboard_ignores` table
+  - ✅ `dashboardDb.ts` — `fetchKpis`, `fetchUnbilledVehicles`, `fetchVehicleRevenue`, `fetchWoFlags`, `fetchMonthlyTrend`, `ignoreUnbilledMonth`, `unignoreUnbilledMonth`
+  - ✅ `DashboardPage.tsx` — sticky header, unbilled alert, KPI strip, vehicle revenue chart, WO flags, 6-month billing trend chart
+  - ✅ `AppShell.tsx` — 🏠 Home as tab 0, default tab changed to `home`
   - ⬜ NOT YET: Run migration `008_dashboard_ignores.sql` in Supabase SQL Editor
-  - ⬜ NOT YET: Test on device (verify Chart.js CDN loads, unbilled detection works)
-  - ⬜ NOT YET: PR merged to main
+  - ⬜ NOT YET: Test on device + merge PR to main
 
 ---
 
 ## What's Next
 
-### Immediate: Test & merge Dashboard
+### Immediate: Test & merge Dashboard PR
 1. Run migration `008_dashboard_ignores.sql` in Supabase SQL Editor
-2. Pull `feature/dashboard-home-20260601` branch locally
-3. Verify: Home tab loads, KPIs show, Chart.js bar chart renders, unbilled alert appears/collapses, ignore works
-4. Merge to main
+2. Pull `feature/dashboard-home-20260601` locally, run `npm run dev`
+3. Verify: Home tab loads, KPIs show, both Chart.js charts render, unbilled alert + ignore/restore works, MoM badge shows
+4. Merge PR to main
 
 ### Also pending: Finish PDF Part 3
-1. Confirm `@react-pdf/renderer` in `package.json` (`npm install @react-pdf/renderer`)
+1. `npm install @react-pdf/renderer` (confirm in `package.json`)
 2. Run migration `007_invoices_pdf_url.sql` in Supabase SQL Editor
-3. Test PDF preview → download flow
-4. Merge `feature/pdf-rendering-part3-20260530` → `bugfix` → main
+3. Test PDF preview → download flow end-to-end
+4. Merge `feature/pdf-rendering-part3-20260530` → main
 
 ### Remaining Phase 4 items
 - Invoice detail sheet (full read-only view of a finalized invoice)
-- Cancel invoice action (confirmation + `vehicle_billing_ledger` rollback)
 - Filter/search invoices by client, date range, status
 - Work Order utilisation bars (consumed vs contracted qty per WO item)
 - Duplicate invoice (copy draft from an existing final invoice)
@@ -85,9 +77,9 @@
 
 ## Known Issues / Deferred
 - [ ] `@react-pdf/renderer` must be added to `package.json` — not yet confirmed
-- [ ] Run migration `007_invoices_pdf_url.sql` in Supabase SQL Editor before testing PDF
-- [ ] Run migration `008_dashboard_ignores.sql` in Supabase SQL Editor before testing dashboard ignore feature
+- [ ] Run migration `007_invoices_pdf_url.sql` before testing PDF
+- [ ] Run migration `008_dashboard_ignores.sql` before testing dashboard ignore feature
 - [ ] `invoices` Supabase Storage bucket is private — signed URLs expire in 1 hour
 - [ ] Two PDF layout implementations exist (`InvoicePdf.tsx` + superseded `generatePdf.ts`) — `generatePdf.ts` should be deleted before merge
-- [ ] AI description quality gap for rental invoices — 3 fixes planned, not yet implemented
-- [ ] No "billed amount vs WO total value" comparison via DB query exists yet (dashboard uses client-side work_order_items calc)
+- [ ] AI description quality gap for rental invoices — 3 fixes planned
+- [ ] No DB-level aggregation for WO utilisation — computed client-side from `work_order_items`
