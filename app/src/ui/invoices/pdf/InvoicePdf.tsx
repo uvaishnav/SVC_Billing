@@ -527,6 +527,25 @@ function formatBillingPeriod(from: string, to: string): string {
   return `${formatDate(from)} – ${formatDate(to)}`;
 }
 
+/**
+ * Converts a raw DB billing_mode enum value into a human-readable label.
+ *   'full_month'    → 'Full Month'
+ *   'partial_days'  → 'Partial Days'
+ * Falls back to title-casing the raw value for any future enum additions.
+ */
+function formatBillingMode(mode: string): string {
+  switch (mode) {
+    case 'full_month':   return 'Full Month';
+    case 'partial_days': return 'Partial Days';
+    default:
+      // Graceful fallback: replace underscores and title-case each word
+      return mode
+        .split('_')
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ');
+  }
+}
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function HeaderBand({ supplier }: { supplier: InvoicePdfProps['supplier'] }) {
@@ -746,8 +765,12 @@ function RentalTable({
           <Text style={[s.tableCell, s.rColPeriod]}>
             {formatDate(item.billing_from)} – {formatDate(item.billing_to)}
           </Text>
-          <Text style={[s.tableCell, s.rColMode]}>{item.billing_mode}</Text>
-          <Text style={[s.tableCellRight, s.rColDays]}>{item.num_days}</Text>
+          <Text style={[s.tableCell, s.rColMode]}>
+            {formatBillingMode(item.billing_mode)}
+          </Text>
+          <Text style={[s.tableCellRight, s.rColDays]}>
+            {item.billing_mode === 'full_month' ? '–' : (item.num_days ?? '–')}
+          </Text>
           <Text style={[s.tableCellRight, s.rColRent]}>{formatCurrency(item.monthly_rent)}</Text>
           <Text style={[s.tableCellRight, s.rColAmt]}>{formatCurrency(item.amount)}</Text>
         </View>
