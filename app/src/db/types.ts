@@ -174,6 +174,10 @@ export interface Invoice {
 
   total_taxable: number
   gst_rate: number
+  // Split GST amounts — persisted so PDF can read them back without re-deriving
+  cgst_amount: number
+  sgst_amount: number
+  igst_amount: number
   total_gst: number
   total_amount: number
   tds_rate: number
@@ -348,6 +352,10 @@ export interface InvoiceDraft {
   // Section 4 — Computed totals (no user input)
   total_taxable: number
   gst_rate: number
+  // Split GST amounts — computed in recomputeTotals, persisted via draftToRow
+  cgst_amount: number
+  sgst_amount: number
+  igst_amount: number
   total_gst: number
   total_amount: number
   tds_rate: number
