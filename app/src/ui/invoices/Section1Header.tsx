@@ -1,7 +1,7 @@
 // Wizard Section 1: Invoice Header
 // Invoice number is NOT generated here.
 // It is assigned at finalize time in Section4Review / invoicesDb.
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import type { InvoiceDraft, ClientWithGstins, WorkOrder, SacCode, BankAccount, TaxMode, InvoiceBillingType } from '../../db/types'
 import { getClients } from '../../db/clientsDb'
 import { getWorkOrders } from '../../db/workOrdersDb'
