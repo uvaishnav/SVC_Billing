@@ -471,11 +471,12 @@ const s = StyleSheet.create({
     borderRightWidth: 0.75,
     borderRightColor: DIVIDER,
   },
+  // Right column: declaration at top-left, signature block pushed to bottom-left
   footerRight: {
     flex: 1,
     paddingLeft: 12,
-    justifyContent: 'space-between',  // declaration at top, signature at bottom
-    alignItems: 'flex-end',           // everything right-aligned
+    justifyContent: 'space-between',  // pushes signature block to bottom
+    alignItems: 'flex-start',         // left-align everything
   },
   footerSectionLabel: {
     fontSize: 6.5,
@@ -503,16 +504,16 @@ const s = StyleSheet.create({
     fontWeight: 500,
     flex: 1,
   },
-  // GST declaration statement
+  // GST declaration — left-aligned, top of right column
   footerDeclaration: {
     fontSize: 6.5,
     color: MUTED,
     lineHeight: 1.5,
-    textAlign: 'right',
+    textAlign: 'left',
   },
-  // Signature block (bottom of right column)
+  // Signature block — bottom of right column, left-aligned
   footerSignatureBlock: {
-    alignItems: 'flex-end',
+    alignItems: 'flex-start',
   },
   footerSignatureLine: {
     borderTopWidth: 0.75,
@@ -525,14 +526,12 @@ const s = StyleSheet.create({
     color: MUTED,
     letterSpacing: 0.5,
     marginBottom: 2,
-    textAlign: 'right',
   },
   footerSignatoryName: {
     fontSize: 8,
     fontWeight: 700,
     color: ESPRESSO,
     letterSpacing: 0.3,
-    textAlign: 'right',
   },
 });
 
@@ -548,12 +547,6 @@ function formatBillingPeriod(from: string, to: string): string {
   return `${formatDate(from)} – ${formatDate(to)}`;
 }
 
-/**
- * Converts a raw DB billing_mode enum value into a human-readable label.
- *   'full_month'    → 'Full Month'
- *   'partial_days'  → 'Partial Days'
- * Falls back to title-casing the raw value for any future enum additions.
- */
 function formatBillingMode(mode: string): string {
   switch (mode) {
     case 'full_month':   return 'Full Month';
@@ -827,9 +820,6 @@ function WorkItemsBlock({ items }: { items: InvoicePdfProps['item_distribution']
   );
 }
 
-// PDF Fix 5: TDS display-layer guard.
-// When tds_rate > 0 but tds_amount stored in DB is 0 (rental wizard gap),
-// recompute tds_amount from rate × total_amount so the PDF is always correct.
 function TotalsSection({ props }: { props: InvoicePdfProps }) {
   const {
     total_taxable, gst_rate, tax_mode,
@@ -926,12 +916,12 @@ function FooterSection({ props }: { props: InvoicePdfProps }) {
         )}
       </View>
 
-      {/* ── Right: Declaration (top) + Signature (bottom) ── */}
+      {/* ── Right: Declaration (top-left) + Signature (bottom-left) ── */}
       <View style={s.footerRight}>
-        {/* GST compliance declaration — top of right column */}
+        {/* GST compliance declaration — top, left-aligned */}
         <Text style={s.footerDeclaration}>{GST_DECLARATION}</Text>
 
-        {/* Signature block — pinned to bottom, right-aligned */}
+        {/* Signature block — bottom, left-aligned */}
         <View style={s.footerSignatureBlock}>
           <View style={s.footerSignatureLine} />
           <Text style={s.footerSignatoryLabel}>Authorised Signatory</Text>
