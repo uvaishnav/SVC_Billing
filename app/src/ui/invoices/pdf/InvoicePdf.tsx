@@ -512,6 +512,13 @@ const s = StyleSheet.create({
     fontSize: 7,
     color: MUTED,
     letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  footerSignatoryName: {
+    fontSize: 8,
+    fontWeight: 700,
+    color: ESPRESSO,
+    letterSpacing: 0.3,
   },
 });
 
@@ -908,6 +915,9 @@ function FooterSection({ props }: { props: InvoicePdfProps }) {
         <View style={{ height: 36 }} />
         <View style={s.footerSignatureLine} />
         <Text style={s.footerSignatoryLabel}>Authorised Signatory</Text>
+        {supplier.authorized_signatory ? (
+          <Text style={s.footerSignatoryName}>{supplier.authorized_signatory}</Text>
+        ) : null}
       </View>
     </View>
   );
