@@ -4,6 +4,45 @@
 
 ---
 
+## [2026-06-01] — TDS Calculation Fixes (3 Bugs) + Invoice Rollback
+
+### Fixed
+
+- `app/src/ui/invoices/Section4Review.tsx` — **TDS preview used wrong base (`total_amount` → `total_taxable`).**
+  - `TdsRow` was receiving `totalAmount={draft.total_amount}` and computing live preview TDS as `totalAmount × tdsRate / 100`. Since `total_amount` includes GST, the displayed TDS figure in the review screen was inflated.
+  - Fix: Added separate `taxableAmount` prop receiving `draft.total_taxable`. TDS preview now uses `taxableAmount × tdsRate / 100`. The `totalAmount` prop is retained only for the `net_receivable` display line.
+
+- `app/src/ui/invoices/pdf/buildInvoicePayload.ts` — **TDS rate back-derivation used wrong denominator (`total_amount` → `total_taxable`).**
+  - When loading a saved/finalized invoice for PDF generation, `tds_rate` was back-derived as `(tds_amount / total_amount) × 100`, producing a smaller, wrong rate printed in the PDF label (e.g. "TDS @ 1%" instead of "TDS @ 2%").
+  - Fix: Changed denominator from `totalAmount` to `totalTaxable`.
+
+- `app/src/ui/invoices/InvoiceWizard.tsx` — **Rental TDS always 0 in PDF preview (root cause: `setRentalItems` never triggered `recomputeTotals`).**
+  - `setRentalItems` was passed raw from the wizard to `Section2Items` — it only updated `draft.rental_items` but never called `recomputeTotals`. As a result, `draft.total_taxable`, `tds_amount`, and `net_receivable` stayed at `0` throughout the entire rental wizard flow.
+  - When Section 4 mounted, its guard `if (updated.total_taxable !== draft.total_taxable)` evaluated `0 !== 0 → false`, so `patch()` never fired and PDF was generated with stale zeros.
+  - Fix: Replaced raw `setRentalItems` pass-through with `handleSetRentalItems` wrapper that calls `recomputeTotals` immediately after updating items.
+
+### Data Recovery (Manual — Supabase SQL)
+
+- Invoice `id=6` was finalized accidentally before the sequence was reset, receiving number `SVC/26-27/003` instead of the intended `SVC/26-27/001`.
+- All finalization side effects were manually rolled back via SQL:
+
+  | Side Effect | Rollback SQL |
+  |---|---|
+  | Invoice status | `UPDATE invoices SET status='draft', invoice_number='DRAFT-6' WHERE id=6` |
+  | Sequence counter | `UPDATE settings SET current_sequence=0 WHERE id=1` |
+  | Vehicle ledger row | `DELETE FROM vehicle_billing_ledger WHERE invoice_id=6` |
+  | WO item 18 billed qty | `UPDATE work_order_items SET cumulative_billed_qty=0 WHERE id=18` |
+
+- Post-recovery: Invoice `id=6` is `draft`, `current_sequence=0`, next finalization will produce `SVC/26-27/001`.
+
+### Observations
+
+- The rental TDS bug was the most subtle: `quantity` invoices were unaffected because `setLineItems` sets `taxable_value` per item so `total_taxable` is always non-zero before Section 4 mounts. Rental items have no per-item taxable value — the subtotal is only meaningful after `recomputeTotals` runs on the full list.
+- TDS rule enforced everywhere: `TDS = tds_rate% × total_taxable` — never on `total_amount` which includes GST.
+- Files confirmed clean (no fix needed): `useInvoiceDraft.ts` (already correct), `generatePdf.ts`, `usePdfPreview.ts`, `Section2Items.tsx`.
+
+---
+
 ## [2026-06-01] — PDF Layout Fix 4: Gold Separator Row Position
 
 ### Fixed
