@@ -4,6 +4,36 @@
 
 ---
 
+## [2026-06-01] For Dashboard tab placement — dedicated 🏠 Home tab (index 0) over embedding inside Invoices
+
+Chose to add a new "Home" tab as the first tab in AppShell over embedding a dashboard view inside the existing Invoices tab or as a pre-AppShell screen.
+
+**Rationale:** The dashboard is a distinct mental mode (situational awareness / overview) vs. the Invoices tab (task execution / CRUD). Mixing them forces the user to scroll past operational data to reach the overview. A dedicated Home tab makes the dashboard the first thing seen on app open. The nav already has `overflowX: auto` so 7 tabs scroll cleanly on mobile without layout changes.
+
+**Trade-off:** 7 tabs is on the edge of comfortable for a 375px screen — each tab is ~48px wide, which meets the 44px minimum touch target. Acceptable given the nav already handled this case.
+
+---
+
+## [2026-06-01] For unbilled vehicle detection — current + previous month, with per-vehicle-month ignore
+
+Chose to flag active vehicles with no `vehicle_billing_ledger` entry in the current OR previous month, with a user-controlled "Ignore" action per vehicle-month, over only flagging the current month or always showing all gaps.
+
+**Rationale:** Current month alone misses carry-over gaps. The previous month is the most actionable: if it was missed, it can still be billed retroactively. Ignore is necessary because not every vehicle works every month — a vehicle might be parked, under maintenance, or standing idle. Without ignore, the alert becomes noise and loses trust.
+
+**Idle time analytics:** Ignored entries are stored in `dashboard_ignores(vehicle_id, year_month)` and are never deleted by the UI — only toggled. This table is the future source for "vehicle idle time" analytics (how long each vehicle was not deployed).
+
+---
+
+## [2026-06-01] For dashboard charts — Chart.js v4 via CDN over inline SVG bars
+
+Chose Chart.js v4 loaded from `cdn.jsdelivr.net` over hand-rolled inline SVG bar charts for the Vehicle Revenue chart.
+
+**Rationale:** Chart.js provides responsive canvas rendering, built-in tooltips, and animation out of the box. The vehicle revenue chart needs to handle 1–30 bars with dynamic scale — hand-rolling this in SVG correctly (tooltips, responsive sizing, tick formatting in Indian locale) would be significant complexity for no benefit. Chart.js is loaded lazily (script tag injected on first render) so it does not increase initial bundle size.
+
+**Trade-off:** External CDN dependency. Acceptable for a PWA that requires network anyway (Supabase calls). Chart.js v4 is stable and the CDN URL is pinned to `4.4.3`.
+
+---
+
 ## [2026-06-01] For invoice list UI — split drafts and finals into two labelled sections rather than a unified sorted list
 
 Chose to render two visually separate sections ("DRAFTS" on top, "FINALISED INVOICES" below) over a single list with status chips for sorting/filtering.
