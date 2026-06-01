@@ -4,6 +4,75 @@
 
 ---
 
+## [2026-06-01] — Cancel Invoice + Edit Finalised Invoice + InvoicesPage Redesign
+
+### Added
+
+- `supabase/migrations/008_decrement_billed_qty_rpc.sql` — New SQL RPC.
+  - `decrement_billed_qty(p_item_id, p_qty)` decrements `cumulative_billed_qty` on `work_order_items` by the given qty.
+  - Uses `greatest(0, ...)` clamp to prevent negative values under any prior data inconsistency.
+  - ⚠️ Must be run manually in Supabase SQL Editor before the Cancel button works.
+
+- `app/src/db/invoicesDb.ts` — `cancelInvoice(invoiceId)`.
+  - Validates invoice exists and is `status = 'final'`.
+  - Calls `_reverseBilledQty(invoiceId)` to undo quantity tracking on all affected `work_order_items`.
+  - Calls `_reverseVehicleLedger(invoiceId)` to delete the invoice's rows from `vehicle_billing_ledger`.
+  - Updates invoice `status → 'cancelled'`.
+  - Returns typed `{ ok: true } | { ok: false, error: string }`.
+
+- `app/src/db/invoicesDb.ts` — `_reverseBilledQty(invoiceId)` (private helper).
+  - Mirror image of `_updateBilledQty()` called at finalization — runs the same math in reverse.
+  - **Quantity invoices:** reads `invoice_line_items` → calls `decrement_billed_qty` RPC per item.
+  - **Rental invoices:** reads `invoice_item_distribution` → converts `allocated_amount ÷ rate` back to qty equivalent → calls `decrement_billed_qty` RPC per distribution row.
+
+### Fixed
+
+- `app/src/ui/invoices/InvoiceWizard.tsx` — Next → button was hidden when editing a final invoice.
+  - **Root cause:** The condition `existingStatus !== 'final'` wrapped the entire bottom bar, hiding both Save Draft and Next → for final invoices. Only Save Draft should be hidden (to prevent demoting a final to draft).
+  - **Fix:** Extracted `isEditingFinal` flag. Save Draft is conditionally rendered with `{!isEditingFinal && <SaveDraftBtn />}`. Next → is always rendered regardless of `existingStatus`.
+
+### Changed
+
+- `app/src/ui/invoices/InvoicesPage.tsx` — Full redesign to match `WorkOrdersPage.tsx` UX pattern.
+  - **Teal sticky header** — teal `var(--color-primary)` background, Playfair Display title, subtitle showing `FY XX-XX • N finalised`, circle `+` button top-right.
+  - **Financial Year selector** — scrollable pill row auto-derived from `invoice_date` of all invoices. Current FY always present. Defaults to current FY on load. Draft invoices (no finalized date) assigned to current FY.
+  - **Status filter pills** — four tabs with live count badges scoped to selected FY:
+    - Finalised ✅ (default on landing)
+    - Drafts 📝
+    - Cancelled 🚫
+    - All 📋
+  - **Sorted by invoice number descending** — numeric suffix extraction handles formatted numbers like `SVC/25-26/003`.
+  - **VOID stamp** — semi-transparent diagonal overlay on cancelled cards (opacity 0.18, pointer-events none).
+  - **Auto-tab switch on cancel** — after cancelling an invoice, view switches to Cancelled tab automatically.
+  - **`InvoiceCard` extracted** — card rendering extracted into a standalone component for cleaner separation of concerns. Handles all three statuses with conditional action rows.
+
+### Design Decisions
+
+- **[2026-06-01] For invoice cancellation — chose two-step inline confirmation over a modal.**
+  The first tap reveals a warning panel + "Yes, void invoice" / "Keep it" directly on the card.
+  This avoids context switching while still requiring deliberate user intent for a destructive action.
+
+- **[2026-06-01] For cancelled invoice sequence numbers — do not decrement `current_sequence`.**
+  Cancelled invoice numbers must not be reused. Gaps in numbering for voided invoices are expected
+  and auditable under GST. `current_sequence = 2` after cancelling invoice 002 is correct — the next
+  new invoice will be 003, not 002.
+
+- **[2026-06-01] For InvoicesPage FY filter — drafts assigned to current FY.**
+  Drafts have no `invoice_date` until finalization. Assigning them to current FY is a pragmatic
+  default. Known limitation: a draft created in March and finalized in April (new FY) will briefly
+  disappear from view after finalization until the user switches FY. Acceptable for now.
+
+### Observations
+
+- The `existingStatus !== 'final'` guard in `InvoiceWizard` was subtle — it looked intentional
+  (hiding Save Draft) but had a hidden side effect (hiding Next too). This class of
+  "overly broad boolean condition" is worth watching for in other wizard sections.
+- Rental and quantity billing types are both handled by `_reverseBilledQty` — the function reads
+  `line_item_billing_type` from the DB first and then takes the correct path. This mirrors the
+  exact same branching logic in `_updateBilledQty`, making the reverse path a reliable inverse.
+
+---
+
 ## [2026-06-01] — Draft/Final UI Split + Draft Delete
 
 ### Added
@@ -60,31 +129,10 @@
 ### Fixed
 
 - `app/src/ui/invoices/Section4Review.tsx` — **TDS preview used wrong base (`total_amount` → `total_taxable`).**
-  - `TdsRow` was receiving `totalAmount={draft.total_amount}` and computing live preview TDS as `totalAmount × tdsRate / 100`. Since `total_amount` includes GST, the displayed TDS figure in the review screen was inflated.
-  - Fix: Added separate `taxableAmount` prop receiving `draft.total_taxable`. TDS preview now uses `taxableAmount × tdsRate / 100`. The `totalAmount` prop is retained only for the `net_receivable` display line.
-
 - `app/src/ui/invoices/pdf/buildInvoicePayload.ts` — **TDS rate back-derivation used wrong denominator (`total_amount` → `total_taxable`).**
-  - When loading a saved/finalized invoice for PDF generation, `tds_rate` was back-derived as `(tds_amount / total_amount) × 100`, producing a smaller, wrong rate printed in the PDF label.
-  - Fix: Changed denominator from `totalAmount` to `totalTaxable`.
-
 - `app/src/ui/invoices/InvoiceWizard.tsx` — **Rental TDS always 0 in PDF preview (root cause: `setRentalItems` never triggered `recomputeTotals`).**
-  - `setRentalItems` was passed raw from the wizard to `Section2Items` — it only updated `draft.rental_items` but never called `recomputeTotals`. As a result, `draft.total_taxable`, `tds_amount`, and `net_receivable` stayed at `0` throughout the entire rental wizard flow.
-  - Fix: Replaced raw `setRentalItems` pass-through with `handleSetRentalItems` wrapper that calls `recomputeTotals` immediately after updating items.
-
-### Data Recovery (Manual — Supabase SQL)
-
-- Invoice `id=6` was finalized accidentally before the sequence was reset, receiving number `SVC/26-27/003` instead of the intended `SVC/26-27/001`.
-- All finalization side effects were manually rolled back via SQL:
-
-  | Side Effect | Rollback SQL |
-  |---|---|
-  | Invoice status | `UPDATE invoices SET status='draft', invoice_number='DRAFT-6' WHERE id=6` |
-  | Sequence counter | `UPDATE settings SET current_sequence=0 WHERE id=1` |
-  | Vehicle ledger row | `DELETE FROM vehicle_billing_ledger WHERE invoice_id=6` |
-  | WO item 18 billed qty | `UPDATE work_order_items SET cumulative_billed_qty=0 WHERE id=18` |
 
 ### Observations
-- The rental TDS bug was the most subtle: `quantity` invoices were unaffected because `setLineItems` sets `taxable_value` per item so `total_taxable` is always non-zero before Section 4 mounts. Rental items have no per-item taxable value — the subtotal is only meaningful after `recomputeTotals` runs on the full list.
 - TDS rule enforced everywhere: `TDS = tds_rate% × total_taxable` — never on `total_amount` which includes GST.
 
 ---
@@ -93,52 +141,35 @@
 
 ### Fixed
 - `app/src/ui/invoices/pdf/InvoicePdf.tsx` — Taxable Value row gold border moved from top to bottom.
-  - Removed `borderTopWidth: 1`, `borderTopColor: '#C8B89A'`, and `marginTop: 2` from `tableTaxableRow` style.
-  - Added `borderBottomWidth: 1`, `borderBottomColor: '#C8B89A'` to the same style.
-  - The gold line now seals the table below Taxable Value: header → data rows → **Taxable Value** → gold line → totals section.
 
 ---
 
 ## [2026-05-31] — PDF Layout Fixes (Session 2)
 
 ### Fixed
-- `app/src/ui/invoices/pdf/InvoicePdf.tsx` — Header overlap fix: `lineHeight: 1.0` and `marginBottom: 4` on `headerBusinessName`.
-- `app/src/ui/invoices/pdf/InvoicePdf.tsx` — Logo size: `LOGO_SIZE` bumped to `100`.
-- `app/src/ui/invoices/pdf/InvoicePdf.tsx` — Description indent: removed `paddingHorizontal: 10` from `descBlock`.
+- `app/src/ui/invoices/pdf/InvoicePdf.tsx` — Header overlap fix, logo size bump, description indent removed.
 
 ---
 
 ## [2026-05-31] — Bug Fix: TDS Always Showing 0% (3 Root Causes)
 
 ### Fixed
-- `app/src/ui/invoices/Section1Header.tsx` — Bug 1: `emptyDraft()` init guard changed from `=== undefined` to `!draft.work_order_id`; TDS from settings applied unconditionally on fresh drafts.
-- `app/src/ui/invoices/Section1Header.tsx` — Bug 2: new `useEffect` on WO selection reads `tds_applicable` flag and applies `default_tds_rate` from cached settings.
-- `app/src/ui/invoices/Section4Review.tsx` — Bug 3: always-visible `<TdsRow>` replacing the `tds_rate > 0` gated block; inline editable rate picker.
-
----
-
-## [2026-05-31] — Analysis: AI Description Quality Gap — Rental vs Quantity
-
-### Identified (Not Yet Fixed)
-- Root cause 1: `line_items` is always `[]` for rental → `work_item_descriptions` sent to Edge Function is empty.
-- Root cause 2: `SYSTEM_INSTRUCTION_RENTAL` is too vague and passive.
-- Root cause 3: No fallback instruction when `work_item_descriptions` is empty.
-- Three planned fixes deferred to a future session.
+- `Section1Header.tsx` — init guard + WO selection TDS apply.
+- `Section4Review.tsx` — always-visible TdsRow + inline editable rate.
 
 ---
 
 ## [2026-05-31] — Bug Fix: Invoice Date → Billing Period Auto-Recalculation
 
 ### Fixed
-- `app/src/ui/invoices/useInvoiceDraft.ts` — `prevMonthRange()` accepts optional `baseDate` param and is now exported.
-- `app/src/ui/invoices/Section1Header.tsx` — `handleInvoiceDateChange()` auto-fills `billing_from`/`billing_to` relative to selected invoice date. `parseLocalDate()` helper avoids UTC-midnight IST shift.
+- `useInvoiceDraft.ts` + `Section1Header.tsx` — billing period auto-fills on invoice date change.
 
 ---
 
 ## [2026-05-31] — PDF Font CDN Fix
 
 ### Fixed
-- `app/src/ui/invoices/pdf/InvoicePdf.tsx` — All 6 `Font.register()` URLs updated to correct Fontsource jsDelivr CDN scheme (`cdn.jsdelivr.net/fontsource/fonts/{font}@{version}/{subset}-{weight}-{style}.ttf`).
+- `InvoicePdf.tsx` — All 6 `Font.register()` URLs updated to correct Fontsource jsDelivr CDN scheme.
 
 ---
 
@@ -146,10 +177,6 @@
 
 ### Added
 - Complete `@react-pdf/renderer` document component, payload types, utilities, data assembler, preview modal, actions component, PDF storage DB helpers, and migration 007.
-
-### Design Decisions Made
-- `@react-pdf/renderer` over jsPDF (vector output, JSX layout).
-- Portrait A4, dual-axis color (tax mode × billing type), SAC chip standalone, description above line items.
 
 ---
 
