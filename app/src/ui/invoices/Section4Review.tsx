@@ -234,17 +234,21 @@ function QuantityItemsSummary({ draft }: { draft: InvoiceDraft }) {
 }
 
 // ─── TDS editable row ─────────────────────────────────────────────────────────
-// FIX (Bug 3): TDS was hidden behind `tds_rate > 0`. The user had no way to
-// see or correct it when the rate was incorrectly 0. This component renders
-// TDS as an always-visible inline-editable row in the review section.
+// FIX (Bug A): TDS must be calculated on taxable value only, NOT on total_amount.
+// The prop was renamed from `totalAmount` → `taxableAmount` and the call site
+// now passes `draft.total_taxable` so the live preview is always correct.
+// net_receivable preview = total_amount - tds_amount (TDS is deducted from the
+// full invoice amount, but it is *calculated* on the taxable portion only).
 function TdsRow({
-  tdsRate, totalAmount, onTdsRateChange,
+  tdsRate, taxableAmount, totalAmount, onTdsRateChange,
 }: {
   tdsRate: number
-  totalAmount: number
+  taxableAmount: number   // ← total_taxable (base for TDS calculation)
+  totalAmount: number     // ← total_amount  (base for net_receivable display)
   onTdsRateChange: (rate: number) => void
 }) {
-  const tdsAmount    = Math.round((totalAmount * tdsRate) / 100 * 100) / 100
+  // TDS is calculated on taxable value only (not on GST-inclusive total)
+  const tdsAmount     = Math.round((taxableAmount * tdsRate) / 100 * 100) / 100
   const netReceivable = totalAmount - tdsAmount
   const [editing, setEditing] = React.useState(false)
   const [inputVal, setInputVal] = React.useState(String(tdsRate))
@@ -475,10 +479,12 @@ export default function Section4Review({
         )}
         <Row label="Total Invoice Amount" value={`₹${fmt(draft.total_amount)}`} bold accent />
 
-        {/* FIX (Bug 3): TDS row is now always shown as an editable inline field.
-            Previously hidden behind tds_rate > 0 — user had no way to see or fix it. */}
+        {/* FIX (Bug A): taxableAmount={draft.total_taxable} ensures TDS preview
+            is computed on the correct base (taxable value only, before GST).
+            totalAmount={draft.total_amount} is still needed for net_receivable display. */}
         <TdsRow
           tdsRate={draft.tds_rate}
+          taxableAmount={draft.total_taxable}
           totalAmount={draft.total_amount}
           onTdsRateChange={handleTdsRateChange}
         />
