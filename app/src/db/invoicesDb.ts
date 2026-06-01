@@ -43,10 +43,6 @@ function draftToRow(
     line_item_billing_type:  draft.line_item_billing_type,
     total_taxable:           draft.total_taxable,
     gst_rate:                draft.gst_rate,
-    // Split GST amounts — persisted so buildInvoicePayload reads them back correctly
-    cgst_amount:             draft.cgst_amount,
-    sgst_amount:             draft.sgst_amount,
-    igst_amount:             draft.igst_amount,
     total_gst:               draft.total_gst,
     total_amount:            draft.total_amount,
     tds_rate:                draft.tds_rate,
@@ -217,9 +213,6 @@ export async function mapInvoiceWithDetailsToDraft(inv: InvoiceWithDetails): Pro
     }),
     total_taxable:   inv.total_taxable,
     gst_rate:        inv.gst_rate,
-    cgst_amount:     inv.cgst_amount,
-    sgst_amount:     inv.sgst_amount,
-    igst_amount:     inv.igst_amount,
     total_gst:       inv.total_gst,
     total_amount:    inv.total_amount,
     tds_rate:        inv.tds_rate,
@@ -272,11 +265,8 @@ export async function saveDraftInvoice(
 }
 
 // ─── Delete Draft ──────────────────────────────────────────────
-// Safety guard: refuses to delete anything that is not a draft.
-// All child rows are deleted first to satisfy FK constraints.
 
 export async function deleteDraftInvoice(invoiceId: number): Promise<{ ok: boolean; error?: string }> {
-  // Verify it's actually a draft before touching anything
   const { data: inv, error: fetchErr } = await supabase
     .from('invoices')
     .select('id, status')
@@ -285,7 +275,6 @@ export async function deleteDraftInvoice(invoiceId: number): Promise<{ ok: boole
   if (fetchErr || !inv) return { ok: false, error: 'Invoice not found.' }
   if (inv.status !== 'draft') return { ok: false, error: 'Only draft invoices can be deleted.' }
 
-  // Delete all child rows first
   await supabase.from('invoice_line_items').delete().eq('invoice_id', invoiceId)
   await supabase.from('invoice_vehicles').delete().eq('invoice_id', invoiceId)
   await supabase.from('invoice_rental_items').delete().eq('invoice_id', invoiceId)
@@ -296,6 +285,45 @@ export async function deleteDraftInvoice(invoiceId: number): Promise<{ ok: boole
     .delete()
     .eq('id', invoiceId)
   if (delErr) { console.error('deleteDraftInvoice:', delErr); return { ok: false, error: delErr.message } }
+
+  return { ok: true }
+}
+
+// ─── Cancel Invoice ───────────────────────────────────────────
+// Fully reverses all finalization side effects:
+//   1. Decrements cumulative_billed_qty on work_order_items
+//   2. Deletes vehicle_billing_ledger rows for this invoice
+//   3. Sets invoice status to 'cancelled'
+// Child rows (line_items, vehicles, etc.) are KEPT for audit trail.
+// PDF in storage is KEPT — VOID stamp is shown in UI only.
+
+export async function cancelInvoice(
+  invoiceId: number,
+): Promise<{ ok: boolean; error?: string }> {
+  // Safety: only final invoices can be cancelled
+  const { data: inv, error: fetchErr } = await supabase
+    .from('invoices')
+    .select('id, status')
+    .eq('id', invoiceId)
+    .single()
+  if (fetchErr || !inv) return { ok: false, error: 'Invoice not found.' }
+  if (inv.status !== 'final') return { ok: false, error: 'Only finalised invoices can be cancelled.' }
+
+  // Step 1 — reverse cumulative_billed_qty
+  await _reverseBilledQty(invoiceId)
+
+  // Step 2 — delete vehicle_billing_ledger rows
+  await _reverseVehicleLedger(invoiceId)
+
+  // Step 3 — mark as cancelled
+  const { error: updateErr } = await supabase
+    .from('invoices')
+    .update({ status: 'cancelled' })
+    .eq('id', invoiceId)
+  if (updateErr) {
+    console.error('cancelInvoice status update:', updateErr)
+    return { ok: false, error: updateErr.message }
+  }
 
   return { ok: true }
 }
@@ -344,26 +372,20 @@ export async function finalizeInvoice(
 
   if (!inv) return null
   const invoiceId = inv.id
-  // Fix D: pass draftWithNumber (which has the final invoice_number) instead of draft
-  await _replaceChildren(invoiceId, draftWithNumber)
 
-  if (!isAlreadyFinal) {
-    await _updateBilledQty(draftWithNumber)
-    await _writeVehicleLedger(invoiceId, draftWithNumber, inv)
+  // When re-finalizing an already-final invoice:
+  // reverse old billed qty + ledger BEFORE writing new values.
+  // Uses existingInvoiceId because child rows still belong to the same invoice row.
+  if (isAlreadyFinal && existingInvoiceId) {
+    await _reverseBilledQty(existingInvoiceId)
+    await _reverseVehicleLedger(existingInvoiceId)
   }
 
+  await _replaceChildren(invoiceId, draft)
+  await _updateBilledQty(draft)
+  await _writeVehicleLedger(invoiceId, draft, inv)
+
   return { invoice: inv, invoiceNumber }
-}
-
-// ─── Cancel Invoice ───────────────────────────────────────────
-
-export async function cancelInvoice(invoiceId: number): Promise<void> {
-  const { error } = await supabase
-    .from('invoices')
-    .update({ status: 'cancelled' })
-    .eq('id', invoiceId)
-  if (error) console.error('cancelInvoice:', error)
-  await supabase.from('vehicle_billing_ledger').delete().eq('invoice_id', invoiceId)
 }
 
 // ─── Private helpers ──────────────────────────────────────────
@@ -512,4 +534,72 @@ async function _writeVehicleLedger(
     .from('vehicle_billing_ledger')
     .upsert(ledgerRows, { onConflict: 'vehicle_id,invoice_id', ignoreDuplicates: true })
   if (error) console.error('_writeVehicleLedger:', error)
+}
+
+// ─── _reverseBilledQty ────────────────────────────────────────
+// Reads the CURRENT child rows from DB for this invoice and decrements
+// cumulative_billed_qty on each referenced work_order_item.
+// Called by: cancelInvoice(), finalizeInvoice() when re-finalizing.
+
+async function _reverseBilledQty(invoiceId: number): Promise<void> {
+  const { data: invRow, error: invErr } = await supabase
+    .from('invoices')
+    .select('line_item_billing_type')
+    .eq('id', invoiceId)
+    .single()
+  if (invErr || !invRow) {
+    console.error('_reverseBilledQty: could not fetch invoice billing type', invErr)
+    return
+  }
+
+  if (invRow.line_item_billing_type === 'quantity') {
+    const { data: lineItems, error: liErr } = await supabase
+      .from('invoice_line_items')
+      .select('work_order_item_id, qty')
+      .eq('invoice_id', invoiceId)
+    if (liErr) { console.error('_reverseBilledQty line_items fetch:', liErr); return }
+
+    for (const li of lineItems ?? []) {
+      if (!li.work_order_item_id || li.qty <= 0) continue
+      const { error } = await supabase.rpc('decrement_billed_qty', {
+        p_item_id: li.work_order_item_id,
+        p_qty:     li.qty,
+      })
+      if (error) console.error('decrement_billed_qty (quantity):', error)
+    }
+  } else {
+    const { data: distRows, error: distErr } = await supabase
+      .from('invoice_item_distribution')
+      .select('work_order_item_id, allocated_amount')
+      .eq('invoice_id', invoiceId)
+    if (distErr) { console.error('_reverseBilledQty distribution fetch:', distErr); return }
+
+    for (const dist of distRows ?? []) {
+      if (!dist.work_order_item_id || dist.allocated_amount <= 0) continue
+      const { data: woItem } = await supabase
+        .from('work_order_items')
+        .select('rate')
+        .eq('id', dist.work_order_item_id)
+        .single()
+      if (!woItem || woItem.rate <= 0) continue
+      const qtyEquivalent = dist.allocated_amount / woItem.rate
+      const { error } = await supabase.rpc('decrement_billed_qty', {
+        p_item_id: dist.work_order_item_id,
+        p_qty:     qtyEquivalent,
+      })
+      if (error) console.error('decrement_billed_qty (rental):', error)
+    }
+  }
+}
+
+// ─── _reverseVehicleLedger ────────────────────────────────────
+// Deletes all vehicle_billing_ledger rows for this invoice.
+// Called by: cancelInvoice(), finalizeInvoice() when re-finalizing.
+
+async function _reverseVehicleLedger(invoiceId: number): Promise<void> {
+  const { error } = await supabase
+    .from('vehicle_billing_ledger')
+    .delete()
+    .eq('invoice_id', invoiceId)
+  if (error) console.error('_reverseVehicleLedger:', error)
 }
