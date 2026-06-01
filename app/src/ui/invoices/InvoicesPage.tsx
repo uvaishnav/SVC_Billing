@@ -43,7 +43,9 @@ export default function InvoicesPage() {
     const full = await getInvoiceById(inv.id)
     setLoadingEdit(null)
     if (!full) return
-    const draft = mapInvoiceWithDetailsToDraft(full)
+    // mapInvoiceWithDetailsToDraft is async — it batch-fetches WO item descriptions
+    // for item_distribution rows so they render correctly in Section 2
+    const draft = await mapInvoiceWithDetailsToDraft(full)
     setEditDraft(draft)
     setEditStatus(inv.status)
     setShowWizard(true)
