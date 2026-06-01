@@ -1,83 +1,123 @@
 # Design Decisions
 
-> One entry per decision, most recent first.
-> Format: `[YYYY-MM-DD] For [area] — chose X over Y because Z.`
+> One entry per meaningful decision. Most recent first. Format: `[YYYY-MM-DD] For [area] — chose X over Y because Z.`
 
 ---
 
-## [2026-05-31] For TDS init in `Section1Header` — apply settings default unconditionally on fresh drafts, not behind `=== undefined` guard
+## [2026-06-01] For invoice list UI — split drafts and finals into two labelled sections rather than a unified sorted list
 
-`emptyDraft()` initialises `tds_rate = 0` (a valid number, not `undefined`), so the old guard `if (draft.tds_rate === undefined)` was always false and settings were silently ignored. The fix removes the type-check guard and instead uses a semantic guard: `if (!draft.work_order_id)` — meaning "this is a fresh draft with no WO context, so apply the global default". The WO-selection effect is responsible for overriding it once a WO is linked. This preserves the correct priority order: global settings → WO override → user manual edit.
+Chose to render two visually separate sections ("DRAFTS" on top, "FINALISED INVOICES" below) over a single list with status chips for sorting/filtering.
 
-## [2026-05-31] For TDS on WO selection — WO's `tds_applicable` flag overrides global setting, uses global `default_tds_rate` as the rate
+**Rationale:** Drafts and finals have completely different actions available — drafts are editable and deletable; finals are read-only with a PDF button. Mixing them in one list forces the user to scan for status chips to understand what they can do. Separating them makes the available actions self-evident at a glance. The amber left-border accent on draft cards also creates immediate visual distinction without relying on text labels alone.
 
-The WO knows *whether* TDS applies (via its `tds_applicable` boolean), but does not store its own TDS rate — that is a business-level setting unlikely to change per WO. Design: WO flag sets the on/off, global `default_tds_rate` provides the rate. The `cachedTdsRate` + `cachedTdsApplicable` pattern (storing settings values in component state after initial load) avoids a second DB call in the WO-selection effect, which runs on every WO dropdown change.
-
-## [2026-05-31] For TDS in Section 4 Review — always-visible inline-editable row, not hidden behind `tds_rate > 0`
-
-Hiding TDS when it is 0% left users with no way to diagnose or correct a misconfigured TDS rate before finalising. The new `<TdsRow>` component is always visible as a read-display + tap-to-edit pattern. The rate is shown as a tappable pill (e.g. "2% ✏️"); tapping replaces it with a number input (0–30%). On blur or Enter, `recomputeTotals()` is called and the full draft is patched. Net Receivable only appears when TDS > 0 to avoid showing a redundant line at 0%. Chosen over: (a) a separate TDS settings screen, (b) TDS field in Section 1 only — those both require leaving the review screen.
-
-## [2026-05-31] For AI description quality gap (rental invoices) — root cause is empty `work_item_descriptions` + vague system prompt, not model quality
-
-Quantity invoices populate `work_item_descriptions` from `line_items[].description` — rich text that gives the AI strong narrative hooks. Rental invoices always produce `line_items = []`, so the array is empty every time. The system prompt's "if provided" clause tells the AI to skip it entirely. Fix strategy: (1) add a Work Description field in Section 2 rental form as the rental-mode equivalent of line item descriptions; (2) rewrite `SYSTEM_INSTRUCTION_RENTAL` to be directive ("write as a single flowing professional sentence") not passive ("describe which vehicles were deployed"); (3) add explicit fallback instruction in `buildGeneratePrompt()` when descriptions are empty. These are prompt/UI changes only — no schema changes required.
+**Trade-off:** When there are many finals and no drafts, the "DRAFTS" section disappears, which is fine. When both exist, drafts always appear on top (higher priority action surface).
 
 ---
 
-## [2026-05-30] For PDF preview in Section 4 — use `usePdfPreview` hook + Supabase-hosted URL, not inline `PDFViewer`
+## [2026-06-01] For draft deletion — two-step inline confirmation over a modal dialog
 
-`PDFViewer` from `@react-pdf/renderer` renders an iframe with an object URL. In the mobile WebView (Capacitor/PWA), iframes are unreliable and the PDF generation blocks the main thread for large invoices. The `usePdfPreview` hook generates the PDF blob, uploads it to Supabase Storage, and returns a signed URL. Section 4 opens the URL in a full-screen modal iframe. On mobile, the modal is replaced with a direct download prompt. This pattern also means the PDF is stored in Supabase and accessible later without regeneration.
+Chose an inline "Delete draft? [Yes, delete] [Cancel]" confirmation rendered directly in the card over a modal dialog or a separate confirm screen.
 
-## [2026-05-30] For PDF font registration — `.ttf` from Fontsource CDN, not `.woff2` or system fonts
+**Rationale:** A modal for a single destructive action on a list item is disproportionate — it breaks visual context and requires a full overlay. An inline confirmation is localized to the card being acted on, keeps the rest of the list visible, and resolves in one additional tap without navigation. The `e.stopPropagation()` call ensures the confirmation interaction does not accidentally trigger the card's edit flow.
 
-`@react-pdf/renderer` fetches font bytes via HTTP and decodes them internally. It supports `.ttf` and `.otf` only — `.woff2` is not supported. Fontsource CDN (`cdn.jsdelivr.net/fontsource/fonts/`) provides `.ttf` for all weights. System fonts cannot be used as they are not available at the Supabase Edge Function runtime (where server-side PDF generation may run in future). Chosen fonts: Inter (body, 400/500/600/700) + Lora (display headings, 400/700).
+**Trade-off:** Inline confirmations are slightly less discoverable than a modal with a warning icon, but deletion of drafts is a low-stakes action (no finalization side effects have occurred) so a lightweight pattern is appropriate.
 
-## [2026-05-30] For PDF layout — dual-axis color system (tax mode × billing type)
+---
 
-Two independent axes affect the visual identity of the invoice:
-- **Tax mode axis** (CGST+SGST vs IGST): drives the accent color — warm gold for intra-state, cool steel blue for inter-state. This signals the tax regime to the reader at a glance.
-- **Billing type axis** (quantity vs rental): drives the table header background — parchment/amber for quantity (familiar invoice look), cool blue-grey for rental (equipment/fleet feel).
-Chosen over a single fixed color scheme because the dual axis adds meaningful visual information without adding cognitive load.
+## [2026-06-01] For invoice DB identity — UPDATE by `id` over UPSERT by `invoice_number`
 
-## [2026-05-28] For rental billing sub-form — vehicle rows with billing_mode toggle (full_month / partial_days), not a single "rental amount" field
+Chose `UPDATE invoices SET ... WHERE id = ?` for all re-saves (both draft re-saves and draft-to-final promotion) over the original `UPSERT ... ON CONFLICT (invoice_number)`.
 
-Rental invoices from RSV Constructions always involve multiple vehicles, each potentially on different billing modes (some full month, some partial days due to deployment start date). A single "rental amount" input would require manual calculation and offer no audit trail. Vehicle rows with mode toggle + auto-subtotal computation give transparent math and map directly to the `invoice_rental_items` schema, which is needed for the `vehicle_billing_ledger` debit entries.
+**Rationale:** `invoice_number` changes from `DRAFT-{timestamp}` to the real sequential number (e.g. `SVC/26-27/001`) at finalization. An upsert keyed on `invoice_number` therefore treats every finalization as a new INSERT (the old draft key and the new final key are different), leaving the original draft row orphaned in the DB with `status='draft'`. The fix: capture the `id` on the first INSERT and use it as the stable identity for all subsequent mutations. The `id` never changes; only the mutable label (`invoice_number`) and state (`status`) change.
 
-## [2026-05-28] For AI description generation — separate system instructions per billing type (`SYSTEM_INSTRUCTION_QUANTITY` vs `SYSTEM_INSTRUCTION_RENTAL`)
+**Implementation:** `saveDraftInvoice` returns `{ invoice, savedId }`. `useInvoiceDraft` stores `savedInvoiceId` in state and threads it through to `Section4Review` via `InvoiceWizard`. `finalizeInvoice` checks for `existingInvoiceId` and branches between UPDATE and INSERT accordingly.
 
-Quantity and rental invoices have structurally different data (line item descriptions vs vehicle deployment lists) and require different narrative styles. A single generic prompt produced poor output for rental invoices. Separate system instructions allow rental-specific constraints (no per-day rate language, vehicle-centric narrative, deployment period phrasing) without polluting the quantity prompt.
+---
 
-## [2026-05-28] For rental billing — `invoice_item_distribution` table for work order allocation, not a single `work_order_id` FK on the rental item
+## [2026-06-01] For draft deletion safety — status-check guard before any DB mutation
 
-Rental vehicles are often shared across multiple work orders in a month (e.g. a tipper works 10 days on WO-A and 5 days on WO-B). A single `work_order_id` FK cannot represent this. The distribution table stores `(invoice_id, work_order_id, allocation_pct, allocated_amount)` with a 100% sum constraint enforced client-side. This also enables the future "WO utilisation" analytics view.
+Chose to SELECT and verify `status === 'draft'` before executing any DELETE in `deleteDraftInvoice()` over trusting the caller to pass only draft ids.
 
-## [2026-05-27] For invoice wizard — 4-section linear wizard (not a single long form or tabs)
+**Rationale:** The delete button is only rendered for draft cards in the UI, but the DB function is a public export that could be called from anywhere (future features, tests, console). A server-side guard is the correct place for the invariant: "only drafts can be hard-deleted." Finalized invoices must go through `cancelInvoice()` (which reverses ledger entries) — hard-deleting a final invoice would leave `vehicle_billing_ledger` and `work_order_items.cumulative_billed_qty` stale.
 
-Invoice creation involves 4 distinct concern areas (header, items, description, review) with strong sequential dependencies (billing type in §1 drives item form in §2; items drive AI description in §3; all drive totals in §4). Linear wizard enforces this order and prevents "partially filled" states where the user jumps ahead. Section completion is not gated (user can navigate back freely) but the wizard's visual flow guides the natural order.
+---
 
-## [2026-05-27] For invoice draft state — single `useInvoiceDraft` hook with `patch()` updater, not per-section local state
+## [2026-05-31] For TDS calculation base — always use `total_taxable`, never `total_amount`
 
-With 4 sections all editing the same `InvoiceDraft` object, per-section local state would require lifting state up or using context. A single hook with a `patch(partial)` updater gives all sections direct write access to the draft with one source of truth. The hook also owns draft persistence (`saveDraftInvoice`) and `recomputeTotals`, keeping financial math centralised.
+Chose `total_taxable` (pre-GST amount) as the denominator for all TDS computations — in `TdsRow` preview, in `buildInvoicePayload.ts` back-derivation, and in `recomputeTotals()` — over `total_amount` (which includes GST).
 
-## [2026-05-26] For invoice face — TDS shown as informational summary below GST total, not as a GST-level field
+**Rationale:** Under Indian income-tax law (Section 194C/194J), TDS is deducted on the invoice value *before* GST. Using `total_amount` inflates the TDS figure and the back-derived rate. This is both legally incorrect and produces wrong amounts on the PDF.
 
-TDS is not a GST concept — it is an income tax deduction made by the client at payment time. Showing TDS alongside CGST/SGST/IGST would imply it is a tax collected by the supplier, which is legally incorrect. TDS is placed as a subtraction line below "Total Invoice Amount" with a note "(deducted by client)" to make the flow: taxable → GST → invoice total → minus TDS → net receivable.
+---
 
-## [2026-05-26] For invoice face — no project name or vehicle list in the printed invoice body
+## [2026-05-31] For TDS visibility in Section 4 — always-visible inline editable row over conditional rendering
 
-Project name and vehicle list are internal operational records. Indian GST invoice compliance requires: supplier details, buyer details, invoice number/date, SAC code, description of services, taxable value, GST breakdown, total. Vehicle lists are referenced in work orders, not invoices. Including them adds noise and risks customer confusion. They remain in the app's internal data model only.
+Chose to always render `<TdsRow>` in Section 4 Review regardless of whether `tds_rate` is 0, over the original `{tds_rate > 0 && ...}` conditional.
 
-## [2026-05-24] For work order reference — use `wo_reference` (free-text), not an auto-generated `wo_number`
+**Rationale:** If the TDS row is hidden at 0%, the user has no way to set a TDS rate after the WO auto-fill runs, without going back to Section 1. The review screen is the last checkpoint before finalization; it must expose all financially significant fields. `<TdsRow>` shows the rate as a tappable pill that opens an inline number input — low visual noise at 0%, fully editable when needed.
 
-Work orders come from clients (RSV Constructions) who assign their own WO numbers (e.g. "RSV/WO/2025-26/0042"). An internal auto-generated number would conflict with the client's reference. `wo_reference` is a nullable free-text field — the user types the client's WO number if one exists. The internal `id` (PK) is used for all FK relationships.
+---
 
-## [2026-05-24] For WO status computation — client-side `computeWOStatus()`, not a DB trigger or generated column
+## [2026-05-31] For rental `recomputeTotals` trigger — wrapper function in wizard over direct state setter pass-through
 
-WO status (draft / active / completed / closed) is derived purely from existing fields (`start_date`, `end_date`, `status` override). A DB trigger would add infrastructure complexity and make testing harder. A client-side pure function is zero-infrastructure, testable in isolation, and always consistent with the UI's view of the data.
+Chose to wrap `setRentalItems` in a `handleSetRentalItems` function inside `InvoiceWizard` that calls `recomputeTotals()` immediately after updating items, over passing the raw `setRentalItems` to `Section2Items`.
 
-## [2026-05-23] For settings — single `app_settings` row (typed columns), not a key-value store
+**Rationale:** `recomputeTotals` must run whenever the rental item list changes so `total_taxable`, `tds_amount`, and `net_receivable` stay current. Passing raw `setRentalItems` bypassed this, leaving totals at 0 for the entire rental wizard flow. The wrapper is the single authoritative place to enforce "items changed → recompute totals" without requiring `Section2Items` to know about the totals computation.
 
-A key-value store (`key TEXT, value JSONB`) loses type safety and requires runtime casting for every read. The settings surface is small and well-defined (business profile, bank defaults, TDS defaults). A single typed row with NOT NULL defaults gives compile-time safety, IDE autocomplete, and simpler queries. `patchSettings()` uses `UPDATE ... SET col = COALESCE($1, col)` to allow partial updates without NOT NULL violations.
+---
 
-## [2026-05-23] For client GSTIN management — `client_gstins` child table, not columns on `clients`
+## [2026-05-30] For PDF engine — `@react-pdf/renderer` (JSX/vector) over jsPDF + html2canvas (canvas/raster)
 
-A client operating in multiple states has one GSTIN per state registration. Storing GSTINs as columns (`gstin_ap`, `gstin_tn`, ...) or a JSONB array loses relational integrity and makes querying by GSTIN impossible. A `client_gstins` child table (with `state`, `state_code`, `gstin`, `address`) normalises this correctly and supports future features like state-wise revenue reporting.
+Chose `@react-pdf/renderer` for invoice PDF generation over jsPDF + html2canvas.
+
+**Rationale:** `@react-pdf/renderer` produces vector PDFs via JSX layout (similar to React Native's Flexbox model). jsPDF + html2canvas rasterizes the DOM, resulting in blurry text at high zoom, large file sizes, and fragile layout dependencies on the live DOM. For a compliance document like a GST invoice, vector output with precise typography is mandatory.
+
+**Trade-off:** `@react-pdf/renderer` cannot use CSS variables or Tailwind — all styles are `StyleSheet.create()` objects. This is acceptable because PDF rendering is a separate concern from the app UI.
+
+---
+
+## [2026-05-30] For PDF color system — dual-axis (tax mode × billing type) over single accent
+
+Chose a dual-axis color scheme for the invoice PDF: tax mode drives the primary accent (gold `#C8B89A` for CGST/SGST intra-state, steel blue `#5B7FA6` for IGST inter-state), and billing type drives the table header background (parchment for quantity, cool blue-grey for rental).
+
+**Rationale:** The two axes carry distinct semantic meaning. Tax mode indicates the GST jurisdiction — a compliance distinction that affects which tax lines appear. Billing type affects the table structure itself. Color-coding both makes the invoice type immediately recognizable at a glance, which is useful when reviewing a stack of invoices.
+
+---
+
+## [2026-05-28] For rental invoice distribution — equal-split default with manual override
+
+Chose to auto-fill `invoice_item_distribution` with an equal split (total ÷ number of WO items, remainder cent on first item) as the default, with each row manually adjustable.
+
+**Rationale:** In practice, most rental invoices split across WO items evenly. The equal-split default eliminates manual entry for the common case while remaining fully editable for exceptions. A live 100% sum guard prevents accidental over/under-allocation.
+
+---
+
+## [2026-05-27] For invoice numbering — atomic Postgres RPC with FY-aware sequence
+
+Chose a Supabase Postgres RPC (`generate_invoice_number`) with `SERIALIZABLE` isolation over application-level sequence generation.
+
+**Rationale:** Application-level generation under concurrent requests can produce duplicate sequence numbers. The RPC locks the `settings` row, increments `current_sequence`, and returns the formatted number atomically. FY-awareness is enforced in the function: the sequence resets to 1 at the start of each financial year (April 1).
+
+---
+
+## [2026-05-27] For wizard navigation — section-based with sticky progress bar over full page routing
+
+Chose a 4-section in-page wizard with a sticky `WizardNav` progress bar over separate routes per section.
+
+**Rationale:** Invoice creation is a single transaction — navigating away mid-wizard should not lose state. In-page sections keep the draft in React state throughout, eliminating the need for route-level state persistence. The sticky progress bar gives users a clear sense of position and allows jumping between sections without URL changes.
+
+---
+
+## [2026-05-26] For invoice layout — compliance-first section order
+
+Chose to structure the PDF invoice as: header → tax invoice stamp → supplier + customer details → SAC chip → description of services → line items → totals → amount in words → bank details → declaration.
+
+**Rationale:** This order matches the GST invoice format prescribed under Rule 46 of CGST Rules 2017. Compliance fields (GSTIN, place of supply, SAC) appear before financial data. The declaration and signature block closes the document as legally required.
+
+---
+
+## [2026-05-24] For WO PDF parsing — in-browser Tesseract.js OCR + Edge Function AI over server-side OCR
+
+Chose Tesseract.js (in-browser OCR) feeding extracted text to a Supabase Edge Function for AI field extraction, over a fully server-side OCR + AI pipeline.
+
+**Rationale:** Keeping OCR in-browser avoids uploading potentially sensitive WO PDFs to a server for OCR. Only the extracted text (not the raw PDF bytes) is sent to the Edge Function. The Edge Function holds the AI API key and performs field extraction, keeping secrets out of the client bundle.
