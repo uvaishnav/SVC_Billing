@@ -140,15 +140,6 @@ function mapInvoiceRow(row: any): InvoiceWithDetails {
   }
 }
 
-/**
- * Converts a saved InvoiceWithDetails back into an InvoiceDraft
- * so it can be loaded into the wizard for editing.
- *
- * Made async so we can batch-fetch work_order_items to hydrate
- * `description` and `sub_work_ref` on item_distribution rows —
- * those display fields are not stored in the invoice_item_distribution
- * DB table, only work_order_item_id is persisted.
- */
 export async function mapInvoiceWithDetailsToDraft(inv: InvoiceWithDetails): Promise<InvoiceDraft> {
   let woItemMap: Map<number, { description: string; sub_work_ref: string | null }> = new Map()
 
@@ -232,14 +223,6 @@ export async function mapInvoiceWithDetailsToDraft(inv: InvoiceWithDetails): Pro
 }
 
 // ─── Save Draft ───────────────────────────────────────────────
-//
-// When existingInvoiceId is provided (editing a previously saved draft),
-// we UPDATE that specific row by id — so the DRAFT-xxx number is preserved
-// and no second row is ever created.
-//
-// When existingInvoiceId is null/undefined (first save of a brand-new
-// draft), we upsert by invoice_number as before, then return the new id
-// so the caller can store it and pass it on all future saves.
 
 export async function saveDraftInvoice(
   draft: InvoiceDraft,
@@ -256,7 +239,6 @@ export async function saveDraftInvoice(
   let inv: Invoice | null = null
 
   if (existingInvoiceId) {
-    // UPDATE the existing row — preserves the id, never creates a duplicate
     const { data, error } = await supabase
       .from('invoices')
       .update(row)
@@ -266,7 +248,6 @@ export async function saveDraftInvoice(
     if (error) { console.error('saveDraftInvoice update:', error); return null }
     inv = data
   } else {
-    // First save — upsert by invoice_number (no id yet)
     const { data, error } = await supabase
       .from('invoices')
       .upsert(row, { onConflict: 'invoice_number' })
@@ -283,14 +264,36 @@ export async function saveDraftInvoice(
   return { invoice: { ...inv, invoice_number: row.invoice_number }, savedId: invoiceId }
 }
 
+// ─── Delete Draft ──────────────────────────────────────────────
+// Safety guard: refuses to delete anything that is not a draft.
+// All child rows are deleted first to satisfy FK constraints.
+
+export async function deleteDraftInvoice(invoiceId: number): Promise<{ ok: boolean; error?: string }> {
+  // Verify it's actually a draft before touching anything
+  const { data: inv, error: fetchErr } = await supabase
+    .from('invoices')
+    .select('id, status')
+    .eq('id', invoiceId)
+    .single()
+  if (fetchErr || !inv) return { ok: false, error: 'Invoice not found.' }
+  if (inv.status !== 'draft') return { ok: false, error: 'Only draft invoices can be deleted.' }
+
+  // Delete all child rows first
+  await supabase.from('invoice_line_items').delete().eq('invoice_id', invoiceId)
+  await supabase.from('invoice_vehicles').delete().eq('invoice_id', invoiceId)
+  await supabase.from('invoice_rental_items').delete().eq('invoice_id', invoiceId)
+  await supabase.from('invoice_item_distribution').delete().eq('invoice_id', invoiceId)
+
+  const { error: delErr } = await supabase
+    .from('invoices')
+    .delete()
+    .eq('id', invoiceId)
+  if (delErr) { console.error('deleteDraftInvoice:', delErr); return { ok: false, error: delErr.message } }
+
+  return { ok: true }
+}
+
 // ─── Finalize Invoice ─────────────────────────────────────────
-//
-// existingInvoiceId MUST be provided when finalizing a previously saved
-// draft. We UPDATE that row's invoice_number + status in-place so the
-// original draft row is promoted to a final invoice — never abandoned.
-//
-// If existingInvoiceId is not available (edge case: finalizing without
-// ever saving a draft), we fall back to a fresh INSERT.
 
 export async function finalizeInvoice(
   draft: InvoiceDraft,
@@ -314,9 +317,6 @@ export async function finalizeInvoice(
   let inv: Invoice | null = null
 
   if (existingInvoiceId) {
-    // UPDATE the existing draft row in-place — this is the core fix.
-    // The invoice_number column changes from DRAFT-xxx to SVC/YY-YY/NNN
-    // on the SAME row. No new row is ever created.
     const { data, error } = await supabase
       .from('invoices')
       .update(row)
@@ -326,7 +326,6 @@ export async function finalizeInvoice(
     if (error) { console.error('finalizeInvoice update:', error); return null }
     inv = data
   } else {
-    // Fallback: no prior draft row — insert fresh
     const { data, error } = await supabase
       .from('invoices')
       .insert(row)
