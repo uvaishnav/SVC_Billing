@@ -373,7 +373,7 @@ const s = StyleSheet.create({
     flex: 1,
   },
 
-  // ── Totals section ─────────────────────────────────────────────────────────
+  // ── Totals section ────────────────────────────────────────────────────────
   totalsSection: {
     marginBottom: 8,
     marginLeft: '50%',
@@ -538,7 +538,6 @@ function formatBillingMode(mode: string): string {
     case 'full_month':   return 'Full Month';
     case 'partial_days': return 'Partial Days';
     default:
-      // Graceful fallback: replace underscores and title-case each word
       return mode
         .split('_')
         .map(w => w.charAt(0).toUpperCase() + w.slice(1))
@@ -708,8 +707,8 @@ function QuantityTable({
         <Text style={[s.tableHeaderCell, s.qColDesc]}>Description of Service</Text>
         <Text style={[s.tableHeaderCell, s.qColUnit]}>Unit</Text>
         <Text style={[s.tableHeaderCell, s.qColQty]}>Qty</Text>
-        <Text style={[s.tableHeaderCell, s.qColRate]}>Rate (₹)</Text>
-        <Text style={[s.tableHeaderCell, s.qColAmt]}>Amount (₹)</Text>
+        <Text style={[s.tableHeaderCell, s.qColRate]}>Rate (Rs.)</Text>
+        <Text style={[s.tableHeaderCell, s.qColAmt]}>Amount (Rs.)</Text>
       </View>
       {lineItems.map((item, idx) => (
         <View key={item.sl_no} style={[s.tableRow, idx % 2 === 1 ? s.tableRowAlt : {}]}>
@@ -754,8 +753,8 @@ function RentalTable({
         <Text style={[s.tableHeaderCell, s.rColPeriod]}>Billing Period</Text>
         <Text style={[s.tableHeaderCell, s.rColMode]}>Billing Mode</Text>
         <Text style={[s.tableHeaderCell, s.rColDays]}>Days</Text>
-        <Text style={[s.tableHeaderCell, s.rColRent]}>Monthly Rent (₹)</Text>
-        <Text style={[s.tableHeaderCell, s.rColAmt]}>Amount (₹)</Text>
+        <Text style={[s.tableHeaderCell, s.rColRent]}>Monthly Rent (Rs.)</Text>
+        <Text style={[s.tableHeaderCell, s.rColAmt]}>Amount (Rs.)</Text>
       </View>
       {rentalItems.map((item, idx) => (
         <View key={item.sl_no} style={[s.tableRow, idx % 2 === 1 ? s.tableRowAlt : {}]}>
@@ -789,11 +788,6 @@ function RentalTable({
   );
 }
 
-// WorkItemsBlock: render all items from item_distribution.
-// Only hide the block when the array is empty/null — never filter individual
-// items by description content. The '–' fallback from buildInvoicePayload
-// (when the work_order_items FK join returns null) is shown as-is so the
-// block remains visible and the data gap is apparent rather than silently hidden.
 function WorkItemsBlock({ items }: { items: InvoicePdfProps['item_distribution'] }) {
   if (!items || items.length === 0) return null;
   return (
@@ -815,7 +809,6 @@ function WorkItemsBlock({ items }: { items: InvoicePdfProps['item_distribution']
 // PDF Fix 5: TDS display-layer guard.
 // When tds_rate > 0 but tds_amount stored in DB is 0 (rental wizard gap),
 // recompute tds_amount from rate × total_amount so the PDF is always correct.
-// Net Receivable and Amount in Words are also derived from the effective values.
 function TotalsSection({ props }: { props: InvoicePdfProps }) {
   const {
     total_taxable, gst_rate, tax_mode,
@@ -823,7 +816,6 @@ function TotalsSection({ props }: { props: InvoicePdfProps }) {
   } = props;
   const halfRate = gst_rate / 2;
 
-  // Guard: if tds_rate signals a deduction but tds_amount is zero, recompute.
   const effectiveTdsAmount: number =
     tds_amount === 0 && tds_rate > 0
       ? Math.round((tds_rate / 100) * total_amount * 100) / 100
@@ -836,36 +828,36 @@ function TotalsSection({ props }: { props: InvoicePdfProps }) {
       <View style={s.totalsSection}>
         <View style={s.totalsRow}>
           <Text style={s.totalsLabel}>Taxable Amount</Text>
-          <Text style={s.totalsValue}>₹ {formatCurrency(total_taxable)}</Text>
+          <Text style={s.totalsValue}>Rs. {formatCurrency(total_taxable)}</Text>
         </View>
         {tax_mode === 'cgst_sgst' ? (
           <View>
             <View style={s.totalsRow}>
               <Text style={s.totalsLabel}>CGST @ {halfRate}%</Text>
-              <Text style={s.totalsValue}>₹ {formatCurrency(total_gst / 2)}</Text>
+              <Text style={s.totalsValue}>Rs. {formatCurrency(total_gst / 2)}</Text>
             </View>
             <View style={s.totalsRow}>
               <Text style={s.totalsLabel}>SGST @ {halfRate}%</Text>
-              <Text style={s.totalsValue}>₹ {formatCurrency(total_gst / 2)}</Text>
+              <Text style={s.totalsValue}>Rs. {formatCurrency(total_gst / 2)}</Text>
             </View>
           </View>
         ) : (
           <View style={s.totalsRow}>
             <Text style={s.totalsLabel}>IGST @ {gst_rate}%</Text>
-            <Text style={s.totalsValue}>₹ {formatCurrency(total_gst)}</Text>
+            <Text style={s.totalsValue}>Rs. {formatCurrency(total_gst)}</Text>
           </View>
         )}
         <View style={[s.totalsRow, { borderTopWidth: 0.75, borderTopColor: DIVIDER }]}>
           <Text style={s.totalsLabelStrong}>Total Amount</Text>
-          <Text style={s.totalsValueStrong}>₹ {formatCurrency(total_amount)}</Text>
+          <Text style={s.totalsValueStrong}>Rs. {formatCurrency(total_amount)}</Text>
         </View>
         <View style={s.totalsRow}>
           <Text style={s.totalsLabel}>Less: TDS @ {tds_rate}%</Text>
-          <Text style={s.totalsValue}>- ₹ {formatCurrency(effectiveTdsAmount)}</Text>
+          <Text style={s.totalsValue}>- Rs. {formatCurrency(effectiveTdsAmount)}</Text>
         </View>
         <View style={s.netReceivableRow}>
           <Text style={s.netReceivableLabel}>Net Receivable</Text>
-          <Text style={s.netReceivableValue}>₹ {formatCurrency(effectiveNetReceivable)}</Text>
+          <Text style={s.netReceivableValue}>Rs. {formatCurrency(effectiveNetReceivable)}</Text>
         </View>
       </View>
       <View style={s.amountInWords}>
