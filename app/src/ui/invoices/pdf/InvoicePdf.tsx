@@ -32,7 +32,7 @@ import {
   GOLD_ACCENT, GOLD_CHIP_BG,
   STEEL_ACCENT, STEEL_CHIP_BG,
   QTY_TABLE_HEADER_BG, RENTAL_TABLE_HEADER_BG,
-  formatCurrency, formatDate, toWords,
+  formatCurrency, formatDate,
 } from './pdfUtils';
 import type { InvoicePdfProps } from './invoicePayloadTypes';
 
@@ -149,10 +149,6 @@ const s = StyleSheet.create({
   },
 
   // ── GSTIN Strip ───────────────────────────────────────────────────────────
-  // Full-width ESPRESSO band — seals the header, GSTIN centered as a stamp.
-  // Top border (#C8B89A) creates a crisp warm separator line between cream and espresso.
-  // Label and value are intentionally identical in size, weight and color —
-  // the whole string reads as one authoritative registration stamp.
   gstinStrip: {
     backgroundColor: ESPRESSO,
     marginTop: -14,
@@ -164,7 +160,6 @@ const s = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: GSTIN_STRIP_BORDER,
   },
-  // Single shared style — label and value use same token, no visual hierarchy between them
   gstinStripText: {
     fontSize: 8.5,
     fontWeight: 700,
@@ -250,7 +245,7 @@ const s = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  // ── SAC tab — compact badge that sits as a bump on top of the table ────────
+  // ── SAC tab ────────────────────────────────────────────────────────────────
   sacTabWrap: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -343,9 +338,6 @@ const s = StyleSheet.create({
     fontSize: 7,
     color: MUTED,
   },
-  // Taxable Value footer row — sits INSIDE the table as its closing row.
-  // Gold border is on the BOTTOM, sealing the table below the value.
-  // No top border, no margin — it flows directly after the last data row.
   tableTaxableRow: {
     flexDirection: 'row',
     paddingVertical: 5,
@@ -577,7 +569,7 @@ function chipBg(taxMode: 'cgst_sgst' | 'igst') {
   return taxMode === 'igst' ? STEEL_CHIP_BG : GOLD_CHIP_BG;
 }
 function formatBillingPeriod(from: string, to: string): string {
-  return `${formatDate(from)} – ${formatDate(to)}`;
+  return `${formatDate(from)} \u2013 ${formatDate(to)}`;
 }
 
 function formatBillingMode(mode: string): string {
@@ -621,17 +613,11 @@ function HeaderBand({ supplier }: { supplier: InvoicePdfProps['supplier'] }) {
   );
 }
 
-/**
- * Full-width ESPRESSO strip — seals the header band.
- * GSTIN label and number use identical style: same size, same color, same weight.
- * A warm muted · dot separates label from number without creating visual hierarchy.
- * Thin #C8B89A top-border acts as crisp transition line from cream to espresso.
- */
 function GstinStrip({ gstin }: { gstin: string }) {
   return (
     <View style={s.gstinStrip}>
       <Text style={s.gstinStripText}>GSTIN</Text>
-      <Text style={s.gstinStripSpacer}>·</Text>
+      <Text style={s.gstinStripSpacer}>\u00b7</Text>
       <Text style={s.gstinStripText}>{gstin}</Text>
     </View>
   );
@@ -823,13 +809,13 @@ function RentalTable({
           <Text style={[s.tableCell, s.rColVeh]}>{item.reg_number}</Text>
           <Text style={[s.tableCell, s.rColType]}>{item.vehicle_type}</Text>
           <Text style={[s.tableCell, s.rColPeriod]}>
-            {formatDate(item.billing_from)} – {formatDate(item.billing_to)}
+            {formatDate(item.billing_from)} \u2013 {formatDate(item.billing_to)}
           </Text>
           <Text style={[s.tableCell, s.rColMode]}>
             {formatBillingMode(item.billing_mode)}
           </Text>
           <Text style={[s.tableCellRight, s.rColDays]}>
-            {item.billing_mode === 'full_month' ? '–' : (item.num_days ?? '–')}
+            {item.billing_mode === 'full_month' ? '\u2013' : (item.num_days ?? '\u2013')}
           </Text>
           <Text style={[s.tableCellRight, s.rColRent]}>{formatCurrency(item.monthly_rent)}</Text>
           <Text style={[s.tableCellRight, s.rColAmt]}>{formatCurrency(item.amount)}</Text>
@@ -856,7 +842,7 @@ function WorkItemsBlock({ items }: { items: InvoicePdfProps['item_distribution']
       <Text style={s.workItemsLabel}>WORK ITEMS COVERED UNDER THIS BILLING PERIOD</Text>
       {items.map((item, idx) => (
         <View key={idx} style={s.workItemRow}>
-          <Text style={s.workItemBullet}>–</Text>
+          <Text style={s.workItemBullet}>\u2013</Text>
           <Text style={s.workItemText}>
             {item.description}
             {item.sub_work_ref ? ` (Sub-ref: ${item.sub_work_ref})` : ''}
@@ -867,19 +853,26 @@ function WorkItemsBlock({ items }: { items: InvoicePdfProps['item_distribution']
   );
 }
 
+/**
+ * TotalsSection
+ *
+ * Renders the billing summary: taxable amount, GST split (CGST+SGST or IGST),
+ * total amount, TDS deduction, net receivable, and amount in words.
+ *
+ * All values are read directly from props — recomputeTotals() is the single
+ * source of truth and has already produced correct numbers before this renders.
+ * No re-derivation happens here.
+ *
+ * GST split is derived from total_gst / 2 for intrastate (cgst_sgst) since
+ * CGST == SGST by law, and total_gst for interstate (igst).
+ */
 function TotalsSection({ props }: { props: InvoicePdfProps }) {
   const {
     total_taxable, gst_rate, tax_mode,
     total_gst, total_amount, tds_rate, tds_amount,
+    net_receivable, amount_in_words,
   } = props;
   const halfRate = gst_rate / 2;
-
-  const effectiveTdsAmount: number =
-    tds_amount === 0 && tds_rate > 0
-      ? Math.round((tds_rate / 100) * total_amount * 100) / 100
-      : tds_amount;
-  const effectiveNetReceivable: number = total_amount - effectiveTdsAmount;
-  const effectiveAmountInWords: string = toWords(effectiveNetReceivable);
 
   return (
     <>
@@ -911,16 +904,16 @@ function TotalsSection({ props }: { props: InvoicePdfProps }) {
         </View>
         <View style={s.totalsRow}>
           <Text style={s.totalsLabel}>Less: TDS @ {tds_rate}%</Text>
-          <Text style={s.totalsValue}>- Rs. {formatCurrency(effectiveTdsAmount)}</Text>
+          <Text style={s.totalsValue}>- Rs. {formatCurrency(tds_amount)}</Text>
         </View>
         <View style={s.netReceivableRow}>
           <Text style={s.netReceivableLabel}>Net Receivable</Text>
-          <Text style={s.netReceivableValue}>Rs. {formatCurrency(effectiveNetReceivable)}</Text>
+          <Text style={s.netReceivableValue}>Rs. {formatCurrency(net_receivable)}</Text>
         </View>
       </View>
       <View style={s.amountInWords}>
         <Text style={s.amountInWordsLabel}>AMOUNT IN WORDS :</Text>
-        <Text style={s.amountInWordsValue}>{effectiveAmountInWords}</Text>
+        <Text style={s.amountInWordsValue}>{amount_in_words}</Text>
       </View>
     </>
   );
@@ -930,7 +923,6 @@ function FooterSection({ props }: { props: InvoicePdfProps }) {
   const { supplier, bank } = props;
   return (
     <View style={s.footer}>
-      {/* ── Left: Bank Details ── */}
       <View style={s.footerLeft}>
         <Text style={s.footerSectionLabel}>BANK DETAILS</Text>
         {bank ? (
@@ -963,12 +955,8 @@ function FooterSection({ props }: { props: InvoicePdfProps }) {
         )}
       </View>
 
-      {/* ── Right: Declaration (top-left) + Signature (bottom-left) ── */}
       <View style={s.footerRight}>
-        {/* GST compliance declaration — top, left-aligned */}
         <Text style={s.footerDeclaration}>{GST_DECLARATION}</Text>
-
-        {/* Signature block — bottom, left-aligned */}
         <View style={s.footerSignatureBlock}>
           <View style={s.footerSignatureLine} />
           <Text style={s.footerSignatoryLabel}>Authorised Signatory</Text>

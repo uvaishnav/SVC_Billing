@@ -6,6 +6,11 @@
  * Used by InvoicePreviewModal (invoice list view → preview from saved invoice row).
  * The hook usePdfPreview uses a different path (InvoiceDraft → InvoicePdfProps)
  * for the wizard preview flow.
+ *
+ * Design principle: this is a pure reader. It trusts all numeric columns that were
+ * written by recomputeTotals() via draftToRow(). No re-derivation of totals here.
+ * GST split (CGST/SGST vs IGST) is derived at render time inside InvoicePdf.tsx
+ * from tax_mode + total_gst — no separate cgst_amount/sgst_amount columns needed.
  */
 import { supabase } from '../../../db/supabaseClient';
 import type { InvoicePdfProps, PdfLineItem, PdfRentalItem, PdfDistributionItem } from './invoicePayloadTypes';
@@ -87,7 +92,7 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
     }
 
     distributionItems = (di ?? []).map((d: any): PdfDistributionItem => ({
-      description:    woMap[d.work_order_item_id]?.description ?? '–',
+      description:    woMap[d.work_order_item_id]?.description ?? '\u2013',
       sub_work_ref:   woMap[d.work_order_item_id]?.sub_work_ref ?? null,
       allocation_pct: d.allocation_pct ?? 0,
     }));
@@ -110,15 +115,12 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
     }));
   }
 
-  // ── 4. Totals — read directly from DB columns, no re-derivation ─────────────
-  // All of these are persisted by draftToRow() via recomputeTotals().
-  // buildInvoicePayload must be a pure reader — never re-derive what the wizard
-  // already computed, to guarantee preview === final PDF.
+  // ── 4. Totals — read directly from DB columns ────────────────────────────────
+  // All values persisted by draftToRow() via recomputeTotals().
+  // GST split is NOT stored separately — InvoicePdf.tsx derives CGST/SGST from
+  // total_gst / 2, and IGST from total_gst, based on tax_mode at render time.
   const taxMode: 'cgst_sgst' | 'igst' = inv.tax_mode;
   const totalTaxable: number  = inv.total_taxable  ?? 0;
-  const cgst: number          = inv.cgst_amount     ?? 0;
-  const sgst: number          = inv.sgst_amount     ?? 0;
-  const igst: number          = inv.igst_amount     ?? 0;
   const totalGst: number      = inv.total_gst       ?? 0;
   const totalAmount: number   = inv.total_amount    ?? 0;
   const tdsAmount: number     = inv.tds_amount      ?? 0;
@@ -158,8 +160,6 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
         }
       : null,
     sac_code:            (inv as any).sac_codes?.sac_code ?? null,
-    // overall_description is stored in the invoices.overall_description column.
-    // (NOT inv.description — that field does not exist on the invoices table.)
     overall_description: inv.overall_description ?? '',
     billing_type:        isRental ? 'rental' : 'quantity',
     tax_mode:            taxMode,
@@ -168,16 +168,13 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
     item_distribution:   distributionItems,
     total_taxable:       totalTaxable,
     gst_rate:            gstRate,
-    cgst_amount:         cgst,
-    sgst_amount:         sgst,
-    igst_amount:         igst,
     total_gst:           totalGst,
     total_amount:        totalAmount,
     tds_rate:            tdsRate,
     tds_amount:          tdsAmount,
     net_receivable:      netReceivable,
-    // amount_in_words is stored by recomputeTotals() using total_amount.
-    // Use the stored value; fall back to re-computing from total_amount only.
+    // amount_in_words is stored by recomputeTotals() using toWords(total_amount).
+    // Fall back to re-computing only if the DB value is somehow missing.
     amount_in_words:     inv.amount_in_words ?? toWords(totalAmount),
     bank: (inv as any).bank_accounts
       ? {
