@@ -60,9 +60,12 @@ const PAGE_MARGIN  = 32;
 const BODY_FONT    = 'Inter';
 const HEAD_FONT    = 'Lora';
 
-const HEADER_PADDING_V = 0;
-const LOGO_SIZE        = 100;
+const HEADER_PADDING_V = 8;   // was 0 — gives cream band graceful top/bottom margins
+const LOGO_SIZE        = 72;  // was 100 — balanced with text block, less wasted space
 const LOGO_MARGIN      = 0;
+
+// Thin warm separator between CREAM header and ESPRESSO GSTIN strip
+const GSTIN_STRIP_BORDER = '#C8B89A';
 
 // Standard GST invoice declaration (Rule 46, CGST Rules 2017)
 const GST_DECLARATION =
@@ -145,28 +148,32 @@ const s = StyleSheet.create({
   },
 
   // ── GSTIN Strip ───────────────────────────────────────────────────────────
-  // Full-width ESPRESSO band — acts as the visual bottom-border of the header.
-  // Centered label + value mirrors the netReceivableRow design language.
+  // Full-width ESPRESSO band — seals the header, GSTIN centered as a stamp.
+  // Top border (#C8B89A) creates a crisp warm separator line between cream and espresso.
+  // Label and value are intentionally identical in size, weight and color —
+  // the whole string reads as one authoritative registration stamp.
   gstinStrip: {
     backgroundColor: ESPRESSO,
-    paddingVertical: 5,
+    paddingVertical: 4,
     paddingHorizontal: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    borderTopWidth: 1,
+    borderTopColor: GSTIN_STRIP_BORDER,
   },
-  gstinStripLabel: {
-    fontSize: 7,
-    fontWeight: 400,
-    color: '#C8B89A',   // warm muted cream — readable but subordinate
-    letterSpacing: 1.2,
-    marginRight: 8,
-  },
-  gstinStripValue: {
-    fontSize: 9,
+  // Single shared style — label and value use same token, no visual hierarchy between them
+  gstinStripText: {
+    fontSize: 8.5,
     fontWeight: 700,
     color: CREAM,
-    letterSpacing: 1.5,
+    letterSpacing: 2,
+  },
+  gstinStripSpacer: {
+    fontSize: 8.5,
+    fontWeight: 400,
+    color: GSTIN_STRIP_BORDER,  // warm muted divider dot between label and number
+    marginHorizontal: 6,
   },
 
   // ── TAX INVOICE stamp ──────────────────────────────────────────────────────
@@ -610,12 +617,18 @@ function HeaderBand({ supplier }: { supplier: InvoicePdfProps['supplier'] }) {
   );
 }
 
-/** Full-width ESPRESSO strip — prominent GSTIN, centered, acts as header bottom border */
+/**
+ * Full-width ESPRESSO strip — seals the header band.
+ * GSTIN label and number use identical style: same size, same color, same weight.
+ * A warm muted · dot separates label from number without creating visual hierarchy.
+ * Thin #C8B89A top-border acts as crisp transition line from cream to espresso.
+ */
 function GstinStrip({ gstin }: { gstin: string }) {
   return (
     <View style={s.gstinStrip}>
-      <Text style={s.gstinStripLabel}>GSTIN</Text>
-      <Text style={s.gstinStripValue}>{gstin}</Text>
+      <Text style={s.gstinStripText}>GSTIN</Text>
+      <Text style={s.gstinStripSpacer}>·</Text>
+      <Text style={s.gstinStripText}>{gstin}</Text>
     </View>
   );
 }
