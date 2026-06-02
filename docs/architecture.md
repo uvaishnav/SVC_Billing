@@ -8,16 +8,31 @@
 
 Mobile-first PWA (React + Vite) — Supabase backend (Postgres + Auth + Storage + Edge Functions).
 
-- **Frontend:** React 18, TypeScript, Vite, inline CSS + CSS variables (no Tailwind on UI components)
+- **Frontend:** React 19, TypeScript, Vite, inline CSS + CSS variables (no Tailwind on UI components)
 - **Backend:** Supabase (Postgres, Auth, RLS, Storage, Edge Functions for invoice numbering + AI parsing + AI description)
-- **Hosting:** Vercel (auto-deploy from `main`)
-- **PDF generation:** `@react-pdf/renderer` v3 (vector PDFs, JSX layout, embedded TTF fonts — replaces jsPDF)
+- **Hosting:** Cloudflare Pages (auto-deploy from `main`, build root: `app/`, build command: `npm run build`, output: `dist/`)
+- **PWA:** Manual `manifest.json` + handcrafted `sw.js` — cache-first for static shell + Vite hashed assets; network-only for all Supabase calls. Registered via `registerSW.ts` called from `main.tsx`.
+- **SPA routing (Cloudflare):** `app/public/_redirects` — `/* /index.html 200` catches all client-side routes
+- **PDF generation:** `@react-pdf/renderer` v4 (vector PDFs, JSX layout, embedded TTF fonts)
 - **OCR:** Tesseract.js (in-browser, work order PDF text extraction)
 - **AI parsing:** OpenAI / Gemini via Supabase Edge Function (`parse-work-order`) — API key protected server-side
 - **AI description:** Gemini via Supabase Edge Function (`generate-invoice-description`) — rental-aware prompt
 - **Fonts:** Inter (body weights 400/500/600/700) + Lora (headings 400/700) — embedded as TTF in PDF via `cdn.jsdelivr.net/fontsource/fonts/`
 
 > ⚠️ `@react-pdf/renderer` cannot use Tailwind or CSS variables — all PDF styles are `StyleSheet.create()` objects. This is PDF-only and does NOT affect the app UI styling rules.
+
+***
+
+## PWA Icon Requirements
+
+| File | Size | Format | Purpose |
+|---|---|---|---|
+| `app/public/icons/icon-192.png` | 192×192 | PNG | Android Chrome home screen, PWA install prompt |
+| `app/public/icons/icon-512.png` | 512×512 | PNG | Android splash screen, high-res displays |
+| `app/public/apple-touch-icon.png` | 180×180 | PNG | **iOS Safari** — home screen icon when added via "Add to Home Screen" |
+| `app/public/favicon.svg` | — | SVG | Desktop browser tabs only (SVG not used by iOS) |
+
+> ⚠️ `icon-192.png` is committed. `icon-512.png` and `apple-touch-icon.png` must be added manually (rasterised from the app logo). iOS ignores SVG for home screen icons — PNG is mandatory.
 
 ***
 
@@ -34,6 +49,7 @@ Mobile-first PWA (React + Vite) — Supabase backend (Postgres + Auth + Storage 
       005_projects_and_work_orders.sql
       006_rental_billing.sql    ← Rental billing tables + line_item_billing_type column
       007_invoices_pdf_url.sql  ← Adds pdf_url column to invoices + Storage RLS policies
+      008_dashboard_ignores.sql ← dashboard_ignores table for unbilled vehicle ignore feature
     functions/                  ← Edge Functions deployed via Supabase CLI from repo root
       generate-invoice-number/
         index.ts
@@ -42,7 +58,17 @@ Mobile-first PWA (React + Vite) — Supabase backend (Postgres + Auth + Storage 
       generate-invoice-description/
         index.ts                ← Rental-aware AI description prompt (no per-day rate language)
   app/                          ← React frontend ONLY — no supabase folder here
+    public/
+      manifest.json             ← PWA Web App Manifest
+      sw.js                     ← Service Worker (manual, cache-first shell strategy)
+      _redirects                ← Cloudflare Pages SPA routing fix
+      favicon.svg               ← Desktop browser tab icon
+      apple-touch-icon.png      ← iOS home screen icon (180×180 PNG) ⚠️ ADD MANUALLY
+      icons/
+        icon-192.png            ← PWA icon 192×192 PNG ✅
+        icon-512.png            ← PWA icon 512×512 PNG ⚠️ ADD MANUALLY
     src/
+      registerSW.ts             ← Service worker registration (called from main.tsx)
       db/
         supabaseClient.ts       — typed Supabase client singleton
         types.ts                — all table row types + Database interface
@@ -54,10 +80,13 @@ Mobile-first PWA (React + Vite) — Supabase backend (Postgres + Auth + Storage 
         workOrdersDb.ts         — WorkOrders + WorkOrderItems DB helpers + computeWOStatus()
         invoicesDb.ts           — Invoices CRUD + saveDraftInvoice() + finalizeInvoice() (quantity + rental paths)
         invoicePdfDb.ts         — uploadInvoicePdf() (Supabase Storage upload) + getInvoiceDownloadUrl() (signed URL)
+        dashboardDb.ts          — fetchKpis, fetchUnbilledVehicles, fetchVehicleRevenue, fetchWoFlags, fetchMonthlyTrend, ignore/unignore helpers
         index.ts                — re-exports all DB modules
       ui/
         LoginScreen.tsx
-        AppShell.tsx            — 6-tab bar (Clients | Vehicles | Work Orders | Projects | Invoices | Settings)
+        AppShell.tsx            — 7-tab bar (Home | Clients | Vehicles | Work Orders | Projects | Invoices | Settings)
+        dashboard/
+          DashboardPage.tsx     — sticky header, unbilled alert, KPI strip, vehicle revenue chart, WO flags, 6-month billing trend chart
         settings/
           _components.tsx       — shared UI primitives (REUSE IN ALL MODULES)
           SettingsPage.tsx
@@ -298,8 +327,8 @@ Mobile-first PWA (React + Vite) — Supabase backend (Postgres + Auth + Storage 
 | net_receivable | NUMERIC | |
 | description | TEXT | AI-generated or user-edited |
 | status | TEXT NOT NULL | `draft` / `final` / `cancelled` |
-| **line_item_billing_type** | **TEXT NOT NULL DEFAULT 'quantity'** | **`'quantity'` or `'rental'` — drives Section 2 UI and PDF layout path. Single authoritative flag, never inferred from child tables.** |
-| **pdf_url** | **TEXT** | **Supabase Storage URL of the generated PDF — set by `uploadInvoicePdf()` after first preview/download. NULL until PDF is first generated.** |
+| **line_item_billing_type** | **TEXT NOT NULL DEFAULT 'quantity'** | **`'quantity'` or `'rental'` — drives Section 2 UI and PDF layout path.** |
+| **pdf_url** | **TEXT** | **Supabase Storage URL of the generated PDF — set by `uploadInvoicePdf()` after first preview/download.** |
 | created_at | TIMESTAMPTZ | |
 
 ### `invoice_line_items` (quantity invoices only)
@@ -315,101 +344,28 @@ Mobile-first PWA (React + Vite) — Supabase backend (Postgres + Auth + Storage 
 | rate | NUMERIC NOT NULL | |
 | taxable_value | NUMERIC NOT NULL | qty × rate |
 
-### Migration 006 — Rental Billing (`supabase/migrations/006_rental_billing.sql`)
+### Migration 006 — Rental Billing
 
 | Table / Change | Purpose |
 |---|---|
-| `invoice_rental_items` | One row per vehicle per rental invoice. Stores `billing_mode` (`full_month` / `partial_days`), `num_days`, `monthly_rent` (snapshot), `subtotal` (computed). SUM of subtotals = `invoices.total_taxable`. |
-| `invoice_item_distribution` | Maps rental invoice total to individual WO items for `cumulative_billed_qty` tracking. Per-row: `work_order_item_id`, `allocation_pct`, `allocated_amount`. Rental invoices only. |
-| `vehicle_billing_ledger` | Analytics ledger — one row per vehicle per invoice finalized. Written on finalize, deleted on cancel. Used for future "revenue per vehicle" dashboard. Never edited by the user. |
-| `invoices.line_item_billing_type` | New column (`TEXT NOT NULL DEFAULT 'quantity'`). Values: `'quantity'` or `'rental'`. Drives Section 2 wizard UI and PDF layout path. Single authoritative flag — not inferred from child tables. |
-| `sac_codes.applicable_billing_type` | New column (`TEXT NOT NULL DEFAULT 'both'`). Values: `'quantity'`, `'rental'`, `'both'`. Filters SAC code dropdown in Section 1 based on billing type selected. |
+| `invoice_rental_items` | One row per vehicle per rental invoice. |
+| `invoice_item_distribution` | Maps rental invoice total to WO items for `cumulative_billed_qty` tracking. |
+| `vehicle_billing_ledger` | Analytics ledger — one row per vehicle per invoice finalized. |
+| `invoices.line_item_billing_type` | `'quantity'` or `'rental'`. Drives Section 2 wizard UI and PDF layout path. |
+| `sac_codes.applicable_billing_type` | Filters SAC code dropdown in Section 1 based on billing type. |
 
-#### `invoice_rental_items`
-| Column | Type | Notes |
-|--------|------|-------|
-| id | BIGSERIAL PK | |
-| invoice_id | BIGINT FK → invoices | ON DELETE CASCADE |
-| vehicle_id | BIGINT FK → vehicles | |
-| billing_mode | TEXT NOT NULL | `full_month` or `partial_days` |
-| num_days | INTEGER | NULL for `full_month`; required for `partial_days` |
-| monthly_rent | NUMERIC NOT NULL | snapshot of rent at invoice time |
-| subtotal | NUMERIC NOT NULL | `monthly_rent` for full month; `(monthly_rent / 30) × num_days` for partial |
-
-#### `invoice_item_distribution`
-| Column | Type | Notes |
-|--------|------|-------|
-| id | BIGSERIAL PK | |
-| invoice_id | BIGINT FK → invoices | ON DELETE CASCADE |
-| work_order_item_id | BIGINT FK → work_order_items | |
-| allocation_pct | NUMERIC NOT NULL | user-set percentage (0–100); all rows must sum to 100 at finalize |
-| allocated_amount | NUMERIC NOT NULL | `total_taxable × (allocation_pct / 100)` |
-
-> ⚠️ Distribution percentage sum = 100% is enforced in the UI (live warning + blocked submit). No DB-level CHECK constraint — allows mid-edit saves with an incomplete distribution.
-
-#### `vehicle_billing_ledger`
-| Column | Type | Notes |
-|--------|------|-------|
-| id | BIGSERIAL PK | |
-| invoice_id | BIGINT FK → invoices | |
-| vehicle_id | BIGINT FK → vehicles | |
-| billing_period_from | DATE NOT NULL | |
-| billing_period_to | DATE NOT NULL | |
-| billing_mode | TEXT NOT NULL | |
-| num_days | INTEGER | |
-| monthly_rent | NUMERIC NOT NULL | |
-| subtotal | NUMERIC NOT NULL | |
-| created_at | TIMESTAMPTZ | |
-
-> ⚠️ Analytics-only table. Never shown in UI directly. Written on `finalizeInvoice()`, deleted on `cancelInvoice()`. Used for future "revenue per vehicle" dashboard feature.
-
-### Migration 007 — Invoice PDF URL (`supabase/migrations/007_invoices_pdf_url.sql`)
+### Migration 007 — Invoice PDF URL
 
 | Change | Purpose |
 |---|---|
-| `invoices.pdf_url TEXT` | Stores the Supabase Storage URL of the generated PDF. NULL until PDF is first opened/downloaded. Set by `invoicePdfDb.uploadInvoicePdf()`. |
-| Storage RLS: INSERT policy | Allows authenticated users to upload to the `invoices` bucket |
-| Storage RLS: SELECT policy | Allows authenticated users to read/list from the `invoices` bucket |
-| Storage RLS: UPDATE policy | Allows authenticated users to overwrite an existing PDF in the `invoices` bucket |
+| `invoices.pdf_url TEXT` | Stores Supabase Storage URL of generated PDF. |
+| Storage RLS policies | INSERT / SELECT / UPDATE on `invoices` bucket for authenticated users. |
 
-> ⚠️ Run migration 007 in Supabase SQL Editor before testing the PDF preview modal.
+### Migration 008 — Dashboard Ignores
 
-**Rental invoice data flow:**
-1. User selects `billing_type = 'rental'` in Section 1 → `InvoiceDraft.line_item_billing_type = 'rental'`
-2. Section 2 shows rental sub-form → writes `InvoiceRentalItemDraft[]` + `InvoiceItemDistributionDraft[]`
-3. Section 3 shows read-only vehicle summary (no picker); AI description uses rental prompt (no per-day rate)
-4. On finalize → `invoicesDb.finalizeInvoice()` writes `invoice_rental_items`, `invoice_item_distribution`, `vehicle_billing_ledger`; increments `cumulative_billed_qty` per WO item proportional to `allocated_amount`
-5. PDF renderer checks `line_item_billing_type` → routes to rental layout (vehicle table, no qty/unit columns)
-
-**PDF generation data flow:**
-1. User opens `InvoicePreviewModal` → triggers `buildInvoicePayload(invoiceId)` async call
-2. `buildInvoicePayload` fetches invoice row + FK joins (client, client_gstin, work_order, sac, bank_account) + settings + billing-type-branched child items (`invoice_line_items` or `invoice_rental_items` + `invoice_item_distribution`)
-3. Assembled `InvoicePayload` is passed to `<InvoicePdf payload={...} />` React component
-4. `@react-pdf/renderer` renders the component to a PDF blob (vector, A4 portrait)
-5. On modal open: PDF blob is uploaded to Supabase Storage (`invoices/{invoice_id}.pdf`) and `invoices.pdf_url` is updated (non-blocking fire-and-forget)
-6. User can Download (triggers file save) or Share (Web Share API with blob, Android/iOS Safari; desktop fallback = download)
-
-***
-
-## PDF Invoice Layout — Section Structure
-
-All invoice types (quantity + rental) share the same outer section structure. Only the line items section differs:
-
-| # | Section | Content | Billing type |
-|---|---------|---------|-------------|
-| 1 | Header band | Supplier: name, address, GSTIN, PAN, phone, email, logo (cream bg `#FAF8F3`) | Both |
-| 2 | Document identity band | "TAX INVOICE" centred + Invoice number in prominent right-aligned bordered box | Both |
-| 3 | Two-column details | Left: Invoice date, billing period, W.O. ref (muted). Right: Bill-to (client name, address, GSTIN, place of supply, state code, tax mode, reverse charge flag) | Both |
-| 4 | SAC chip | SAC code as standalone tinted badge (tax-mode accent colour) | Both |
-| 5 | Description of services | AI-generated or user-edited paragraph above the line items table | Both |
-| 6 | Line items table | **Quantity:** Sl.No / Description / Unit / Qty / Rate / Taxable Value. **Rental:** Vehicle / Reg No / Billing Mode / Days / Monthly Rent / Subtotal | Branched |
-| 7 | Work Items Covered block | WO item descriptions + allocation percentages from `invoice_item_distribution` — labelled as informational | Rental only |
-| 8 | Totals block | Total Taxable, CGST+SGST or IGST (@9%/18%), **Total Invoice Amount** (bold), TDS @ 2% (informational), Net Receivable | Both |
-| 9 | Amount in words | Indian place-value words: Rupees X Crore Y Lakh Z Thousand … Only | Both |
-| 10 | Bank details | Bank name, account name, account number, IFSC, branch | Both |
-| 11 | Declaration + signature | Standard GST declaration text + Authorized Signatory name + signature line | Both |
-
-> **Color system:** Tax mode drives accent (gold `#C8A96A` for CGST/SGST, steel `#4A7FA5` for IGST). Billing type drives table header bg (parchment `#EDE9DE` for quantity, cool blue-grey `#E8EEF2` for rental). Brand elements (espresso text `#3B2A1F`, cream bg `#FAF8F3`, totals highlight `#3B2A1F`) are invariant.
+| Change | Purpose |
+|---|---|
+| `dashboard_ignores` table | Tracks vehicle-months the operator has explicitly marked as not needing a billing alert. |
 
 ***
 
@@ -456,32 +412,21 @@ setDraft({ ...EMPTY_DRAFT })
 ```
 
 ### 7. Select / dropdown pattern
-For selects (client picker, project picker, billing type), use a plain `<select>` with the `inputStyle` object:
-```tsx
-<select value={val} onChange={e => setVal(e.target.value)} style={{ ...inputStyle }}>
-  <option value="">— placeholder —</option>
-  {items.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-</select>
-```
+For selects (client picker, project picker, billing type), use a plain `<select>` with the `inputStyle` object.
 
 ### 8. Toggle / switch pattern
-For boolean fields (rates_firm, tds_applicable), use the pill-toggle pattern established in `WorkOrderFormModal`:
-```tsx
-<button type="button" onClick={() => setVal(!val)}
-  style={{ width: 48, height: 28, borderRadius: 14, background: val ? 'var(--color-accent)' : 'var(--color-border)', ... }}>
-  <span style={{ position: 'absolute', top: 3, left: val ? 22 : 3, ... }} />
-</button>
-```
+For boolean fields (rates_firm, tds_applicable), use the pill-toggle pattern established in `WorkOrderFormModal`.
 
 ***
 
-## AppShell Layout (6 tabs)
+## AppShell Layout (7 tabs)
 
 ```
 ┌──────────────────────────────┐
 │  Scrollable content area       │  ← flex: 1, overflowY: auto
 │  paddingBottom: 64px           │
 │                                │
+│  <DashboardPage />             │
 │  <ClientsPage />               │
 │  <VehiclesPage />              │
 │  <WorkOrdersPage />            │
@@ -491,8 +436,9 @@ For boolean fields (rates_firm, tds_applicable), use the pill-toggle pattern est
 └──────────────────────────────┘
 ┌──────────────────────────────┐
 │  Bottom Tab Bar (fixed)        │  ← position: fixed, bottom: 0, height: 64px
-│  👤 Clients                   │  font: 10px Work Sans
-│  🚛 Vehicles                  │  icon: 18px emoji
+│  🏠 Home                      │  font: 10px Work Sans
+│  👤 Clients                   │  icon: 18px emoji
+│  🚛 Vehicles                  │
 │  📋 Work Orders               │
 │  📁 Projects                  │
 │  🧾 Invoices                  │
@@ -511,8 +457,8 @@ For boolean fields (rates_firm, tds_applicable), use the pill-toggle pattern est
 5. **Soft delete** — use `is_active = false` for master data referenced by invoices
 6. **Supabase CLI must run from repo root** — never from inside `app/`
 7. **Edge Functions location** — `supabase/functions/<function-name>/index.ts` at repo root
-8. **Edge Function env vars** — `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` auto-injected; only use `supabase secrets set` for custom third-party keys (AI API keys, etc.)
-9. **JOIN pattern in DB helpers** — use `.select('*, related_table(col)')` for FK joins; map result to flatten: `client_name: row.clients?.name ?? null, clients: undefined`
-10. **Delete-before-insert for child lists** — for 1:many relationships where the user edits the full list (e.g. work_order_items), delete all children then re-insert rather than diffing. Simpler and safe for this use case.
-11. **`NUMERIC` division in SQL for rental billing** — never use integer division for `(monthly_rent / 30) × num_days`; ensure both operands are `NUMERIC` to avoid truncation. TypeScript: use plain `number` arithmetic, never `Math.floor` on intermediate rental subtotal.
-12. **`@react-pdf/renderer` fonts must be TTF** — woff2 is not supported. Use `cdn.jsdelivr.net/fontsource/fonts/{font}@{version}/{subset}-{weight}-{style}.ttf` scheme. All font URLs must be verified in browser before committing.
+8. **Edge Function env vars** — `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` auto-injected; only use `supabase secrets set` for custom third-party keys
+9. **JOIN pattern in DB helpers** — use `.select('*, related_table(col)')` for FK joins
+10. **Delete-before-insert for child lists** — for 1:many relationships where the user edits the full list, delete all children then re-insert rather than diffing.
+11. **`NUMERIC` division in SQL for rental billing** — never use integer division for `(monthly_rent / 30) × num_days`
+12. **`@react-pdf/renderer` fonts must be TTF** — woff2 is not supported.

@@ -1,0 +1,24 @@
+{
+  "name": "SVC Billing",
+  "short_name": "SVC Billing",
+  "description": "GST billing and invoice management for SVC",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#01696f",
+  "theme_color": "#01696f",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
