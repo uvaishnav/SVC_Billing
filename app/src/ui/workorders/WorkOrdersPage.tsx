@@ -68,7 +68,7 @@ export default function WorkOrdersPage() {
   const [workOrders,   setWorkOrders]   = useState<WorkOrderWithClient[]>([])
   const [loading,      setLoading]      = useState(true)
   const [search,       setSearch]       = useState('')
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'expiring_soon' | 'expired' | 'closed'>('active')  // default: active
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'expiring_soon' | 'expired' | 'closed'>('active')
   const [modalOpen,    setModalOpen]    = useState(false)
   const [editingWO,    setEditingWO]    = useState<WorkOrderWithClient | null>(null)
   const [detailWO,     setDetailWO]     = useState<WorkOrderWithClient | null>(null)
@@ -270,7 +270,7 @@ export default function WorkOrdersPage() {
                 <WorkOrderCard
                   key={wo.id}
                   workOrder={wo}
-                  onView={setDetailWO}
+                  onTap={setDetailWO}
                   onEdit={handleEdit}
                   onClose={handleClose}
                 />
@@ -283,7 +283,7 @@ export default function WorkOrdersPage() {
       {modalOpen && (
         <WorkOrderFormModal
           workOrder={editingWO}
-          initialParsedData={parsedData}
+          prefill={parsedData}
           pdfFile={pendingPdf}
           onClose={() => { setModalOpen(false); setEditingWO(null); setParsedData(null); setPendingPdf(null) }}
           onSaved={handleSaved}
@@ -294,10 +294,8 @@ export default function WorkOrdersPage() {
         <WorkOrderDetailSheet
           workOrder={detailWO}
           onClose={() => setDetailWO(null)}
-          onEdit={() => {
-            setDetailWO(null)
-            handleEdit(detailWO)
-          }}
+          onEdit={(wo) => { setDetailWO(null); handleEdit(wo) }}
+          onRefresh={load}
         />
       )}
     </div>
