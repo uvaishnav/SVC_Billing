@@ -1,16 +1,18 @@
 import { useEffect, useState, useCallback } from 'react'
-import type { Client } from '../../db/types'
+import type { ClientWithGstins } from '../../db/types'
 import { getClients, deactivateClient } from '../../db/clientsDb'
 import { sectionTitleStyle } from '../settings/_components'
 import ClientCard from './ClientCard'
 import ClientFormModal from './ClientFormModal'
+import ClientDetailSheet from './ClientDetailSheet'
 
 export default function ClientsPage() {
-  const [clients,       setClients]       = useState<Client[]>([])
+  const [clients,       setClients]       = useState<ClientWithGstins[]>([])
   const [loading,       setLoading]       = useState(true)
   const [search,        setSearch]        = useState('')
   const [modalOpen,     setModalOpen]     = useState(false)
-  const [editingClient, setEditingClient] = useState<Client | null>(null)
+  const [editingClient, setEditingClient] = useState<ClientWithGstins | null>(null)
+  const [detailClient,  setDetailClient]  = useState<ClientWithGstins | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -23,17 +25,16 @@ export default function ClientsPage() {
 
   const filtered = clients.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
-    (c.contact_person ?? '').toLowerCase().includes(search.toLowerCase()) ||
-    (c.phone ?? '').includes(search)
+    c.gstins.some(g => g.gstin.toLowerCase().includes(search.toLowerCase()))
   )
 
-  async function handleDelete(id: number) {
-    if (!confirm('Deactivate this client?')) return
+  async function handleDeactivate(id: number) {
+    if (!confirm('Remove this client? This action cannot be undone.')) return
     await deactivateClient(id)
     load()
   }
 
-  function handleEdit(client: Client) {
+  function handleEdit(client: ClientWithGstins) {
     setEditingClient(client)
     setModalOpen(true)
   }
@@ -64,7 +65,7 @@ export default function ClientsPage() {
           <div>
             <h1 style={{ color: 'var(--color-bg)', fontSize: '22px', fontFamily: 'Playfair Display, serif', marginBottom: '2px' }}>Clients</h1>
             <p style={{ color: 'var(--color-accent)', fontSize: '13px', opacity: 0.85 }}>
-              {clients.length} client{clients.length !== 1 ? 's' : ''}
+              {clients.length} active client{clients.length !== 1 ? 's' : ''}
             </p>
           </div>
           <button
@@ -76,7 +77,7 @@ export default function ClientsPage() {
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Search by name, contact, or phone…"
+          placeholder="Search by name or GSTIN…"
           style={{ width: '100%', padding: '11px 16px', borderRadius: '10px', border: 'none', background: 'rgba(255,255,255,0.12)', color: 'var(--color-bg)', fontSize: '15px', outline: 'none', fontFamily: 'Work Sans, sans-serif', boxSizing: 'border-box' }}
         />
       </div>
@@ -102,8 +103,9 @@ export default function ClientsPage() {
                 <ClientCard
                   key={c.id}
                   client={c}
+                  onTap={setDetailClient}
                   onEdit={handleEdit}
-                  onDelete={handleDelete}
+                  onDeactivate={handleDeactivate}
                 />
               ))}
             </div>
@@ -111,11 +113,21 @@ export default function ClientsPage() {
         )}
       </div>
 
+      {/* Edit / Add modal */}
       {modalOpen && (
         <ClientFormModal
           client={editingClient}
           onClose={() => { setModalOpen(false); setEditingClient(null) }}
           onSaved={handleSaved}
+        />
+      )}
+
+      {/* Detail sheet */}
+      {detailClient && (
+        <ClientDetailSheet
+          client={detailClient}
+          onClose={() => setDetailClient(null)}
+          onEdit={(c) => { setDetailClient(null); handleEdit(c) }}
         />
       )}
     </div>
