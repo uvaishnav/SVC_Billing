@@ -1,70 +1,71 @@
-import { useEffect, useState } from 'react'
-import BusinessProfileForm from './BusinessProfileForm'
-import BankAccountsSection from './BankAccountsSection'
-import SacCodesSection from './SacCodesSection'
-import BillingDefaultsForm from './BillingDefaultsForm'
-import { getSettings } from '../../db/settingsDb'
-import type { Settings } from '../../db/types'
+import { useMemo, useState } from 'react'
+import CompanyProfileTab from './CompanyProfileTab'
+import BillingProfileTab from './BillingProfileTab'
+import NumberingTab from './NumberingTab'
+import BrandingTab from './BrandingTab'
+import BackupTab from './BackupTab'
 
-type Tab = 'profile' | 'bank' | 'sac' | 'defaults'
-const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'profile',  label: 'Business',  icon: '🏢' },
-  { id: 'bank',     label: 'Banks',     icon: '🏦' },
-  { id: 'sac',      label: 'SAC Codes', icon: '📋' },
-  { id: 'defaults', label: 'Defaults',  icon: '⚙️' },
-]
+const TABS = [
+  { id: 'company',   label: 'Company' },
+  { id: 'billing',   label: 'Billing' },
+  { id: 'numbering', label: 'Numbering' },
+  { id: 'branding',  label: 'Branding' },
+  { id: 'backup',    label: 'Backup' },
+] as const
+
+type TabId = typeof TABS[number]['id']
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('profile')
-  const [settings, setSettings] = useState<Settings | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState<TabId>('company')
 
-  useEffect(() => {
-    getSettings().then(s => { setSettings(s); setLoading(false) })
-  }, [])
+  const Content = useMemo(() => {
+    switch (activeTab) {
+      case 'company':   return CompanyProfileTab
+      case 'billing':   return BillingProfileTab
+      case 'numbering': return NumberingTab
+      case 'branding':  return BrandingTab
+      case 'backup':    return BackupTab
+    }
+  }, [activeTab])
 
   return (
-    <div style={{ minHeight: '100svh', background: 'var(--color-bg)' }}>
+    <div style={{ minHeight: '100dvh', background: 'var(--color-bg)' }}>
       {/* Top header */}
-      <div style={{ background: 'var(--color-primary)', padding: '20px 20px 0', position: 'sticky', top: 0, zIndex: 10 }}>
+      <div className="page-header" style={{ background: 'var(--color-primary)', position: 'sticky', top: 0, zIndex: 10 }}>
         <h1 style={{ color: 'var(--color-bg)', fontSize: '22px', fontFamily: 'Playfair Display, serif', marginBottom: '16px' }}>Settings</h1>
         {/* Tab bar */}
         <div style={{ display: 'flex', gap: '4px', overflowX: 'auto', paddingBottom: '0' }}>
-          {TABS.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                flex: '1', minWidth: 'max-content', padding: '10px 14px',
-                background: activeTab === tab.id ? 'var(--color-bg)' : 'transparent',
-                color: activeTab === tab.id ? 'var(--color-primary)' : 'var(--color-text-faint)',
-                fontWeight: activeTab === tab.id ? 600 : 400,
-                fontSize: '14px', border: 'none', cursor: 'pointer',
-                borderRadius: '10px 10px 0 0',
-                transition: 'all 0.15s',
-                fontFamily: 'Work Sans, sans-serif',
-              }}
-            >
-              <span style={{ marginRight: '6px' }}>{tab.icon}</span>{tab.label}
-            </button>
-          ))}
+          {TABS.map(tab => {
+            const active = activeTab === tab.id
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  flexShrink: 0,
+                  border: 'none',
+                  borderRadius: '999px',
+                  padding: '10px 14px',
+                  background: active ? 'var(--color-accent)' : 'rgba(255,255,255,0.1)',
+                  color: active ? 'var(--color-primary)' : 'var(--color-bg)',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'Work Sans, sans-serif',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                {tab.label}
+              </button>
+            )
+          })}
         </div>
       </div>
 
-      {/* Content area */}
-      <div style={{ maxWidth: '640px', margin: '0 auto', padding: '24px 20px 48px' }}>
-        {loading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '60px 0' }}>
-            <div style={{ color: 'var(--color-text-muted)', fontSize: '15px' }}>Loading settings…</div>
-          </div>
-        ) : (
-          <>
-            {activeTab === 'profile'  && <BusinessProfileForm settings={settings} onSaved={setSettings} />}
-            {activeTab === 'bank'     && <BankAccountsSection settings={settings} onSettingsUpdate={setSettings} />}
-            {activeTab === 'sac'      && <SacCodesSection settings={settings} onSettingsUpdate={setSettings} />}
-            {activeTab === 'defaults' && <BillingDefaultsForm settings={settings} onSaved={setSettings} />}
-          </>
-        )}
+      {/* Content */}
+      <div style={{ maxWidth: '640px', margin: '0 auto', padding: '20px 16px 40px' }}>
+        <Content />
       </div>
     </div>
   )
