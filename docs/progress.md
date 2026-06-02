@@ -33,30 +33,50 @@
   - ✅ `invoicePayloadTypes.ts`, `pdfUtils.ts`, `buildInvoicePayload.ts`
   - ✅ `InvoicePreviewModal.tsx`, `InvoiceActions.tsx`, `invoicePdfDb.ts`
   - ✅ `supabase/migrations/007_invoices_pdf_url.sql`
-  - ⬜ NOT YET: End-to-end test + `npm install @react-pdf/renderer` + migration 007 run
+  - ⬜ NOT YET: End-to-end test + migration 007 run
 
 ### Bug Fixes — `bugfix/pre-feature-fixes-20260531` (merged to main)
 - ✅ Bug 1–7: TDS, rental recompute, invoice identity, draft deletion, UI separation
 - ✅ PDF Fix 1–4: Header overlap, logo size, description indent, gold separator line
 
 ### Phase 4 — Polish & Analytics
-- ✅ **Dashboard / Home Tab** — complete on `feature/dashboard-home-20260601`
+- ✅ **Dashboard / Home Tab** — complete on `feature/dashboard-home-20260601` (merged to main)
   - ✅ Migration `008_dashboard_ignores.sql` — `dashboard_ignores` table
-  - ✅ `dashboardDb.ts` — `fetchKpis`, `fetchUnbilledVehicles`, `fetchVehicleRevenue`, `fetchWoFlags`, `fetchMonthlyTrend`, `ignoreUnbilledMonth`, `unignoreUnbilledMonth`
-  - ✅ `DashboardPage.tsx` — sticky header, unbilled alert, KPI strip, vehicle revenue chart, WO flags, 6-month billing trend chart
-  - ✅ `AppShell.tsx` — 🏠 Home as tab 0, default tab changed to `home`
+  - ✅ `dashboardDb.ts` — KPI, unbilled, vehicle revenue, WO flags, monthly trend queries
+  - ✅ `DashboardPage.tsx` — sticky header, unbilled alert, KPI strip, charts, WO flags
+  - ✅ `AppShell.tsx` — 🏠 Home as tab 0
   - ⬜ NOT YET: Run migration `008_dashboard_ignores.sql` in Supabase SQL Editor
-  - ⬜ NOT YET: Test on device + merge PR to main
+
+- 🔧 **PWA + Cloudflare Deployment** — code on branch `feature/pwa-cloudflare-20260602`
+  - ✅ `app/public/manifest.json` — Web App Manifest (name, icons, display: standalone, theme teal)
+  - ✅ `app/public/sw.js` — manual service worker (cache-first shell + assets, network-only Supabase)
+  - ✅ `app/public/_redirects` — Cloudflare Pages SPA routing (`/* /index.html 200`)
+  - ✅ `app/index.html` — all iOS PWA meta tags + manifest link + viewport-fit=cover
+  - ✅ `app/src/registerSW.ts` — SW registration function
+  - ✅ `app/src/main.tsx` — `registerServiceWorker()` called on app boot
+  - ✅ `app/public/icons/icon-192.png` — 192×192 PNG icon committed
+  - ⬜ NOT YET: `app/public/icons/icon-512.png` — **must be added manually** (512×512 PNG)
+  - ⬜ NOT YET: `app/public/apple-touch-icon.png` — **must be added manually** (180×180 PNG, iOS home screen)
+  - ⬜ NOT YET: PR created + merged to main
+  - ⬜ NOT YET: Cloudflare Pages project created (build root: `app/`, command: `npm run build`, output: `dist/`)
 
 ---
 
 ## What's Next
 
-### Immediate: Test & merge Dashboard PR
-1. Run migration `008_dashboard_ignores.sql` in Supabase SQL Editor
-2. Pull `feature/dashboard-home-20260601` locally, run `npm run dev`
-3. Verify: Home tab loads, KPIs show, both Chart.js charts render, unbilled alert + ignore/restore works, MoM badge shows
-4. Merge PR to main
+### Immediate: Complete PWA branch and deploy
+1. Add `app/public/icons/icon-512.png` (512×512 PNG of app logo) to the branch manually
+2. Add `app/public/apple-touch-icon.png` (180×180 PNG of app logo) to the branch manually
+3. Create PR from `feature/pwa-cloudflare-20260602` → `main` and merge
+4. Create Cloudflare Pages project:
+   - Build root: `app/`
+   - Build command: `npm run build`
+   - Output directory: `dist`
+   - Connect GitHub repo `uvaishnav/SVC_Billing`
+5. Set environment variables in Cloudflare Pages dashboard:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+6. Test "Add to Home Screen" on iOS Safari
 
 ### Also pending: Finish PDF Part 3
 1. `npm install @react-pdf/renderer` (confirm in `package.json`)
@@ -71,15 +91,15 @@
 - Duplicate invoice (copy draft from an existing final invoice)
 - AI description quality fix for rental invoices (3 planned fixes)
 - Settings: logo upload (Supabase Storage → `settings.logo_url`)
-- PWA manifest + service worker (offline shell)
 
 ---
 
 ## Known Issues / Deferred
-- [ ] `@react-pdf/renderer` must be added to `package.json` — not yet confirmed
+- [ ] `icon-512.png` and `apple-touch-icon.png` must be added manually to `app/public/` — PNG raster of app logo required; iOS ignores SVG
 - [ ] Run migration `007_invoices_pdf_url.sql` before testing PDF
 - [ ] Run migration `008_dashboard_ignores.sql` before testing dashboard ignore feature
 - [ ] `invoices` Supabase Storage bucket is private — signed URLs expire in 1 hour
 - [ ] Two PDF layout implementations exist (`InvoicePdf.tsx` + superseded `generatePdf.ts`) — `generatePdf.ts` should be deleted before merge
 - [ ] AI description quality gap for rental invoices — 3 fixes planned
 - [ ] No DB-level aggregation for WO utilisation — computed client-side from `work_order_items`
+- [ ] Cloudflare Pages env vars (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) must be set in Cloudflare dashboard before first deploy

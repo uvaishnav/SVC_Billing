@@ -5,6 +5,19 @@
 
 ---
 
+## Deployment & PWA
+
+**[2026-06-02] For hosting — chose Cloudflare Pages over Vercel.**
+The app is a pure static Vite SPA with all backend work delegated to Supabase. Vercel's main advantage (serverless/Edge functions) is unused. Cloudflare Pages offers unlimited bandwidth (vs Vercel's 100 GB/month cap), 300+ CDN PoPs including multiple Indian cities (Hyderabad, Mumbai, Bangalore) vs Vercel's single Mumbai node, and zero-friction domain setup because the domain DNS is already managed in Cloudflare.
+
+**[2026-06-02] For PWA setup — chose manual manifest + handcrafted service worker over `vite-plugin-pwa`.**
+`vite-plugin-pwa`'s auto-generated precaching would cache Supabase API responses and auth tokens, causing stale-auth bugs after deployments. A manual `sw.js` gives explicit control: cache-first for Vite hashed `/assets/` and the static shell only; network-only for all Supabase calls (any URL containing `supabase.co` or `supabase.io`). No new runtime dependencies added.
+
+**[2026-06-02] For iOS home screen icons — PNG required, SVG not used.**
+iOS Safari ignores SVG for `apple-touch-icon`. All three PWA icon files (`icon-192.png`, `icon-512.png`, `apple-touch-icon.png`) must be rasterised PNGs. The `favicon.svg` remains for desktop browser tabs where SVG is supported and renders crisply.
+
+---
+
 ## Dashboard
 
 **[2026-06-01] For dashboard navigation — chose a dedicated 🏠 Home tab (tab index 0) over embedding the dashboard inside the Invoices tab or as a pre-shell screen.**

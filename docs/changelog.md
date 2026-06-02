@@ -4,6 +4,37 @@
 
 ---
 
+## [2026-06-02] — PWA + Cloudflare Deployment Prerequisites
+
+### Added
+- `app/public/manifest.json` — Web App Manifest.
+  - `name: "SVC Billing"`, `short_name: "SVC Billing"`, `display: "standalone"`, `orientation: "portrait"`.
+  - `theme_color` + `background_color`: `#01696f` (app's primary teal).
+  - Icons: `icons/icon-192.png` (any) + `icons/icon-512.png` (any maskable).
+- `app/public/sw.js` — Manual service worker.
+  - **Install:** pre-caches shell assets (`/`, `/index.html`, `/manifest.json`, `/favicon.svg`, both PNGs, `apple-touch-icon.png`).
+  - **Activate:** cleans up old caches by version name.
+  - **Fetch strategy:** Vite `/assets/` hashed files → cache-first (safe: filename changes on each build). Navigation → network-first with `index.html` fallback (offline shell). Supabase (`supabase.co` / `supabase.io`) → always bypassed (never cached). All non-GET requests → bypassed.
+- `app/public/_redirects` — Cloudflare Pages SPA routing. Single line: `/* /index.html 200`.
+- `app/src/registerSW.ts` — `registerServiceWorker()` function. Registers `sw.js` at scope `/` on `window load`. Silent fail if browser lacks SW support.
+- `app/public/icons/icon-192.png` — 192×192 PNG icon (PWA install prompt, Android home screen).
+
+### Changed
+- `app/index.html`:
+  - Added `<link rel="manifest">`, `<meta name="apple-mobile-web-app-capable">`, `<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">`, `<meta name="apple-mobile-web-app-title">`, `<link rel="apple-touch-icon">`.
+  - Added `<meta name="theme-color" content="#01696f">`.
+  - Updated `<title>` to `SVC Billing`.
+  - Updated viewport to include `viewport-fit=cover` (needed for iPhone notch/dynamic island safe areas).
+- `app/src/main.tsx` — added `import { registerServiceWorker } from './registerSW'` and `registerServiceWorker()` call after React root mount.
+
+### Observations
+- `icon-512.png` and `apple-touch-icon.png` are referenced in manifest/index.html but not yet committed — must be added manually as PNG rasters of the app logo. iOS Safari ignores SVG for home screen icons.
+- The SW deliberately does NOT cache Supabase API calls. Auth tokens and data must always come from the network. Caching these would cause stale-login bugs after session expiry.
+- `viewport-fit=cover` is required for the app to extend behind the iPhone notch/dynamic island. The bottom tab bar already has enough `padding-bottom` to stay above the home indicator.
+- Cloudflare Pages setup: build root = `app/`, build command = `npm run build`, output = `dist`. Environment variables `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` must be set in the Cloudflare dashboard.
+
+---
+
 ## [2026-06-01] — Dashboard / Home Tab (Phase 4)
 
 ### Added
@@ -14,77 +45,41 @@
   - RLS policy: authenticated users only.
 
 - `app/src/db/dashboardDb.ts` — all dashboard data queries.
-  - `fetchKpis()` — returns `thisMonthRevenue`, `thisFyRevenue`, `activeWoCount`, `expiringWoCount` (WOs expiring within 30 days). Sources: `vehicle_billing_ledger` (billing_month / financial_year) + `work_orders`.
-  - `fetchUnbilledVehicles()` — checks active vehicles against `vehicle_billing_ledger` for current month AND previous month. Returns vehicles with missing ledger rows, plus their `isIgnored` flag from `dashboard_ignores`.
-  - `fetchVehicleRevenue(period)` — aggregates `vehicle_billing_ledger.amount` per vehicle for current month or current FY. Returns sorted descending by revenue.
-  - `fetchWoFlags()` — returns two flag types: `expiring_soon` (valid_to within 30 days) and `near_limit` (≥80% of contracted value billed). Both computed client-side from `work_orders` + `work_order_items`.
-  - `fetchMonthlyTrend()` — queries last 6 months of `vehicle_billing_ledger`, aggregates by `billing_month`, always returns all 6 months (zero-filled if no data).
-  - `ignoreUnbilledMonth(vehicleId, yearMonth)` — upserts into `dashboard_ignores`.
-  - `unignoreUnbilledMonth(vehicleId, yearMonth)` — deletes from `dashboard_ignores`.
+  - `fetchKpis()` — returns `thisMonthRevenue`, `thisFyRevenue`, `activeWoCount`, `expiringWoCount`.
+  - `fetchUnbilledVehicles()` — checks active vehicles against `vehicle_billing_ledger` for current + previous month.
+  - `fetchVehicleRevenue(period)` — aggregates per vehicle for current month or current FY.
+  - `fetchWoFlags()` — `expiring_soon` + `near_limit` flags.
+  - `fetchMonthlyTrend()` — last 6 months, zero-filled.
+  - `ignoreUnbilledMonth` / `unignoreUnbilledMonth` — upsert/delete from `dashboard_ignores`.
 
-- `app/src/ui/dashboard/DashboardPage.tsx` — full dashboard page component.
-  - **Sticky teal header** — shows current month label + unbilled count badge + refresh button.
-  - **Skeleton loader** — shimmer placeholders while data loads (4 stacked blocks).
-  - **`UnbilledAlert`** — expandable amber banner. Lists each unaccounted vehicle-month with Ignore / Restore actions. Turns green when all items are ignored.
-  - **`KpiStrip`** — 2×2 grid of KPI cards: This Month billed, This FY total, Active WOs, Expiring WOs (accent amber when count > 0).
-  - **`VehicleRevenueChart`** — Chart.js horizontal bar chart (top 10 vehicles). Toggles between current month and current FY. Unbilled vehicles shown as grey bars.
-  - **`WoFlags`** — list of WOs with expiry warnings (⏰) or utilisation warnings (📊). Red at ≤7 days / ≥95%, amber otherwise.
-  - **`MonthlyTrendChart`** — Chart.js vertical bar chart for last 6 months. Current month highlighted in gold, past months in teal. MoM delta badge (▲/▼ %) in header. Stat pills: monthly average + peak month.
-  - **`StatPill`** — reusable pill sub-component for avg/peak summary.
-
-- `app/src/ui/AppShell.tsx` — added 🏠 Home as tab index 0. Default active tab changed from `invoices` to `home`.
+- `app/src/ui/dashboard/DashboardPage.tsx` — full dashboard page.
+- `app/src/ui/AppShell.tsx` — 🏠 Home as tab 0.
 
 ### Fixed
-
-- `DashboardPage.tsx` — `inv.totalInvoiceAmount` renamed to `inv.totalAmount` to match `dashboardDb.ts` type.
-- `DashboardPage.tsx` — Restore button used undefined CSS var `--color-info`; corrected to `--color-primary`.
+- `DashboardPage.tsx` — `inv.totalInvoiceAmount` → `inv.totalAmount`.
+- `DashboardPage.tsx` — Restore button CSS var `--color-info` → `--color-primary`.
 
 ### Changed
-
-- `dashboardDb.ts` — Replaced `RecentInvoice` type + `fetchRecentInvoices()` with `MonthlyTrend` type + `fetchMonthlyTrend()`. Recent invoices are already accessible in the Invoices tab; the dashboard bottom slot is better used for a billing trend chart.
+- `dashboardDb.ts` — replaced `fetchRecentInvoices()` with `fetchMonthlyTrend()`.
 
 ### Observations
-
-- `vehicle_billing_ledger` was purpose-built during Phase 3 for analytics — all four dashboard data queries read from it directly with no joins, making the dashboard extremely fast.
-- Chart.js is loaded from CDN on first render (lazy `<script>` inject). Both charts share the same CDN script — `MonthlyTrendChart` checks for an existing `<script>` tag before injecting a second one to avoid double-loading.
-- Unbilled detection covers current + previous month only. Checking further back would produce false positives for vehicles that were legitimately idle. The ignore mechanism handles legitimate gaps.
-- The `near_limit` WO flag threshold is 80% of contracted value. This is a soft warning — the WO is not blocked, just flagged. 95% triggers red (error colour).
+- `vehicle_billing_ledger` makes all dashboard queries fast — no joins needed.
+- Chart.js loaded from CDN lazily on first Dashboard render.
 
 ---
 
 ## [2026-06-01] — Cancel Invoice + Edit Finalised Invoice + InvoicesPage Redesign
 
 ### Added
-
-- `supabase/migrations/008_decrement_billed_qty_rpc.sql` — New SQL RPC.
-  - `decrement_billed_qty(p_item_id, p_qty)` decrements `cumulative_billed_qty` on `work_order_items` by the given qty.
-  - Uses `greatest(0, ...)` clamp to prevent negative values under any prior data inconsistency.
-  - ⚠️ Must be run manually in Supabase SQL Editor before the Cancel button works.
-
-- `app/src/db/invoicesDb.ts` — `cancelInvoice(invoiceId)`.
-  - Validates invoice exists and is `status = 'final'`.
-  - Calls `_reverseBilledQty(invoiceId)` to undo quantity tracking on all affected `work_order_items`.
-  - Calls `_reverseVehicleLedger(invoiceId)` to delete the invoice's rows from `vehicle_billing_ledger`.
-  - Updates invoice `status → 'cancelled'`.
-  - Returns typed `{ ok: true } | { ok: false, error: string }`.
-
-- `app/src/db/invoicesDb.ts` — `_reverseBilledQty(invoiceId)` (private helper).
-  - Mirror image of `_updateBilledQty()` called at finalization — runs the same math in reverse.
-  - **Quantity invoices:** reads `invoice_line_items` → calls `decrement_billed_qty` RPC per item.
-  - **Rental invoices:** reads `invoice_item_distribution` → converts `allocated_amount ÷ rate` back to qty equivalent → calls `decrement_billed_qty` RPC per distribution row.
+- `supabase/migrations/008_decrement_billed_qty_rpc.sql` — `decrement_billed_qty` RPC.
+- `cancelInvoice(invoiceId)` in `invoicesDb.ts` — reverses qty + ledger, sets `status = 'cancelled'`.
+- `_reverseBilledQty` + `_reverseVehicleLedger` private helpers in `invoicesDb.ts`.
 
 ### Fixed
-
-- `app/src/ui/invoices/InvoiceWizard.tsx` — Next → button was hidden when editing a final invoice.
+- `InvoiceWizard.tsx` — Next button was hidden when editing a final invoice.
 
 ### Changed
-
-- `app/src/ui/invoices/InvoicesPage.tsx` — Full redesign: teal header, FY selector, status filter pills, VOID stamp on cancelled cards, auto-tab switch on cancel, `InvoiceCard` extracted.
-
-### Observations
-
-- The `existingStatus !== 'final'` guard in `InvoiceWizard` was subtle — it looked intentional (hiding Save Draft) but had a hidden side effect (hiding Next too).
-- Rental and quantity billing types are both handled by `_reverseBilledQty`.
+- `InvoicesPage.tsx` — full redesign: teal header, FY selector, status filter pills, VOID stamp, `InvoiceCard` extracted.
 
 ---
 
@@ -94,36 +89,35 @@
 - `deleteDraftInvoice(invoiceId)` in `invoicesDb.ts`.
 
 ### Changed
-- `InvoicesPage.tsx` — split into Drafts (top) and Finalised (bottom) sections. Two-step inline delete confirmation on draft cards.
+- `InvoicesPage.tsx` — split into Drafts (top) and Finalised (bottom) sections.
 
 ---
 
 ## [2026-06-01] — Invoice Identity Fix (Draft → Final same row)
 
 ### Fixed
-- `saveDraftInvoice()` + `finalizeInvoice()` — now accept `existingInvoiceId` to UPDATE in-place.
-- `useInvoiceDraft.ts`, `InvoiceWizard.tsx`, `InvoicesPage.tsx`, `Section4Review.tsx` — threaded `savedInvoiceId` through the entire flow.
+- `saveDraftInvoice()` + `finalizeInvoice()` — accept `existingInvoiceId` to UPDATE in-place.
 
 ---
 
-## [2026-06-01] — TDS Calculation Fixes (3 Bugs) + Invoice Rollback
+## [2026-06-01] — TDS Calculation Fixes + Invoice Rollback
 
 ### Fixed
-- TDS base corrected to `total_taxable` everywhere (`Section4Review`, `buildInvoicePayload`, `InvoiceWizard`).
+- TDS base corrected to `total_taxable` everywhere.
 
 ---
 
 ## [2026-06-01] — PDF Layout Fixes
 
 ### Fixed
-- Header overlap, logo size, description indent, gold separator row position in `InvoicePdf.tsx`.
+- Header overlap, logo size, description indent, gold separator row in `InvoicePdf.tsx`.
 
 ---
 
 ## [2026-05-31] — PDF Layout Fixes (Session 2) + Bug Fixes
 
 ### Fixed
-- Additional PDF layout fixes. TDS always 0% bug (3 root causes). Invoice date billing period auto-recalculation. PDF font CDN URLs.
+- Additional PDF layout fixes. TDS always 0% bug. Invoice date auto-recalculation. PDF font CDN URLs.
 
 ---
 
