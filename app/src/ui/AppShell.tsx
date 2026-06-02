@@ -25,9 +25,9 @@ export default function AppShell() {
   const [activeTab, setActiveTab] = useState<Tab>('home')
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100svh', background: 'var(--color-bg)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--color-bg)' }}>
 
-      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: NAV_HEIGHT }}>
+      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: `calc(${NAV_HEIGHT}px + var(--safe-bottom))` }}>
         {activeTab === 'home'       && <DashboardPage />}
         {activeTab === 'invoices'   && <InvoicesPage />}
         {activeTab === 'clients'    && <ClientsPage />}
@@ -39,12 +39,17 @@ export default function AppShell() {
 
       <nav style={{
         position: 'fixed', bottom: 0, left: 0, right: 0,
-        height: NAV_HEIGHT,
-        background: 'var(--color-primary)',
-        borderTop: '1px solid rgba(200,169,106,0.2)',
+        height: `calc(${NAV_HEIGHT}px + var(--safe-bottom))`,
+        paddingBottom: 'var(--safe-bottom)',
+        paddingLeft: 'var(--safe-left)',
+        paddingRight: 'var(--safe-right)',
+        background: 'var(--nav-bg)',
+        borderTop: '1px solid var(--color-border)',
+        backdropFilter: 'blur(18px)',
         display: 'flex',
         zIndex: 100,
         overflowX: 'auto',
+        boxShadow: '0 -8px 24px rgba(20,14,8,0.12)',
       }}>
         {TABS.map(tab => {
           const isActive = activeTab === tab.id
@@ -54,20 +59,21 @@ export default function AppShell() {
               onClick={() => setActiveTab(tab.id)}
               style={{
                 flex: 1,
-                minWidth: 48,
+                minWidth: 64,
                 display: 'flex', flexDirection: 'column',
                 alignItems: 'center', justifyContent: 'center',
-                gap: '2px',
+                gap: '4px',
                 border: 'none',
                 background: 'transparent',
                 cursor: 'pointer',
-                padding: '8px 0',
+                padding: '6px 4px',
                 position: 'relative',
+                color: isActive ? 'var(--color-accent)' : 'var(--color-text-muted)',
               }}
             >
               {isActive && (
                 <span style={{
-                  position: 'absolute', top: 0, left: '50%',
+                  position: 'absolute', top: 4, left: '50%',
                   transform: 'translateX(-50%)',
                   width: '32px', height: '2px',
                   background: 'var(--color-accent)',
@@ -76,9 +82,9 @@ export default function AppShell() {
               )}
               <span style={{ fontSize: '18px', lineHeight: 1 }}>{tab.icon}</span>
               <span style={{
-                fontSize: '10px',
+                fontSize: '11px',
                 fontWeight: isActive ? 600 : 400,
-                color: isActive ? 'var(--color-accent)' : 'var(--color-text-faint)',
+                color: isActive ? 'var(--color-accent)' : 'var(--color-text-muted)',
                 fontFamily: 'Work Sans, sans-serif',
                 letterSpacing: '0.2px',
               }}>{tab.label}</span>

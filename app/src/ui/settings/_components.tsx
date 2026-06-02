@@ -4,7 +4,7 @@ import React from 'react'
 export const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '14px 16px',
-  borderRadius: '12px',
+  borderRadius: 'var(--radius-md)',
   border: '1.5px solid var(--color-border)',
   background: 'var(--color-surface)',
   color: 'var(--color-text)',
@@ -26,8 +26,9 @@ export const labelStyle: React.CSSProperties = {
 export const cardStyle: React.CSSProperties = {
   background: 'var(--color-surface-2)',
   border: '1.5px solid var(--color-border)',
-  borderRadius: '16px',
+  borderRadius: 'var(--radius-md)',
   padding: '16px',
+  boxShadow: 'var(--shadow-sm)',
 }
 
 export const sectionTitleStyle: React.CSSProperties = {
@@ -81,7 +82,7 @@ export function PrimaryButton({ children, onClick, disabled, type = 'button' }: 
       type={type} onClick={onClick} disabled={disabled}
       style={{
         width: '100%', padding: '16px', background: disabled ? 'var(--color-text-faint)' : 'var(--color-primary)',
-        color: 'var(--color-bg)', fontWeight: 600, fontSize: '16px',
+        color: 'var(--color-text-inverse)', fontWeight: 600, fontSize: '16px',
         borderRadius: '12px', border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
         fontFamily: 'Work Sans, sans-serif', transition: 'opacity 0.15s',
       }}

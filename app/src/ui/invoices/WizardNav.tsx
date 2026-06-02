@@ -26,9 +26,13 @@ export default function WizardNav({
   return (
     <div style={{
       display: 'flex',
-      background: 'var(--color-surface)',
+      background: 'var(--color-surface-2)',
       borderBottom: '1.5px solid var(--color-border)',
       position: 'sticky', top: 0, zIndex: 50,
+      paddingTop: 'var(--safe-top)',
+      paddingLeft: 'var(--safe-left)',
+      paddingRight: 'var(--safe-right)',
+      backdropFilter: 'blur(12px)',
     }}>
       {SECTIONS.map(sec => {
         const isActive   = activeSection === sec.id
@@ -49,8 +53,8 @@ export default function WizardNav({
               flex: 1,
               display: 'flex', flexDirection: 'column',
               alignItems: 'center', justifyContent: 'center',
-              gap: '3px',
-              padding: '10px 4px',
+              gap: '4px',
+              padding: '10px 6px',
               border: 'none',
               background: isActive ? 'var(--color-surface-offset)' : 'transparent',
               cursor: canNav ? 'pointer' : 'default',

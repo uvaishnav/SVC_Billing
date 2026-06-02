@@ -31,6 +31,8 @@ export default function WorkOrderDetailSheet({ workOrder: wo, onClose, onEdit }:
   const [items,          setItems]          = useState<WorkOrderItem[]>([])
   const [pdfLoading,     setPdfLoading]     = useState(false)
   const [pdfError,       setPdfError]       = useState<string | null>(null)
+  const [pdfUrl,         setPdfUrl]         = useState<string | null>(null)
+  const [showPdf,        setShowPdf]        = useState(false)
   const status = STATUS_CONFIG[wo.status] ?? STATUS_CONFIG.active
 
   useEffect(() => {
@@ -46,7 +48,8 @@ export default function WorkOrderDetailSheet({ workOrder: wo, onClose, onEdit }:
     setPdfError(null)
     try {
       const url = await getWorkOrderPdfSignedUrl(wo.original_pdf_url)
-      window.open(url, '_blank', 'noopener,noreferrer')
+      setPdfUrl(url)
+      setShowPdf(true)
     } catch {
       setPdfError('Could not open PDF. Please try again.')
     } finally {
@@ -72,9 +75,9 @@ export default function WorkOrderDetailSheet({ workOrder: wo, onClose, onEdit }:
                   <span style={{ fontSize: '12px', padding: '2px 8px', borderRadius: '20px', background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.7)' }}>📎 PDF</span>
                 )}
               </div>
-              <h2 style={{ color: 'var(--color-bg)', fontSize: '18px', fontFamily: 'Playfair Display, serif', lineHeight: 1.3 }}>{wo.subject}</h2>
+              <h2 style={{ color: 'var(--color-text-inverse)', fontSize: '18px', fontFamily: 'Playfair Display, serif', lineHeight: 1.3 }}>{wo.subject}</h2>
             </div>
-            <button type="button" onClick={onClose} style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.15)', color: 'var(--color-bg)', fontSize: '18px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
+            <button type="button" onClick={onClose} style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.15)', color: 'var(--color-text-inverse)', fontSize: '18px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
           </div>
         </div>
 
@@ -195,6 +198,63 @@ export default function WorkOrderDetailSheet({ workOrder: wo, onClose, onEdit }:
           <button type="button" onClick={() => onEdit(wo)} style={{ flex: 1, minWidth: '80px', padding: '16px', background: 'var(--color-accent)', color: 'var(--color-primary)', fontWeight: 700, fontSize: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontFamily: 'Work Sans, sans-serif' }}>Edit</button>
         </div>
       </div>
+
+      {showPdf && pdfUrl && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(20,14,8,0.75)', zIndex: 400, display: 'flex', flexDirection: 'column' }}>
+          <div style={{
+            background: 'var(--topbar-bg)',
+            padding: 'calc(12px + var(--safe-top)) calc(16px + var(--safe-right)) 12px calc(16px + var(--safe-left))',
+            display: 'flex', alignItems: 'center', gap: 12,
+            borderBottom: '1px solid rgba(200,169,106,0.18)',
+            backdropFilter: 'blur(12px)',
+          }}>
+            <button
+              type="button"
+              onClick={() => { setShowPdf(false); setPdfUrl(null); }}
+              style={{
+                background: 'rgba(255,255,255,0.15)',
+                border: 'none',
+                borderRadius: 10,
+                color: '#fff',
+                fontSize: 18,
+                width: 40,
+                height: 40,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              aria-label="Close PDF"
+            >
+              ✕
+            </button>
+            <div style={{ flex: 1 }}>
+              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>Work Order PDF</div>
+              <div style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>{wo.wo_reference ?? 'Work Order'}</div>
+            </div>
+            <a
+              href={pdfUrl}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                background: 'rgba(255,255,255,0.15)',
+                border: '1px solid rgba(255,255,255,0.3)',
+                borderRadius: 10,
+                color: '#fff',
+                fontSize: 12,
+                padding: '8px 14px',
+                textDecoration: 'none',
+                fontWeight: 600,
+              }}
+            >
+              Open
+            </a>
+          </div>
+          <div style={{ flex: 1, paddingBottom: 'var(--safe-bottom)', background: 'var(--color-bg)' }}>
+            <iframe title="Work order PDF" src={pdfUrl} style={{ width: '100%', height: '100%', border: 'none' }} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

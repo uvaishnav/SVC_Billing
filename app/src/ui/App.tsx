@@ -21,8 +21,15 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F5F1E8] flex items-center justify-center">
-        <p className="text-[#7A6A58]">Loading…</p>
+      <div style={{
+        minHeight: '100dvh',
+        background: 'var(--color-bg)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 'calc(24px + var(--safe-top)) calc(24px + var(--safe-right)) calc(24px + var(--safe-bottom)) calc(24px + var(--safe-left))',
+      }}>
+        <p style={{ color: 'var(--color-text-muted)' }}>Loading…</p>
       </div>
     )
   }

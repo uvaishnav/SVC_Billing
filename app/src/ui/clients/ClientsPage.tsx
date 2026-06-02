@@ -54,26 +54,32 @@ export default function ClientsPage() {
     <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
 
       {/* Sticky header */}
-      <div style={{ background: 'var(--color-primary)', padding: '20px 20px 16px', position: 'sticky', top: 0, zIndex: 10 }}>
+      <div style={{
+        background: 'var(--topbar-bg)',
+        padding: 'calc(14px + var(--safe-top)) calc(20px + var(--safe-right)) 16px calc(20px + var(--safe-left))',
+        position: 'sticky', top: 0, zIndex: 10,
+        backdropFilter: 'blur(12px)',
+        borderBottom: '1px solid rgba(200,169,106,0.18)',
+      }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
           <div>
-            <h1 style={{ color: 'var(--color-bg)', fontSize: '22px', fontFamily: 'Playfair Display, serif', marginBottom: '2px' }}>Clients</h1>
+            <h1 style={{ color: 'var(--color-text-inverse)', fontSize: '22px', fontFamily: 'Playfair Display, serif', marginBottom: '2px' }}>Clients</h1>
             <p style={{ color: 'var(--color-accent)', fontSize: '13px', opacity: 0.85 }}>
               {clients.length} active client{clients.length !== 1 ? 's' : ''}
             </p>
           </div>
-          <button onClick={handleAdd} style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--color-accent)', color: 'var(--color-primary)', fontSize: '24px', fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.25)', flexShrink: 0 }}>+</button>
+          <button onClick={handleAdd} style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--color-accent)', color: 'var(--color-primary)', fontSize: '24px', fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)', flexShrink: 0 }}>+</button>
         </div>
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search by name or GSTIN…"
-          style={{ width: '100%', padding: '11px 16px', borderRadius: '10px', border: 'none', background: 'rgba(255,255,255,0.12)', color: 'var(--color-bg)', fontSize: '15px', outline: 'none', fontFamily: 'Work Sans, sans-serif', boxSizing: 'border-box' }}
+          style={{ width: '100%', padding: '11px 16px', borderRadius: '10px', border: 'none', background: 'rgba(255,255,255,0.12)', color: 'var(--color-text-inverse)', fontSize: '15px', outline: 'none', fontFamily: 'Work Sans, sans-serif', boxSizing: 'border-box' }}
         />
       </div>
 
       {/* Content */}
-      <div style={{ maxWidth: '640px', margin: '0 auto', padding: '20px 16px 32px' }}>
+      <div style={{ maxWidth: '640px', margin: '0 auto', padding: '20px calc(16px + var(--safe-right)) 32px calc(16px + var(--safe-left))' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--color-text-muted)', fontSize: '15px' }}>Loading clients…</div>
         ) : filtered.length === 0 ? (

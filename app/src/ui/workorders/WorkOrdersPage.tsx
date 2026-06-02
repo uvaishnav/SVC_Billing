@@ -190,10 +190,16 @@ export default function WorkOrdersPage() {
       />
 
       {/* Sticky header */}
-      <div style={{ background: 'var(--color-primary)', padding: '20px 20px 0', position: 'sticky', top: 0, zIndex: 10 }}>
+      <div style={{
+        background: 'var(--topbar-bg)',
+        padding: 'calc(14px + var(--safe-top)) calc(20px + var(--safe-right)) 8px calc(20px + var(--safe-left))',
+        position: 'sticky', top: 0, zIndex: 10,
+        backdropFilter: 'blur(12px)',
+        borderBottom: '1px solid rgba(200,169,106,0.18)',
+      }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
           <div>
-            <h1 style={{ color: 'var(--color-bg)', fontSize: '22px', fontFamily: 'Playfair Display, serif', marginBottom: '2px' }}>Work Orders</h1>
+            <h1 style={{ color: 'var(--color-text-inverse)', fontSize: '22px', fontFamily: 'Playfair Display, serif', marginBottom: '2px' }}>Work Orders</h1>
             <p style={{ color: 'var(--color-accent)', fontSize: '13px', opacity: 0.85 }}>
               {workOrders.filter(wo => wo.status === 'active' || wo.status === 'expiring_soon').length} active
             </p>
@@ -203,14 +209,14 @@ export default function WorkOrdersPage() {
               type="button"
               onClick={handleUploadClick}
               title="Upload WO PDF"
-              style={{ height: '44px', padding: '0 14px', borderRadius: '22px', background: 'rgba(255,255,255,0.12)', color: 'var(--color-bg)', fontSize: '13px', fontWeight: 600, border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, fontFamily: 'Work Sans, sans-serif' }}
+              style={{ height: '44px', padding: '0 14px', borderRadius: '22px', background: 'rgba(255,255,255,0.12)', color: 'var(--color-text-inverse)', fontSize: '13px', fontWeight: 600, border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, fontFamily: 'Work Sans, sans-serif' }}
             >
               <span style={{ fontSize: '16px' }}>📎</span>
               Upload PDF
             </button>
             <button
               onClick={handleAdd}
-              style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--color-accent)', color: 'var(--color-primary)', fontSize: '24px', fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.25)', flexShrink: 0 }}
+              style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--color-accent)', color: 'var(--color-primary)', fontSize: '24px', fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)', flexShrink: 0 }}
             >+</button>
           </div>
         </div>
@@ -219,7 +225,7 @@ export default function WorkOrdersPage() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search by WO ref, subject, client…"
-          style={{ width: '100%', padding: '11px 16px', borderRadius: '10px', border: 'none', background: 'rgba(255,255,255,0.12)', color: 'var(--color-bg)', fontSize: '15px', outline: 'none', fontFamily: 'Work Sans, sans-serif', boxSizing: 'border-box', marginBottom: '12px' }}
+          style={{ width: '100%', padding: '11px 16px', borderRadius: '10px', border: 'none', background: 'rgba(255,255,255,0.12)', color: 'var(--color-text-inverse)', fontSize: '15px', outline: 'none', fontFamily: 'Work Sans, sans-serif', boxSizing: 'border-box', marginBottom: '12px' }}
         />
 
         {/* Status filter pills */}
@@ -248,7 +254,7 @@ export default function WorkOrdersPage() {
       </div>
 
       {/* Content */}
-      <div style={{ maxWidth: '640px', margin: '0 auto', padding: '20px 16px 32px' }}>
+      <div style={{ maxWidth: '640px', margin: '0 auto', padding: '20px calc(16px + var(--safe-right)) 32px calc(16px + var(--safe-left))' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--color-text-muted)', fontSize: '15px' }}>Loading work orders…</div>
         ) : filtered.length === 0 ? (

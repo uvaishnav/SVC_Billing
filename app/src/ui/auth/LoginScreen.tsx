@@ -17,8 +17,15 @@ export default function LoginScreen() {
   }
 
   return (
-    <div style={{ minHeight: '100svh', background: 'var(--color-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-      <div style={{ width: '100%', maxWidth: '400px', background: 'var(--color-surface-2)', borderRadius: '20px', boxShadow: '0 4px 32px rgba(59,42,31,0.12)', padding: '40px 32px' }}>
+    <div style={{
+      minHeight: '100dvh',
+      background: 'var(--color-bg)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 'calc(24px + var(--safe-top)) calc(24px + var(--safe-right)) calc(24px + var(--safe-bottom)) calc(24px + var(--safe-left))',
+    }}>
+      <div style={{ width: '100%', maxWidth: '400px', background: 'var(--color-surface-2)', borderRadius: '20px', boxShadow: 'var(--shadow-md)', padding: '40px 32px' }}>
 
         {/* Brand header */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
@@ -64,7 +71,7 @@ export default function LoginScreen() {
 
           <button
             type="submit" disabled={loading}
-            style={{ width: '100%', padding: '16px', background: loading ? 'var(--color-text-muted)' : 'var(--color-primary)', color: 'var(--color-bg)', fontWeight: 600, fontSize: '16px', borderRadius: '12px', border: 'none', cursor: loading ? 'not-allowed' : 'pointer', transition: 'opacity 0.15s' }}
+            style={{ width: '100%', padding: '16px', background: loading ? 'var(--color-text-muted)' : 'var(--color-primary)', color: 'var(--color-text-inverse)', fontWeight: 600, fontSize: '16px', borderRadius: '12px', border: 'none', cursor: loading ? 'not-allowed' : 'pointer', transition: 'opacity 0.15s' }}
           >
             {loading ? 'Signing in…' : 'Sign In'}
           </button>

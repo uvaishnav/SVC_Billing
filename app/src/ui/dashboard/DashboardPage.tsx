@@ -103,7 +103,7 @@ function VehicleRevenueChart({ data, period, onPeriodChange }: {
   const chartHeight = Math.max(200, Math.min(data.length, 10) * 42 + 32)
 
   return (
-    <div style={{ background: 'var(--color-surface)', borderRadius: 12, padding: '16px 16px 12px', boxShadow: '0 1px 4px rgba(59,42,31,0.07)' }}>
+    <div style={{ background: 'var(--color-surface)', borderRadius: 12, padding: '16px 16px 12px', boxShadow: 'var(--shadow-sm)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', fontFamily: 'Playfair Display, serif' }}>Vehicle Revenue</span>
         <div style={{ display: 'flex', gap: 4 }}>
@@ -219,7 +219,7 @@ function MonthlyTrendChart({ data }: { data: MonthlyTrend[] }) {
   const momDiff  = prev && prev.total > 0 ? ((current.total - prev.total) / prev.total) * 100 : null
 
   return (
-    <div style={{ background: 'var(--color-surface)', borderRadius: 12, padding: '16px 16px 14px', boxShadow: '0 1px 4px rgba(59,42,31,0.07)' }}>
+    <div style={{ background: 'var(--color-surface)', borderRadius: 12, padding: '16px 16px 14px', boxShadow: 'var(--shadow-sm)' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', fontFamily: 'Playfair Display, serif' }}>6-Month Billing Trend</span>
@@ -372,7 +372,7 @@ function KpiStrip({ kpis }: { kpis: KpiData | null }) {
       {items.map(item => (
         <div key={item.label} style={{
           background: 'var(--color-surface)', borderRadius: 10, padding: '12px 14px',
-          boxShadow: '0 1px 4px rgba(59,42,31,0.07)',
+          boxShadow: 'var(--shadow-sm)',
           borderLeft: item.accent ? `3px solid ${item.accent}` : '3px solid transparent',
         }}>
           <div style={{ fontSize: 11, color: 'var(--color-text-faint)', marginBottom: 2, letterSpacing: '0.3px' }}>{item.label}</div>
@@ -392,7 +392,7 @@ function KpiStrip({ kpis }: { kpis: KpiData | null }) {
 function WoFlags({ flags }: { flags: WoFlag[] }) {
   if (flags.length === 0) return null
   return (
-    <div style={{ background: 'var(--color-surface)', borderRadius: 12, padding: '14px 14px 10px', boxShadow: '0 1px 4px rgba(59,42,31,0.07)' }}>
+    <div style={{ background: 'var(--color-surface)', borderRadius: 12, padding: '14px 14px 10px', boxShadow: 'var(--shadow-sm)' }}>
       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', fontFamily: 'Playfair Display, serif', marginBottom: 10 }}>Work Order Flags</div>
       {flags.map(f => {
         const isExpiring = f.flagType === 'expiring_soon'
@@ -478,8 +478,11 @@ export default function DashboardPage() {
     <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
       {/* Sticky header */}
       <div style={{
-        background: 'var(--color-primary)', padding: '20px 20px 16px',
+        background: 'var(--topbar-bg)',
+        padding: 'calc(14px + var(--safe-top)) calc(20px + var(--safe-right)) 16px calc(20px + var(--safe-left))',
         position: 'sticky', top: 0, zIndex: 10,
+        backdropFilter: 'blur(12px)',
+        borderBottom: '1px solid rgba(200,169,106,0.18)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
@@ -503,7 +506,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div style={{ padding: '14px 14px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ padding: '14px calc(14px + var(--safe-right)) 20px calc(14px + var(--safe-left))', display: 'flex', flexDirection: 'column', gap: 14 }}>
         {/* Skeleton */}
         {loading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

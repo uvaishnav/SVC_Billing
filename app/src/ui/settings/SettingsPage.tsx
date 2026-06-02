@@ -26,8 +26,14 @@ export default function SettingsPage() {
   return (
     <div style={{ minHeight: '100svh', background: 'var(--color-bg)' }}>
       {/* Top header */}
-      <div style={{ background: 'var(--color-primary)', padding: '20px 20px 0', position: 'sticky', top: 0, zIndex: 10 }}>
-        <h1 style={{ color: 'var(--color-bg)', fontSize: '22px', fontFamily: 'Playfair Display, serif', marginBottom: '16px' }}>Settings</h1>
+      <div style={{
+        background: 'var(--topbar-bg)',
+        padding: 'calc(14px + var(--safe-top)) calc(20px + var(--safe-right)) 8px calc(20px + var(--safe-left))',
+        position: 'sticky', top: 0, zIndex: 10,
+        backdropFilter: 'blur(12px)',
+        borderBottom: '1px solid rgba(200,169,106,0.18)',
+      }}>
+        <h1 style={{ color: 'var(--color-text-inverse)', fontSize: '22px', fontFamily: 'Playfair Display, serif', marginBottom: '16px' }}>Settings</h1>
         {/* Tab bar */}
         <div style={{ display: 'flex', gap: '4px', overflowX: 'auto', paddingBottom: '0' }}>
           {TABS.map(tab => (
@@ -36,10 +42,10 @@ export default function SettingsPage() {
               onClick={() => setActiveTab(tab.id)}
               style={{
                 flex: '1', minWidth: 'max-content', padding: '10px 14px',
-                background: activeTab === tab.id ? 'var(--color-bg)' : 'transparent',
-                color: activeTab === tab.id ? 'var(--color-primary)' : 'var(--color-text-faint)',
+                background: activeTab === tab.id ? 'rgba(255,255,255,0.18)' : 'transparent',
+                color: activeTab === tab.id ? 'var(--color-text-inverse)' : 'rgba(255,255,255,0.65)',
                 fontWeight: activeTab === tab.id ? 600 : 400,
-                fontSize: '14px', border: 'none', cursor: 'pointer',
+                fontSize: '14px', border: '1px solid transparent', cursor: 'pointer',
                 borderRadius: '10px 10px 0 0',
                 transition: 'all 0.15s',
                 fontFamily: 'Work Sans, sans-serif',
@@ -52,7 +58,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Content area */}
-      <div style={{ maxWidth: '640px', margin: '0 auto', padding: '24px 20px 48px' }}>
+      <div style={{ maxWidth: '640px', margin: '0 auto', padding: '24px calc(20px + var(--safe-right)) 48px calc(20px + var(--safe-left))' }}>
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '60px 0' }}>
             <div style={{ color: 'var(--color-text-muted)', fontSize: '15px' }}>Loading settings…</div>

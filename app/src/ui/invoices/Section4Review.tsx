@@ -71,7 +71,7 @@ function PdfPreviewModal({ url, onClose }: { url: string; onClose: () => void })
             style={{
               padding: '7px 14px', borderRadius: 8,
               background: 'var(--color-primary)',
-              color: 'var(--color-bg)',
+              color: 'var(--color-text-inverse)',
               fontWeight: 600, fontSize: 13,
               textDecoration: 'none', display: 'inline-block',
             }}

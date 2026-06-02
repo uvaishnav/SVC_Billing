@@ -5,7 +5,7 @@
  * Triggers PDF upload to Supabase Storage on first open (lazy, once per invoice).
  */
 import { useEffect, useState, useCallback } from 'react';
-import { PDFViewer, PDFDownloadLink, pdf } from '@react-pdf/renderer';
+import { pdf } from '@react-pdf/renderer';
 import { InvoicePdf } from './InvoicePdf';
 import { buildInvoicePayload } from './buildInvoicePayload';
 import { uploadInvoicePdf } from '../../../db/invoicePdfDb';
@@ -25,6 +25,8 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props
   const [errorMsg, setErrorMsg] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploaded, setUploaded] = useState(false);
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [viewerLoading, setViewerLoading] = useState(false);
 
   useEffect(() => {
     buildInvoicePayload(invoiceId)
@@ -50,6 +52,37 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props
       .finally(() => setUploading(false));
   }, [stage, payload, uploaded, uploading, invoiceId, invoiceNumber]);
 
+  useEffect(() => {
+    if (stage !== 'ready' || !payload) return;
+    let isActive = true;
+    setViewerLoading(true);
+    pdf(<InvoicePdf {...payload} />)
+      .toBlob()
+      .then((blob) => {
+        if (!isActive) return;
+        const url = URL.createObjectURL(blob);
+        setViewerUrl((prev) => {
+          if (prev) URL.revokeObjectURL(prev);
+          return url;
+        });
+      })
+      .catch((e) => {
+        if (!isActive) return;
+        setErrorMsg(e?.message ?? 'Failed to render PDF preview.');
+        setStage('error');
+      })
+      .finally(() => {
+        if (isActive) setViewerLoading(false);
+      });
+    return () => { isActive = false; };
+  }, [stage, payload]);
+
+  useEffect(() => {
+    return () => {
+      if (viewerUrl) URL.revokeObjectURL(viewerUrl);
+    };
+  }, [viewerUrl]);
+
   const handleShare = useCallback(async () => {
     if (!payload) return;
     try {
@@ -72,7 +105,13 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props
     }
   }, [payload, invoiceNumber]);
 
-  const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
+  const handleDownload = useCallback(() => {
+    if (!viewerUrl) return;
+    const a = document.createElement('a');
+    a.href = viewerUrl;
+    a.download = `${invoiceNumber.replace(/\//g, '_')}.pdf`;
+    a.click();
+  }, [viewerUrl, invoiceNumber]);
 
   return (
     <div
@@ -88,12 +127,14 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props
       {/* Header bar */}
       <div
         style={{
-          background: 'var(--color-primary)',
-          padding: '14px 16px',
+          background: 'var(--topbar-bg)',
+          padding: 'calc(12px + var(--safe-top)) calc(16px + var(--safe-right)) 12px calc(16px + var(--safe-left))',
           display: 'flex',
           alignItems: 'center',
           gap: 12,
           flexShrink: 0,
+          borderBottom: '1px solid rgba(200,169,106,0.18)',
+          backdropFilter: 'blur(12px)',
         }}
       >
         <button
@@ -125,9 +166,10 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props
         )}
         {stage === 'ready' && payload && (
           <>
-            <PDFDownloadLink
-              document={<InvoicePdf {...payload} />}
-              fileName={`${invoiceNumber.replace(/\//g, '_')}.pdf`}
+            <button
+              type="button"
+              onClick={handleDownload}
+              disabled={!viewerUrl}
               style={{
                 background: 'rgba(255,255,255,0.15)',
                 border: '1px solid rgba(255,255,255,0.3)',
@@ -135,12 +177,11 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props
                 color: '#fff',
                 fontSize: 12,
                 padding: '6px 14px',
-                textDecoration: 'none',
-                fontFamily: 'Inter, sans-serif',
+                cursor: 'pointer',
               }}
             >
-              {({ loading }) => (loading ? 'Preparing…' : '⬇ Download')}
-            </PDFDownloadLink>
+              {viewerUrl ? '⬇ Download' : 'Preparing…'}
+            </button>
             <button
               type="button"
               onClick={handleShare}
@@ -161,7 +202,7 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props
       </div>
 
       {/* Content area */}
-      <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+      <div style={{ flex: 1, overflow: 'hidden', position: 'relative', paddingBottom: 'var(--safe-bottom)' }}>
         {stage === 'loading' && (
           <div
             style={{
@@ -199,29 +240,24 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props
         )}
 
         {stage === 'ready' && payload && (
-          isDesktop ? (
-            <PDFViewer width="100%" height="100%" style={{ border: 'none' }}>
-              <InvoicePdf {...payload} />
-            </PDFViewer>
-          ) : (
+          viewerLoading || !viewerUrl ? (
             <div
               style={{
                 display: 'flex',
-                flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
                 height: '100%',
-                gap: 16,
-                padding: 24,
-                textAlign: 'center',
+                color: '#fff',
+                fontSize: 14,
+                flexDirection: 'column',
+                gap: 12,
               }}
             >
-              <div style={{ fontSize: 48 }}>📄</div>
-              <div style={{ color: '#fff', fontSize: 15, fontWeight: 600 }}>Invoice Ready</div>
-              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>
-                Use the Download or Share buttons above to save or send this invoice.
-              </div>
+              <div style={{ fontSize: 28 }}>⏳</div>
+              <div>Rendering PDF preview…</div>
             </div>
+          ) : (
+            <iframe title="Invoice PDF" src={viewerUrl} style={{ width: '100%', height: '100%', border: 'none', background: 'var(--color-bg)' }} />
           )
         )}
       </div>

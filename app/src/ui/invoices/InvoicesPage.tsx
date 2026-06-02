@@ -67,9 +67,7 @@ function DeleteDraftButton({ invoiceId, onDeleted }: { invoiceId: number; onDele
 
   return (
     <button type="button" onClick={handleDelete} title="Delete draft"
-      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', borderRadius: 6, color: 'rgba(255,255,255,0.45)', fontSize: 16, lineHeight: 1, transition: 'color 150ms' }}
-      onMouseEnter={e => (e.currentTarget.style.color = '#ff6b6b')}
-      onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.45)')}
+      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px 8px', borderRadius: 8, color: 'rgba(255,255,255,0.55)', fontSize: 16, lineHeight: 1, transition: 'color 150ms' }}
     >🗑️</button>
   )
 }
@@ -106,9 +104,7 @@ function CancelInvoiceButton({ invoiceId, onCancelled }: { invoiceId: number; on
 
   return (
     <button type="button" onClick={e => { e.stopPropagation(); setConfirming(true) }}
-      style={{ width: '100%', padding: '7px 0', borderRadius: 6, border: '1px solid var(--color-error)', background: 'transparent', color: 'var(--color-error)', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'background 150ms, color 150ms' }}
-      onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-error)'; e.currentTarget.style.color = '#fff' }}
-      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-error)' }}
+      style={{ width: '100%', padding: '9px 0', borderRadius: 8, border: '1px solid var(--color-error)', background: 'transparent', color: 'var(--color-error)', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'background 150ms, color 150ms' }}
     >🚫 Cancel Invoice</button>
   )
 }
@@ -324,7 +320,14 @@ export default function InvoicesPage() {
   if (showWizard) {
     return (
       <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 16px 12px', borderBottom: '1px solid var(--color-border)', background: 'var(--color-surface)', position: 'sticky', top: 0, zIndex: 60 }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: 'calc(12px + var(--safe-top)) calc(16px + var(--safe-right)) 12px calc(16px + var(--safe-left))',
+          borderBottom: '1px solid var(--color-border)',
+          background: 'var(--color-surface-2)',
+          position: 'sticky', top: 0, zIndex: 60,
+          backdropFilter: 'blur(12px)',
+        }}>
           <button type="button" onClick={closeWizard} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--color-text-muted)', padding: 0 }}>←</button>
           <h2 style={{ fontSize: 18, flex: 1 }}>
             {editStatus === 'final' ? 'Edit Finalised Invoice' : editDraft ? 'Edit Draft Invoice' : 'New Invoice'}
@@ -346,12 +349,18 @@ export default function InvoicesPage() {
     <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
 
       {/* ── Sticky teal header (mirrors WorkOrdersPage) ── */}
-      <div style={{ background: 'var(--color-primary)', padding: '20px 16px 0', position: 'sticky', top: 0, zIndex: 10 }}>
+      <div style={{
+        background: 'var(--topbar-bg)',
+        padding: 'calc(14px + var(--safe-top)) calc(16px + var(--safe-right)) 8px calc(16px + var(--safe-left))',
+        position: 'sticky', top: 0, zIndex: 10,
+        backdropFilter: 'blur(12px)',
+        borderBottom: '1px solid rgba(200,169,106,0.18)',
+      }}>
 
         {/* Title row */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div>
-            <h1 style={{ color: 'var(--color-bg)', fontSize: 22, fontFamily: 'Playfair Display, serif', marginBottom: 2 }}>Invoices</h1>
+            <h1 style={{ color: 'var(--color-text-inverse)', fontSize: 22, fontFamily: 'Playfair Display, serif', marginBottom: 2 }}>Invoices</h1>
             <p style={{ color: 'var(--color-accent)', fontSize: 13, opacity: 0.85 }}>
               FY {selectedFY} &bull; {counts.final} finalised
             </p>
@@ -359,7 +368,7 @@ export default function InvoicesPage() {
           <button
             type="button"
             onClick={() => { setEditDraft(undefined); setEditStatus(undefined); setEditInvoiceId(null); setShowWizard(true) }}
-            style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--color-accent)', color: 'var(--color-primary)', fontSize: 24, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.25)', flexShrink: 0 }}
+            style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--color-accent)', color: 'var(--color-primary)', fontSize: 24, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)', flexShrink: 0 }}
           >+</button>
         </div>
 
@@ -415,7 +424,7 @@ export default function InvoicesPage() {
       </div>
 
       {/* ── Content ── */}
-      <div style={{ maxWidth: 640, margin: '0 auto', padding: '16px 16px 32px' }}>
+      <div style={{ maxWidth: 640, margin: '0 auto', padding: '16px calc(16px + var(--safe-right)) 32px calc(16px + var(--safe-left))' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--color-text-muted)', fontSize: 15 }}>Loading invoices…</div>
         ) : filtered.length === 0 ? (

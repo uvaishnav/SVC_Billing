@@ -98,11 +98,12 @@ export default function InvoiceWizard({
           Next → is ALWAYS shown so the user can navigate through all sections. */}
       {activeSection < 4 && (
         <div style={{
-          position: 'sticky', bottom: 64, left: 0, right: 0,
-          padding: '10px 16px',
-          background: 'var(--color-bg)',
+          position: 'sticky', bottom: 'calc(var(--nav-height) + var(--safe-bottom))', left: 0, right: 0,
+          padding: '12px calc(16px + var(--safe-right)) calc(12px + var(--safe-bottom)) calc(16px + var(--safe-left))',
+          background: 'var(--color-surface-2)',
           borderTop: '1px solid var(--color-border)',
           display: 'flex', gap: 10, zIndex: 30,
+          backdropFilter: 'blur(10px)',
         }}>
           {!isEditingFinal && (
             <button
