@@ -156,71 +156,95 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props
   }, [pdfBlob]);
 
   return (
+    /*
+     * STRUCTURE:
+     *   outer div  — full-screen backdrop (instant fade-in via overlay-enter, NO translateY)
+     *   inner div  — the actual panel that slides UP via sheet-enter
+     *
+     * Why: sheet-enter uses translateY(100%) → translateY(0). Applying this to a
+     * position:fixed;inset:0 element makes WebKit on iOS PWA animate it from
+     * outside the viewport unpredictably. Instead, the backdrop fades in instantly
+     * and only the inner content panel slides up — identical to how all other
+     * bottom-sheet modals in the app work.
+     */
     <div
-      className="sheet-enter"
+      className="overlay-enter"
       style={{
         position: 'fixed', inset: 0, zIndex: 300,
         background: 'rgba(20,14,8,0.82)',
-        display: 'flex', flexDirection: 'column',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-end',
       }}
     >
-      {/* ─── Header bar ─── */}
+      {/* ─── Inner panel — this is what slides up ─── */}
       <div
+        className="sheet-enter"
         style={{
-          background: 'var(--color-primary)',
-          paddingTop: 'calc(14px + var(--safe-top))',
-          paddingBottom: '12px',
-          paddingLeft: '16px',
-          paddingRight: '16px',
           display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          flexShrink: 0,
-          boxShadow: '0 1px 0 rgba(200,169,106,0.15)',
+          flexDirection: 'column',
+          height: '100dvh',
+          width: '100%',
         }}
       >
-        <button
-          type="button" onClick={onClose} aria-label="Close preview"
-          style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', color: '#fff', fontSize: 18, width: 40, height: 40, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'opacity 150ms' }}
-        >✕</button>
+        {/* ─── Header bar ─── */}
+        <div
+          style={{
+            background: 'var(--color-primary)',
+            paddingTop: 'calc(14px + var(--safe-top))',
+            paddingBottom: '12px',
+            paddingLeft: '16px',
+            paddingRight: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            flexShrink: 0,
+            boxShadow: '0 1px 0 rgba(200,169,106,0.15)',
+          }}
+        >
+          <button
+            type="button" onClick={onClose} aria-label="Close preview"
+            style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', color: '#fff', fontSize: 18, width: 40, height: 40, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'opacity 150ms' }}
+          >✕</button>
 
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Invoice Preview</div>
-          <div style={{ color: 'var(--color-accent)', fontWeight: 700, fontSize: 15, letterSpacing: '0.3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {invoiceNumber}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Invoice Preview</div>
+            <div style={{ color: 'var(--color-accent)', fontWeight: 700, fontSize: 15, letterSpacing: '0.3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {invoiceNumber}
+            </div>
           </div>
+
+          {uploading && <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11 }}>Saving…</span>}
+
+          {stage === 'ready' && pdfBlob && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" onClick={handleShare} aria-label="Share invoice" style={headerBtnStyle}>↑ Share</button>
+              {isMobile && (
+                <button type="button" onClick={handleOpenInBrowser} aria-label="Open PDF in browser" style={{ ...headerBtnStyle, background: 'rgba(200,169,106,0.2)', borderColor: 'rgba(200,169,106,0.4)', color: 'var(--color-accent)' }}>⎋ Open</button>
+              )}
+              {!isMobile && payload && (
+                <PDFDownloadLink document={<InvoicePdf {...payload} />} fileName={`${invoiceNumber.replace(/\//g, '_')}.pdf`} style={headerBtnStyle}>
+                  {({ loading }) => loading ? 'Preparing…' : '⬇ Download'}
+                </PDFDownloadLink>
+              )}
+            </div>
+          )}
         </div>
 
-        {uploading && <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11 }}>Saving…</span>}
-
-        {stage === 'ready' && pdfBlob && (
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" onClick={handleShare} aria-label="Share invoice" style={headerBtnStyle}>↑ Share</button>
-            {isMobile && (
-              <button type="button" onClick={handleOpenInBrowser} aria-label="Open PDF in browser" style={{ ...headerBtnStyle, background: 'rgba(200,169,106,0.2)', borderColor: 'rgba(200,169,106,0.4)', color: 'var(--color-accent)' }}>⎋ Open</button>
-            )}
-            {!isMobile && payload && (
-              <PDFDownloadLink document={<InvoicePdf {...payload} />} fileName={`${invoiceNumber.replace(/\//g, '_')}.pdf`} style={headerBtnStyle}>
-                {({ loading }) => loading ? 'Preparing…' : '⬇ Download'}
-              </PDFDownloadLink>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ─── Content area ─── */}
-      <div style={{ flex: 1, overflow: 'auto', WebkitOverflowScrolling: 'touch' as any, position: 'relative', paddingBottom: 'var(--safe-bottom)' }}>
-        {stage === 'loading' && <CentreMessage icon="⏳" text="Loading invoice data…" />}
-        {stage === 'error'   && <CentreMessage icon="⚠️" text={errorMsg} color="#ff8585" />}
-        {stage === 'ready' && payload && (
-          isMobile ? (
-            pdfBlob ? <PdfJsViewer blob={pdfBlob} /> : <CentreMessage icon="⏳" text="Generating PDF…" />
-          ) : (
-            <PDFViewer width="100%" height="100%" style={{ border: 'none', display: 'block' }}>
-              <InvoicePdf {...payload} />
-            </PDFViewer>
-          )
-        )}
+        {/* ─── Content area ─── */}
+        <div style={{ flex: 1, overflow: 'auto', WebkitOverflowScrolling: 'touch' as any, position: 'relative', paddingBottom: 'var(--safe-bottom)' }}>
+          {stage === 'loading' && <CentreMessage icon="⏳" text="Loading invoice data…" />}
+          {stage === 'error'   && <CentreMessage icon="⚠️" text={errorMsg} color="#ff8585" />}
+          {stage === 'ready' && payload && (
+            isMobile ? (
+              pdfBlob ? <PdfJsViewer blob={pdfBlob} /> : <CentreMessage icon="⏳" text="Generating PDF…" />
+            ) : (
+              <PDFViewer width="100%" height="100%" style={{ border: 'none', display: 'block' }}>
+                <InvoicePdf {...payload} />
+              </PDFViewer>
+            )
+          )}
+        </div>
       </div>
     </div>
   );
