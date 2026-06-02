@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import type { Client } from '../../db/types'
-import { getClients, deleteClient } from '../../db/clientsDb'
+import { getClients, deactivateClient } from '../../db/clientsDb'
 import { sectionTitleStyle } from '../settings/_components'
 import ClientCard from './ClientCard'
 import ClientFormModal from './ClientFormModal'
@@ -28,8 +28,8 @@ export default function ClientsPage() {
   )
 
   async function handleDelete(id: number) {
-    if (!confirm('Delete this client? This cannot be undone.')) return
-    await deleteClient(id)
+    if (!confirm('Deactivate this client?')) return
+    await deactivateClient(id)
     load()
   }
 
@@ -52,7 +52,14 @@ export default function ClientsPage() {
   return (
     <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
 
-      <div className="page-header" style={{ background: 'var(--color-primary)', position: 'sticky', top: 0, zIndex: 10 }}>
+      <div style={{
+        background: 'var(--color-primary)',
+        paddingTop: 'calc(20px + var(--safe-top, 0px))',
+        paddingRight: '20px',
+        paddingBottom: '16px',
+        paddingLeft: '20px',
+        position: 'sticky', top: 0, zIndex: 10,
+      }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
           <div>
             <h1 style={{ color: 'var(--color-bg)', fontSize: '22px', fontFamily: 'Playfair Display, serif', marginBottom: '2px' }}>Clients</h1>
@@ -62,6 +69,7 @@ export default function ClientsPage() {
           </div>
           <button
             onClick={handleAdd}
+            aria-label="Add client"
             style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--color-accent)', color: 'var(--color-primary)', fontSize: '24px', fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.25)', flexShrink: 0 }}
           >+</button>
         </div>
