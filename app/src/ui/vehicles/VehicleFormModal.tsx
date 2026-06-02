@@ -52,14 +52,17 @@ export default function VehicleFormModal({ vehicle, onClose, onSaved }: Props) {
       display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
       zIndex: 200,
     }}>
-      <div style={{
-        background: 'var(--color-bg)',
-        borderRadius: '20px 20px 0 0',
-        width: '100%', maxWidth: '640px',
-        maxHeight: '92svh',
-        display: 'flex', flexDirection: 'column',
-        overflow: 'hidden',
-      }}>
+      <div
+        className="sheet-enter"
+        style={{
+          background: 'var(--color-bg)',
+          borderRadius: '20px 20px 0 0',
+          width: '100%', maxWidth: '640px',
+          maxHeight: '92svh',
+          display: 'flex', flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
 
         {/* Header */}
         <div style={{ background: 'var(--color-primary)', padding: '12px 20px 16px', borderRadius: '20px 20px 0 0', flexShrink: 0 }}>
@@ -101,32 +104,15 @@ export default function VehicleFormModal({ vehicle, onClose, onSaved }: Props) {
             Physical spec of the vehicle. Fill later if not known now.
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            <Field
-              label="Capacity"
-              value={capacity}
-              onChange={setCapacity}
-              placeholder="e.g. 6"
-              type="number"
-            />
-            <Field
-              label="Capacity Unit"
-              value={capacityUnit}
-              onChange={setCapacityUnit}
-              placeholder="e.g. CUM, TON"
-            />
+            <Field label="Capacity" value={capacity} onChange={setCapacity} placeholder="e.g. 6" type="number" />
+            <Field label="Capacity Unit" value={capacityUnit} onChange={setCapacityUnit} placeholder="e.g. CUM, TON" />
           </div>
 
           <p style={{ ...sectionTitleStyle, marginTop: '8px' }}>Rental Info (optional)</p>
           <p style={{ fontSize: '13px', color: 'var(--color-text-faint)', marginBottom: '14px', lineHeight: 1.5 }}>
             Default monthly rent — used as a pre-fill hint in rental invoices. Can be overridden per invoice.
           </p>
-          <Field
-            label="Default Monthly Rent (₹)"
-            value={monthlyRent}
-            onChange={setMonthlyRent}
-            placeholder="e.g. 85000"
-            type="number"
-          />
+          <Field label="Default Monthly Rent (₹)" value={monthlyRent} onChange={setMonthlyRent} placeholder="e.g. 85000" type="number" />
 
           <p style={{ ...sectionTitleStyle, marginTop: '8px' }}>Notes</p>
           <div>
@@ -135,19 +121,7 @@ export default function VehicleFormModal({ vehicle, onClose, onSaved }: Props) {
               onChange={e => setNotes(e.target.value)}
               placeholder="Any additional notes about this vehicle…"
               rows={3}
-              style={{
-                width: '100%', padding: '12px 14px',
-                borderRadius: '10px',
-                border: '1.5px solid var(--color-border)',
-                background: 'var(--color-surface)',
-                color: 'var(--color-text)',
-                fontSize: '15px',
-                fontFamily: 'Work Sans, sans-serif',
-                resize: 'none',
-                lineHeight: 1.5,
-                boxSizing: 'border-box',
-                outline: 'none',
-              }}
+              style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1.5px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', fontSize: '15px', fontFamily: 'Work Sans, sans-serif', resize: 'none', lineHeight: 1.5, boxSizing: 'border-box', outline: 'none' }}
             />
           </div>
         </div>

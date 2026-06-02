@@ -20,7 +20,7 @@ interface Props {
 
 type Stage = 'loading' | 'ready' | 'error';
 
-// ─── PDF.js canvas renderer (mobile / iOS PWA) ───────────────────────────────
+// ─── PDF.js canvas renderer (mobile / iOS PWA) ────────────────────────────────────────────
 
 function PdfJsViewer({ blob }: { blob: Blob }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -34,7 +34,6 @@ function PdfJsViewer({ blob }: { blob: Blob }) {
 
     async function render() {
       try {
-        // pdfjs-dist is in package.json — load worker via CDN to avoid bundler issues
         const pdfjsLib = await import('pdfjs-dist');
         pdfjsLib.GlobalWorkerOptions.workerSrc =
           `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -48,7 +47,7 @@ function PdfJsViewer({ blob }: { blob: Blob }) {
 
         for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
           const page = await pdfDoc.getPage(pageNum);
-          const viewport = page.getViewport({ scale: 2.0 }); // retina
+          const viewport = page.getViewport({ scale: 2.0 });
 
           const canvas = document.createElement('canvas');
           canvas.width  = viewport.width;
@@ -56,7 +55,6 @@ function PdfJsViewer({ blob }: { blob: Blob }) {
           canvas.style.width  = '100%';
           canvas.style.height = 'auto';
           canvas.style.display = 'block';
-          canvas.style.borderRadius = pageNum === 1 ? '0' : '0';
           canvas.style.marginBottom = pageNum < pdfDoc.numPages ? '2px' : '0';
 
           const ctx = canvas.getContext('2d');
@@ -88,10 +86,7 @@ function PdfJsViewer({ blob }: { blob: Blob }) {
   return (
     <div style={{ position: 'relative' }}>
       {pageCount === 0 && (
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          height: 200, color: 'rgba(255,255,255,0.6)', fontSize: 13, gap: 10,
-        }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: 'rgba(255,255,255,0.6)', fontSize: 13, gap: 10 }}>
           <span style={{ fontSize: 20 }}>⏳</span> Rendering pages…
         </div>
       )}
@@ -100,7 +95,7 @@ function PdfJsViewer({ blob }: { blob: Blob }) {
   );
 }
 
-// ─── Main Modal ───────────────────────────────────────────────────────────────
+// ─── Main Modal ─────────────────────────────────────────────────────────────────────────────────
 
 export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props) {
   const [stage, setStage] = useState<Stage>('loading');
@@ -112,21 +107,18 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024;
 
-  // Build payload
   useEffect(() => {
     buildInvoicePayload(invoiceId)
       .then(p => { setPayload(p); setStage('ready'); })
       .catch(e => { setErrorMsg(e.message ?? 'Failed to load invoice data.'); setStage('error'); });
   }, [invoiceId]);
 
-  // Generate blob for mobile viewer + upload
   useEffect(() => {
     if (stage !== 'ready' || !payload) return;
     pdf(<InvoicePdf {...payload} />)
       .toBlob()
       .then(blob => {
         setPdfBlob(blob);
-        // Upload once
         if (!uploaded && !uploading) {
           setUploading(true);
           uploadInvoicePdf(invoiceId, invoiceNumber, blob)
@@ -138,7 +130,6 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props
       .catch(e => console.warn('Blob gen failed:', e));
   }, [stage, payload]);
 
-  // Share / download
   const handleShare = useCallback(async () => {
     if (!pdfBlob) return;
     try {
@@ -157,18 +148,16 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props
     }
   }, [pdfBlob, invoiceNumber]);
 
-  // Open in Safari (bypasses WKWebView blob restriction)
   const handleOpenInBrowser = useCallback(() => {
     if (!pdfBlob) return;
     const url = URL.createObjectURL(pdfBlob);
     window.open(url, '_blank');
-    // Revoke after a short delay
     setTimeout(() => URL.revokeObjectURL(url), 30_000);
   }, [pdfBlob]);
 
   return (
     <div
-      className="overlay-enter"
+      className="sheet-enter"
       style={{
         position: 'fixed', inset: 0, zIndex: 300,
         background: 'rgba(20,14,8,0.82)',
@@ -190,23 +179,11 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props
           boxShadow: '0 1px 0 rgba(200,169,106,0.15)',
         }}
       >
-        {/* Close */}
         <button
           type="button" onClick={onClose} aria-label="Close preview"
-          style={{
-            background: 'rgba(255,255,255,0.12)',
-            border: '1px solid rgba(255,255,255,0.15)',
-            borderRadius: '10px',
-            color: '#fff', fontSize: 18,
-            width: 40, height: 40,
-            cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0,
-            transition: 'opacity 150ms',
-          }}
+          style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', color: '#fff', fontSize: 18, width: 40, height: 40, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'opacity 150ms' }}
         >✕</button>
 
-        {/* Title */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Invoice Preview</div>
           <div style={{ color: 'var(--color-accent)', fontWeight: 700, fontSize: 15, letterSpacing: '0.3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -216,30 +193,14 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props
 
         {uploading && <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11 }}>Saving…</span>}
 
-        {/* Action buttons */}
         {stage === 'ready' && pdfBlob && (
           <div style={{ display: 'flex', gap: 8 }}>
-            {/* Share */}
-            <button
-              type="button" onClick={handleShare} aria-label="Share invoice"
-              style={headerBtnStyle}
-            >↑ Share</button>
-
-            {/* Open in Browser (mobile only) */}
+            <button type="button" onClick={handleShare} aria-label="Share invoice" style={headerBtnStyle}>↑ Share</button>
             {isMobile && (
-              <button
-                type="button" onClick={handleOpenInBrowser} aria-label="Open PDF in browser"
-                style={{ ...headerBtnStyle, background: 'rgba(200,169,106,0.2)', borderColor: 'rgba(200,169,106,0.4)', color: 'var(--color-accent)' }}
-              >⎋ Open</button>
+              <button type="button" onClick={handleOpenInBrowser} aria-label="Open PDF in browser" style={{ ...headerBtnStyle, background: 'rgba(200,169,106,0.2)', borderColor: 'rgba(200,169,106,0.4)', color: 'var(--color-accent)' }}>⎋ Open</button>
             )}
-
-            {/* Download (desktop) */}
             {!isMobile && payload && (
-              <PDFDownloadLink
-                document={<InvoicePdf {...payload} />}
-                fileName={`${invoiceNumber.replace(/\//g, '_')}.pdf`}
-                style={headerBtnStyle}
-              >
+              <PDFDownloadLink document={<InvoicePdf {...payload} />} fileName={`${invoiceNumber.replace(/\//g, '_')}.pdf`} style={headerBtnStyle}>
                 {({ loading }) => loading ? 'Preparing…' : '⬇ Download'}
               </PDFDownloadLink>
             )}
@@ -248,31 +209,12 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props
       </div>
 
       {/* ─── Content area ─── */}
-      <div style={{
-        flex: 1,
-        overflow: 'auto',
-        WebkitOverflowScrolling: 'touch' as any,
-        position: 'relative',
-        paddingBottom: 'var(--safe-bottom)',
-      }}>
-        {/* Loading */}
-        {stage === 'loading' && (
-          <CentreMessage icon="⏳" text="Loading invoice data…" />
-        )}
-
-        {/* Error */}
-        {stage === 'error' && (
-          <CentreMessage icon="⚠️" text={errorMsg} color="#ff8585" />
-        )}
-
-        {/* Ready — mobile: PDF.js canvas; desktop: PDFViewer iframe */}
+      <div style={{ flex: 1, overflow: 'auto', WebkitOverflowScrolling: 'touch' as any, position: 'relative', paddingBottom: 'var(--safe-bottom)' }}>
+        {stage === 'loading' && <CentreMessage icon="⏳" text="Loading invoice data…" />}
+        {stage === 'error'   && <CentreMessage icon="⚠️" text={errorMsg} color="#ff8585" />}
         {stage === 'ready' && payload && (
           isMobile ? (
-            pdfBlob ? (
-              <PdfJsViewer blob={pdfBlob} />
-            ) : (
-              <CentreMessage icon="⏳" text="Generating PDF…" />
-            )
+            pdfBlob ? <PdfJsViewer blob={pdfBlob} /> : <CentreMessage icon="⏳" text="Generating PDF…" />
           ) : (
             <PDFViewer width="100%" height="100%" style={{ border: 'none', display: 'block' }}>
               <InvoicePdf {...payload} />
@@ -284,7 +226,7 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props
   );
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ────────────────────────────────────────────────────────────────────────────────
 
 const headerBtnStyle: React.CSSProperties = {
   background: 'rgba(255,255,255,0.1)',
@@ -305,12 +247,7 @@ const headerBtnStyle: React.CSSProperties = {
 
 function CentreMessage({ icon, text, color = 'rgba(255,255,255,0.7)' }: { icon: string; text: string; color?: string }) {
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      height: '100%', minHeight: 200,
-      flexDirection: 'column', gap: 12, padding: 24,
-      color, fontSize: 14, textAlign: 'center',
-    }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 200, flexDirection: 'column', gap: 12, padding: 24, color, fontSize: 14, textAlign: 'center' }}>
       <div style={{ fontSize: 32 }}>{icon}</div>
       <div>{text}</div>
     </div>
