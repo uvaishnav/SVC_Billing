@@ -2,11 +2,125 @@ import { useEffect, useMemo, useState } from 'react'
 import type { InvoiceWithRelations } from '../../db/types'
 import { getInvoices, markInvoicePaid, cancelInvoice } from '../../db/invoicesDb'
 import { sectionTitleStyle } from '../settings/_components'
-import InvoiceCard from './InvoiceCard'
-import InvoiceFormModal from './InvoiceFormModal'
+import InvoiceWizard from './InvoiceWizard'
 import { InvoicePreviewModal } from './pdf/InvoicePreviewModal'
 
 type FilterId = 'all' | 'draft' | 'sent' | 'paid' | 'cancelled'
+
+// ── Status helpers ────────────────────────────────────────────────────────────
+
+const STATUS_COLOR: Record<string, string> = {
+  draft:     'var(--color-text-muted)',
+  sent:      'var(--color-info, #2A5F8A)',
+  paid:      'var(--color-success)',
+  cancelled: 'var(--color-error)',
+  final:     'var(--color-accent)',
+}
+
+const STATUS_BG: Record<string, string> = {
+  draft:     'rgba(122,106,88,0.10)',
+  sent:      'rgba(42,95,138,0.10)',
+  paid:      'rgba(90,122,46,0.10)',
+  cancelled: 'rgba(139,46,46,0.10)',
+  final:     'rgba(200,169,106,0.12)',
+}
+
+// ── Inline invoice card ───────────────────────────────────────────────────────
+
+function InvoiceCard({ invoice, onView, onEdit, onMarkPaid, onCancel }: {
+  invoice: InvoiceWithRelations
+  onView: (inv: InvoiceWithRelations) => void
+  onEdit: (inv: InvoiceWithRelations) => void
+  onMarkPaid: (id: number) => void
+  onCancel: (id: number) => void
+}) {
+  const st = invoice.status ?? 'draft'
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onView(invoice)}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onView(invoice) }}
+      style={{
+        background: 'var(--color-surface)',
+        borderRadius: '14px',
+        border: '1px solid rgba(217,211,197,0.45)',
+        padding: '14px 16px',
+        boxShadow: '0 1px 3px rgba(43,31,21,0.05), 0 4px 14px rgba(43,31,21,0.03)',
+        cursor: 'pointer',
+        transition: 'box-shadow 160ms ease',
+      }}
+    >
+      {/* Top row */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '8px' }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-primary)', fontFamily: 'Playfair Display, serif', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>
+            {invoice.invoice_number}
+          </div>
+          <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>
+            {invoice.client_name}
+          </div>
+        </div>
+        <span style={{
+          fontSize: '11px', fontWeight: 600, padding: '4px 10px',
+          borderRadius: '999px',
+          color: STATUS_COLOR[st] ?? 'var(--color-text-muted)',
+          background: STATUS_BG[st] ?? 'transparent',
+          textTransform: 'capitalize',
+          flexShrink: 0,
+          marginLeft: '8px',
+        }}>
+          {st}
+        </span>
+      </div>
+
+      {/* Amount + date row */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-text)', fontVariantNumeric: 'tabular-nums' }}>
+          ₹ {Number(invoice.grand_total).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </div>
+        <div style={{ fontSize: '12px', color: 'var(--color-text-faint)' }}>
+          {invoice.invoice_date}
+        </div>
+      </div>
+
+      {/* Action row — stop propagation so row click still opens detail */}
+      <div
+        style={{ display: 'flex', gap: '8px', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(217,211,197,0.35)' }}
+        onClick={e => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={() => onEdit(invoice)}
+          style={{ flex: 1, minHeight: '36px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'Work Sans, sans-serif' }}
+        >
+          Edit
+        </button>
+        {(st === 'sent' || st === 'final') && (
+          <button
+            type="button"
+            onClick={() => onMarkPaid(invoice.id)}
+            style={{ flex: 1, minHeight: '36px', borderRadius: '8px', border: 'none', background: 'var(--color-success)', color: '#fff', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'Work Sans, sans-serif' }}
+          >
+            Mark Paid
+          </button>
+        )}
+        {st !== 'cancelled' && st !== 'paid' && (
+          <button
+            type="button"
+            onClick={() => onCancel(invoice.id)}
+            style={{ flex: 1, minHeight: '36px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-error)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'Work Sans, sans-serif' }}
+          >
+            Cancel
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Detail bottom-sheet ───────────────────────────────────────────────────────
 
 function InvoiceDetailSheet({ invoice, onClose, onEdit, onPreview }: {
   invoice: InvoiceWithRelations
@@ -36,8 +150,8 @@ function InvoiceDetailSheet({ invoice, onClose, onEdit, onPreview }: {
             <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-primary)', fontFamily: 'Playfair Display, serif' }}>{invoice.invoice_number}</div>
           </div>
           <button onClick={onPreview} style={{ border: '1px solid var(--color-border)', background: 'var(--color-surface-2)', borderRadius: '10px', padding: '10px 12px', cursor: 'pointer', fontWeight: 600 }}>Preview</button>
-          <button onClick={onEdit} style={{ border: '1px solid var(--color-border)', background: 'var(--color-surface-2)', borderRadius: '10px', padding: '10px 12px', cursor: 'pointer', fontWeight: 600 }}>Edit</button>
-          <button onClick={onClose} style={{ width: '40px', height: '40px', borderRadius: '50%', border: '1px solid var(--color-border)', background: 'var(--color-surface-2)', cursor: 'pointer', fontSize: '18px' }}>×</button>
+          <button onClick={onEdit}    style={{ border: '1px solid var(--color-border)', background: 'var(--color-surface-2)', borderRadius: '10px', padding: '10px 12px', cursor: 'pointer', fontWeight: 600 }}>Edit</button>
+          <button onClick={onClose}   style={{ width: '40px', height: '40px', borderRadius: '50%', border: '1px solid var(--color-border)', background: 'var(--color-surface-2)', cursor: 'pointer', fontSize: '18px' }}>×</button>
         </div>
 
         <div style={{ padding: '18px 16px 24px', display: 'grid', gap: '14px' }}>
@@ -80,12 +194,65 @@ function InvoiceDetailSheet({ invoice, onClose, onEdit, onPreview }: {
   )
 }
 
+// ── Wizard modal wrapper ──────────────────────────────────────────────────────
+
+function InvoiceWizardModal({ invoice, onClose, onSaved }: {
+  invoice: InvoiceWithRelations | null
+  onClose: () => void
+  onSaved: () => void
+}) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'var(--color-bg)', zIndex: 250, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Header */}
+      <div style={{
+        background: 'var(--color-primary)',
+        paddingTop: 'calc(16px + var(--safe-top, 0px))',
+        paddingRight: '16px',
+        paddingBottom: '14px',
+        paddingLeft: '16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        flexShrink: 0,
+      }}>
+        <button
+          type="button"
+          onClick={onClose}
+          style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 8, color: '#fff', width: 44, height: 44, cursor: 'pointer', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+          aria-label="Close"
+        >
+          ✕
+        </button>
+        <div>
+          <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11 }}>{invoice ? 'Edit Invoice' : 'New Invoice'}</div>
+          <div style={{ color: '#fff', fontWeight: 700, fontSize: 16, fontFamily: 'Playfair Display, serif' }}>
+            {invoice ? invoice.invoice_number : 'Create Invoice'}
+          </div>
+        </div>
+      </div>
+
+      {/* Wizard body */}
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <InvoiceWizard
+          initialDraft={invoice ? (invoice as any) : undefined}
+          existingStatus={invoice?.status as any}
+          existingInvoiceId={invoice?.id ?? null}
+          onComplete={onSaved}
+          onSaveDraft={onSaved}
+        />
+      </div>
+    </div>
+  )
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
 export default function InvoicesPage() {
   const [invoices,       setInvoices]       = useState<InvoiceWithRelations[]>([])
   const [loading,        setLoading]        = useState(true)
   const [search,         setSearch]         = useState('')
   const [filter,         setFilter]         = useState<FilterId>('all')
-  const [modalOpen,      setModalOpen]      = useState(false)
+  const [wizardOpen,     setWizardOpen]     = useState(false)
   const [editingInvoice, setEditingInvoice] = useState<InvoiceWithRelations | null>(null)
   const [detailInvoice,  setDetailInvoice]  = useState<InvoiceWithRelations | null>(null)
   const [previewInvoice, setPreviewInvoice] = useState<InvoiceWithRelations | null>(null)
@@ -123,16 +290,17 @@ export default function InvoicesPage() {
 
   function handleEdit(invoice: InvoiceWithRelations) {
     setEditingInvoice(invoice)
-    setModalOpen(true)
+    setDetailInvoice(null)
+    setWizardOpen(true)
   }
 
   function handleAdd() {
     setEditingInvoice(null)
-    setModalOpen(true)
+    setWizardOpen(true)
   }
 
   function handleSaved() {
-    setModalOpen(false)
+    setWizardOpen(false)
     setEditingInvoice(null)
     load()
   }
@@ -147,7 +315,15 @@ export default function InvoicesPage() {
 
   return (
     <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
-      <div className="page-header" style={{ background: 'var(--color-primary)', position: 'sticky', top: 0, zIndex: 10 }}>
+      {/* Sticky header */}
+      <div style={{
+        background: 'var(--color-primary)',
+        paddingTop: 'calc(20px + var(--safe-top, 0px))',
+        paddingRight: '20px',
+        paddingBottom: '0',
+        paddingLeft: '20px',
+        position: 'sticky', top: 0, zIndex: 10,
+      }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
           <div>
             <h1 style={{ color: 'var(--color-bg)', fontSize: '22px', fontFamily: 'Playfair Display, serif', marginBottom: '2px' }}>Invoices</h1>
@@ -158,6 +334,7 @@ export default function InvoicesPage() {
           <button
             onClick={handleAdd}
             style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--color-accent)', color: 'var(--color-primary)', fontSize: '24px', fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.25)', flexShrink: 0 }}
+            aria-label="Create invoice"
           >+</button>
         </div>
 
@@ -197,6 +374,7 @@ export default function InvoicesPage() {
         </div>
       </div>
 
+      {/* List */}
       <div style={{ maxWidth: '640px', margin: '0 auto', padding: '20px 16px 32px' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--color-text-muted)', fontSize: '15px' }}>Loading invoices…</div>
@@ -229,10 +407,10 @@ export default function InvoicesPage() {
         )}
       </div>
 
-      {modalOpen && (
-        <InvoiceFormModal
+      {wizardOpen && (
+        <InvoiceWizardModal
           invoice={editingInvoice}
-          onClose={() => { setModalOpen(false); setEditingInvoice(null) }}
+          onClose={() => { setWizardOpen(false); setEditingInvoice(null) }}
           onSaved={handleSaved}
         />
       )}
@@ -241,13 +419,8 @@ export default function InvoicesPage() {
         <InvoiceDetailSheet
           invoice={detailInvoice}
           onClose={() => setDetailInvoice(null)}
-          onEdit={() => {
-            setDetailInvoice(null)
-            handleEdit(detailInvoice)
-          }}
-          onPreview={() => {
-            setPreviewInvoice(detailInvoice)
-          }}
+          onEdit={() => handleEdit(detailInvoice)}
+          onPreview={() => { setPreviewInvoice(detailInvoice) }}
         />
       )}
 
