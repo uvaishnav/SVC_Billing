@@ -1,20 +1,28 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import BusinessProfileForm from './BusinessProfileForm'
 import BillingDefaultsForm from './BillingDefaultsForm'
 import BankAccountsSection from './BankAccountsSection'
 import SacCodesSection from './SacCodesSection'
+import { getSettings } from '../../db/settingsDb'
+import type { Settings } from '../../db/types'
 
 const TABS = [
-  { id: 'company',  label: 'Company'  },
-  { id: 'billing',  label: 'Billing'  },
-  { id: 'bank',     label: 'Bank'     },
-  { id: 'sac',      label: 'SAC Codes'},
+  { id: 'profile',  label: 'Business'  },
+  { id: 'defaults', label: 'Billing'   },
+  { id: 'bank',     label: 'Bank'      },
+  { id: 'sac',      label: 'SAC Codes' },
 ] as const
 
 type TabId = typeof TABS[number]['id']
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<TabId>('company')
+  const [activeTab, setActiveTab] = useState<TabId>('profile')
+  const [settings,  setSettings]  = useState<Settings | null>(null)
+  const [loading,   setLoading]   = useState(true)
+
+  useEffect(() => {
+    getSettings().then(s => { setSettings(s); setLoading(false) })
+  }, [])
 
   return (
     <div style={{ minHeight: '100dvh', background: 'var(--color-bg)' }}>
@@ -70,10 +78,18 @@ export default function SettingsPage() {
 
       {/* ─── Content ─── */}
       <div style={{ maxWidth: '640px', margin: '0 auto', padding: '20px 16px 40px' }}>
-        {activeTab === 'company' && <BusinessProfileForm />}
-        {activeTab === 'billing' && <BillingDefaultsForm />}
-        {activeTab === 'bank'    && <BankAccountsSection />}
-        {activeTab === 'sac'     && <SacCodesSection />}
+        {loading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '60px 0' }}>
+            <div style={{ color: 'var(--color-text-muted)', fontSize: '15px' }}>Loading settings…</div>
+          </div>
+        ) : (
+          <>
+            {activeTab === 'profile'  && <BusinessProfileForm settings={settings} onSaved={setSettings} />}
+            {activeTab === 'defaults' && <BillingDefaultsForm settings={settings} onSaved={setSettings} />}
+            {activeTab === 'bank'     && <BankAccountsSection settings={settings} onSettingsUpdate={setSettings} />}
+            {activeTab === 'sac'      && <SacCodesSection settings={settings} onSettingsUpdate={setSettings} />}
+          </>
+        )}
       </div>
     </div>
   )
