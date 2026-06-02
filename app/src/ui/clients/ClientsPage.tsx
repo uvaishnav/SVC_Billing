@@ -1,18 +1,17 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import type { ClientWithGstins } from '../../db/types'
 import { getClients, deactivateClient } from '../../db/clientsDb'
-import { sectionTitleStyle } from '../settings/_components'
 import ClientCard from './ClientCard'
 import ClientFormModal from './ClientFormModal'
 import ClientDetailSheet from './ClientDetailSheet'
 
 export default function ClientsPage() {
-  const [clients,       setClients]       = useState<ClientWithGstins[]>([])
-  const [loading,       setLoading]       = useState(true)
-  const [search,        setSearch]        = useState('')
-  const [modalOpen,     setModalOpen]     = useState(false)
-  const [editingClient, setEditingClient] = useState<ClientWithGstins | null>(null)
-  const [detailClient,  setDetailClient]  = useState<ClientWithGstins | null>(null)
+  const [clients,      setClients]      = useState<ClientWithGstins[]>([])
+  const [loading,      setLoading]      = useState(true)
+  const [search,       setSearch]       = useState('')
+  const [modalOpen,    setModalOpen]    = useState(false)
+  const [editingClient,setEditingClient]= useState<ClientWithGstins | null>(null)
+  const [detailClient, setDetailClient] = useState<ClientWithGstins | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -25,6 +24,7 @@ export default function ClientsPage() {
 
   const filtered = clients.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
+    (c.phone ?? '').toLowerCase().includes(search.toLowerCase()) ||
     c.gstins.some(g => g.gstin.toLowerCase().includes(search.toLowerCase()))
   )
 
@@ -39,11 +39,6 @@ export default function ClientsPage() {
     setModalOpen(true)
   }
 
-  function handleAdd() {
-    setEditingClient(null)
-    setModalOpen(true)
-  }
-
   function handleSaved() {
     setModalOpen(false)
     setEditingClient(null)
@@ -51,69 +46,68 @@ export default function ClientsPage() {
   }
 
   return (
-    <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', background: 'var(--color-bg)', overflow: 'hidden' }}>
 
-      <div style={{
+      {/* Page header */}
+      <div className="page-header" style={{
         background: 'var(--color-primary)',
         paddingTop: 'calc(20px + var(--safe-top, 0px))',
-        paddingRight: '20px',
         paddingBottom: '16px',
         paddingLeft: '20px',
-        position: 'sticky', top: 0, zIndex: 10,
+        paddingRight: '20px',
+        flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-          <div>
-            <h1 style={{ color: 'var(--color-bg)', fontSize: '22px', fontFamily: 'Playfair Display, serif', marginBottom: '2px' }}>Clients</h1>
-            <p style={{ color: 'var(--color-accent)', fontSize: '13px', opacity: 0.85 }}>
-              {clients.length} active client{clients.length !== 1 ? 's' : ''}
-            </p>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+          <h1 style={{ color: 'var(--color-bg)', fontSize: '24px', fontFamily: 'Playfair Display, serif' }}>Clients</h1>
           <button
-            onClick={handleAdd}
-            aria-label="Add client"
-            style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--color-accent)', color: 'var(--color-primary)', fontSize: '24px', fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.25)', flexShrink: 0 }}
+            type="button"
+            aria-label="Add new client"
+            onClick={() => { setEditingClient(null); setModalOpen(true) }}
+            style={{
+              width: '36px', height: '36px', borderRadius: '50%',
+              background: 'rgba(255,255,255,0.18)', border: 'none',
+              color: '#fff', fontSize: '22px', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
           >+</button>
         </div>
         <input
+          type="search"
+          placeholder="Search by name, phone or GSTIN…"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Search by name or GSTIN…"
-          style={{ width: '100%', padding: '11px 16px', borderRadius: '10px', border: 'none', background: 'rgba(255,255,255,0.12)', color: 'var(--color-bg)', fontSize: '15px', outline: 'none', fontFamily: 'Work Sans, sans-serif', boxSizing: 'border-box' }}
+          style={{
+            width: '100%', padding: '10px 14px', borderRadius: '12px',
+            border: 'none', background: 'rgba(255,255,255,0.14)',
+            color: '#fff', fontSize: '15px', fontFamily: 'Work Sans, sans-serif',
+            outline: 'none', boxSizing: 'border-box',
+          }}
         />
       </div>
 
-      <div style={{ maxWidth: '640px', margin: '0 auto', padding: '20px 16px 32px' }}>
+      {/* List */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 32px' }}>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--color-text-muted)', fontSize: '15px' }}>Loading clients…</div>
+          <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', marginTop: '40px', fontFamily: 'Work Sans, sans-serif' }}>Loading…</p>
         ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 0' }}>
-            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--color-surface-offset)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: '28px' }}>👤</div>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: '15px' }}>
-              {search ? `No clients matching "${search}"` : 'No clients yet.'}
-            </p>
-            {!search && <p style={{ color: 'var(--color-text-faint)', fontSize: '13px', marginTop: '6px' }}>Tap + to add your first client.</p>}
-          </div>
+          <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', marginTop: '40px', fontFamily: 'Work Sans, sans-serif' }}>
+            {search ? 'No clients match your search.' : 'No clients yet. Tap + to add one.'}
+          </p>
         ) : (
-          <>
-            <p style={{ ...sectionTitleStyle, marginBottom: '14px' }}>
-              {search ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''}` : 'All Clients'}
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {filtered.map(c => (
-                <ClientCard
-                  key={c.id}
-                  client={c}
-                  onTap={setDetailClient}
-                  onEdit={handleEdit}
-                  onDeactivate={handleDeactivate}
-                />
-              ))}
-            </div>
-          </>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {filtered.map(c => (
+              <ClientCard
+                key={c.id}
+                client={c}
+                onTap={setDetailClient}
+                onEdit={handleEdit}
+                onDeactivate={handleDeactivate}
+              />
+            ))}
+          </div>
         )}
       </div>
 
-      {/* Edit / Add modal */}
       {modalOpen && (
         <ClientFormModal
           client={editingClient}
@@ -122,7 +116,6 @@ export default function ClientsPage() {
         />
       )}
 
-      {/* Detail sheet */}
       {detailClient && (
         <ClientDetailSheet
           client={detailClient}
