@@ -8,7 +8,8 @@
 //                            (disabled if description is empty)
 //
 // Rental mode: vehicles panel is hidden (they are already in Section 2 rental_items).
-// Quantity mode: original vehicles panel (unchanged).
+// Quantity mode: vehicle picker with iOS-premium cards, include_in_description toggle,
+//                and a revenue-share preview (total_taxable ÷ n vehicles).
 import { useEffect, useState, useRef } from 'react'
 import type { InvoiceDraft, Vehicle, InvoiceVehicleDraft } from '../../db/types'
 import { getVehicles } from '../../db/vehiclesDb'
@@ -19,6 +20,11 @@ import { getSacCodes } from '../../db/settingsDb'
 
 // Character limit for the description field
 const CHAR_LIMIT = 350
+
+// ─── Shared iOS-premium style tokens ──────────────────────────
+const GOLD        = 'rgba(200,169,106,1)'
+const GOLD_LIGHT  = 'rgba(200,169,106,0.18)'
+const SPRING      = 'transform 150ms cubic-bezier(0.25,0,0.3,1), opacity 150ms cubic-bezier(0.25,0,0.3,1), box-shadow 150ms cubic-bezier(0.25,0,0.3,1)'
 
 export default function Section3Description({
   draft, setVehicles, patch,
@@ -36,12 +42,15 @@ export default function Section3Description({
   const [refinement, setRefinement]         = useState('')
   const [charCount, setCharCount]           = useState(draft.overall_description?.length ?? 0)
   const [genError, setGenError]             = useState<string | null>(null)
+  const [pressedVehicle, setPressedVehicle] = useState<number | null>(null)
+  const [addBtnPressed, setAddBtnPressed]   = useState(false)
+  const [pickerPressed, setPickerPressed]   = useState<number | null>(null)
   const descRef = useRef<HTMLTextAreaElement>(null)
 
   // Context needed for AI call — client_name intentionally excluded
-  const [woRef, setWoRef]                   = useState<string | null>(null)
-  const [woSubject, setWoSubject]           = useState<string | null>(null)
-  const [sacDesc, setSacDesc]               = useState<string | null>(null)
+  const [woRef, setWoRef]       = useState<string | null>(null)
+  const [woSubject, setWoSubject] = useState<string | null>(null)
+  const [sacDesc, setSacDesc]   = useState<string | null>(null)
 
   useEffect(() => {
     // Only needed in quantity mode — rental mode doesn't use this picker
@@ -65,8 +74,6 @@ export default function Section3Description({
 
   // ── NO auto-generate useEffect ─────────────────────────────────
   // AI is only triggered on explicit user action (button click).
-  // hasGenerated ref removed — it was causing re-generation on every
-  // remount (e.g. navigating back to this section, or reopening a draft).
 
   async function handleGenerate() {
     setGenerating(true)
@@ -119,7 +126,6 @@ export default function Section3Description({
       include_in_description: true,
     }])
     setShowPicker(false)
-    // No hasGenerated reset needed — user decides when to generate
   }
 
   function removeVehicle(vehicleId: number) {
@@ -132,9 +138,15 @@ export default function Section3Description({
     ))
   }
 
-  const charOverLimit        = charCount > CHAR_LIMIT
-  const hasDescription       = draft.overall_description.trim().length > 0
-  const isAiWorking          = generating || refining
+  // Revenue share per vehicle — equal split of total_taxable
+  const numVehicles = draft.vehicles.length
+  const revenueShare = numVehicles > 0
+    ? Math.round((draft.total_taxable / numVehicles) * 100) / 100
+    : null
+
+  const charOverLimit  = charCount > CHAR_LIMIT
+  const hasDescription = draft.overall_description.trim().length > 0
+  const isAiWorking    = generating || refining
 
   return (
     <div style={{ padding: '16px', paddingBottom: 24 }}>
@@ -142,76 +154,265 @@ export default function Section3Description({
       {/* ── Vehicles block: quantity mode only ── */}
       {!isRental && (
         <div style={{ marginBottom: 24 }}>
+          {/* Header row */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <span style={{
+              fontSize: 13, fontWeight: 600, color: 'var(--color-text-muted)',
+              textTransform: 'uppercase', letterSpacing: '0.5px',
+            }}>
               🚛 Vehicles Involved
             </span>
+
+            {/* iOS-premium "+ Add Vehicle" button */}
             <button
               type="button"
+              onPointerDown={() => setAddBtnPressed(true)}
+              onPointerUp={() => setAddBtnPressed(false)}
+              onPointerLeave={() => setAddBtnPressed(false)}
               onClick={() => setShowPicker(!showPicker)}
               style={{
-                padding: '6px 14px', borderRadius: 20, border: '1.5px solid var(--color-accent)',
-                background: 'transparent', color: 'var(--color-accent)', fontSize: 13,
-                fontWeight: 600, cursor: 'pointer',
+                minHeight: 44,
+                padding: '0 18px',
+                borderRadius: 22,
+                border: `1.5px solid ${GOLD}`,
+                background: addBtnPressed ? GOLD_LIGHT : 'transparent',
+                color: GOLD,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+                transform: addBtnPressed ? 'scale(0.96)' : 'scale(1)',
+                transition: SPRING,
+                fontFamily: 'Work Sans, sans-serif',
+                WebkitTapHighlightColor: 'transparent',
               }}
             >
               + Add Vehicle
             </button>
           </div>
 
-          {/* Vehicle picker */}
+          {/* Vehicle picker dropdown — iOS list style */}
           {showPicker && (
-            <div style={{ ...cardStyle, marginBottom: 12, maxHeight: 200, overflowY: 'auto' }}>
+            <div style={{
+              ...cardStyle,
+              padding: 0,
+              marginBottom: 14,
+              maxHeight: 220,
+              overflowY: 'auto',
+              borderRadius: 14,
+            }}>
               {available.length === 0
-                ? <p style={{ color: 'var(--color-text-faint)', fontSize: 13, margin: 0 }}>All vehicles added.</p>
-                : available.map(v => (
+                ? (
+                  <p style={{
+                    color: 'var(--color-text-faint)', fontSize: 14, margin: 0,
+                    padding: '14px 16px',
+                  }}>
+                    All active vehicles already added.
+                  </p>
+                )
+                : available.map((v, idx) => (
                   <button
-                    key={v.id} type="button"
+                    key={v.id}
+                    type="button"
+                    onPointerDown={() => setPickerPressed(v.id)}
+                    onPointerUp={() => setPickerPressed(null)}
+                    onPointerLeave={() => setPickerPressed(null)}
                     onClick={() => addVehicle(v)}
                     style={{
-                      display: 'block', width: '100%', textAlign: 'left',
-                      padding: '10px 12px', border: 'none', borderBottom: '1px solid var(--color-border)',
-                      background: 'transparent', cursor: 'pointer', fontSize: 14,
-                      color: 'var(--color-text)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      width: '100%',
+                      minHeight: 52,
+                      padding: '0 16px',
+                      border: 'none',
+                      borderBottom: idx < available.length - 1
+                        ? '1px solid rgba(217,211,197,0.4)'
+                        : 'none',
+                      background: pickerPressed === v.id
+                        ? 'var(--color-surface-offset)'
+                        : 'transparent',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background 120ms ease',
+                      WebkitTapHighlightColor: 'transparent',
+                      borderRadius: 0,
                     }}
                   >
-                    <span style={{ fontWeight: 600 }}>{v.reg_number}</span>
-                    {v.vehicle_type && <span style={{ color: 'var(--color-text-muted)', marginLeft: 8 }}>{v.vehicle_type}</span>}
+                    <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--color-text)' }}>
+                      {v.reg_number}
+                    </span>
+                    {v.vehicle_type && (
+                      <span style={{
+                        color: 'var(--color-text-muted)', fontSize: 13,
+                        background: 'var(--color-surface-offset)',
+                        padding: '3px 10px', borderRadius: 20,
+                        border: '1px solid var(--color-border)',
+                      }}>
+                        {v.vehicle_type}
+                      </span>
+                    )}
                   </button>
                 ))
               }
             </div>
           )}
 
+          {/* Empty state */}
           {draft.vehicles.length === 0 && !showPicker && (
-            <p style={{ fontSize: 13, color: 'var(--color-text-faint)', margin: 0 }}>
-              No vehicles added. Optional — vehicles marked "Include" will be mentioned in the description.
-            </p>
+            <div style={{
+              padding: '14px 16px',
+              borderRadius: 12,
+              background: 'var(--color-surface-offset)',
+              border: '1px solid rgba(217,211,197,0.4)',
+            }}>
+              <p style={{ fontSize: 14, color: 'var(--color-text-faint)', margin: 0 }}>
+                No vehicles added yet. Tap <strong style={{ color: GOLD }}>+ Add Vehicle</strong> to select.
+                Vehicles are used for revenue tracking and can optionally be mentioned in the description.
+              </p>
+            </div>
           )}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-            {draft.vehicles.map(v => (
-              <div key={v.vehicle_id} style={{
-                ...cardStyle, padding: '10px 14px',
-                display: 'flex', flexDirection: 'column', gap: 6, minWidth: 140,
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontWeight: 600, fontSize: 13 }}>{v.reg_number}</span>
-                  <button
-                    type="button" onClick={() => removeVehicle(v.vehicle_id)}
-                    style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--color-error)', fontSize: 16, lineHeight: 1, padding: 0 }}
-                  >×</button>
+
+          {/* Revenue split info banner — shown when 2+ vehicles */}
+          {draft.vehicles.length > 1 && draft.total_taxable > 0 && (
+            <div style={{
+              marginTop: 10,
+              padding: '10px 14px',
+              borderRadius: 10,
+              background: GOLD_LIGHT,
+              border: `1px solid ${GOLD}`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}>
+              <span style={{ fontSize: 16 }}>📊</span>
+              <span style={{ fontSize: 13, color: 'var(--color-text)', fontWeight: 500 }}>
+                Revenue split equally:{' '}
+                <strong>₹{revenueShare?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                {' '}per vehicle across {numVehicles} vehicles
+              </span>
+            </div>
+          )}
+
+          {/* Vehicle cards — iOS premium style */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: draft.vehicles.length > 0 ? 12 : 0 }}>
+            {draft.vehicles.map(v => {
+              const isPressed = pressedVehicle === v.vehicle_id
+              return (
+                <div
+                  key={v.vehicle_id}
+                  style={{
+                    ...cardStyle,
+                    padding: '14px 16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                    transform: isPressed ? 'scale(0.985)' : 'scale(1)',
+                    transition: SPRING,
+                  }}
+                >
+                  {/* Card top row: reg number + vehicle type + remove */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--color-text)', flex: 1 }}>
+                      {v.reg_number}
+                    </span>
+                    {v.vehicle_type && (
+                      <span style={{
+                        fontSize: 12, color: 'var(--color-text-muted)',
+                        background: 'var(--color-surface-offset)',
+                        padding: '3px 10px', borderRadius: 20,
+                        border: '1px solid var(--color-border)',
+                      }}>
+                        {v.vehicle_type}
+                      </span>
+                    )}
+                    {/* Remove button — 44px touch target */}
+                    <button
+                      type="button"
+                      onPointerDown={() => setPressedVehicle(v.vehicle_id)}
+                      onPointerUp={() => setPressedVehicle(null)}
+                      onPointerLeave={() => setPressedVehicle(null)}
+                      onClick={() => removeVehicle(v.vehicle_id)}
+                      style={{
+                        minWidth: 44,
+                        minHeight: 44,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: 'none',
+                        background: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--color-error)',
+                        fontSize: 20,
+                        lineHeight: 1,
+                        padding: 0,
+                        borderRadius: 22,
+                        WebkitTapHighlightColor: 'transparent',
+                        flexShrink: 0,
+                      }}
+                      aria-label={`Remove ${v.reg_number}`}
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  {/* Revenue share badge */}
+                  {draft.total_taxable > 0 && revenueShare !== null && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{
+                        fontSize: 12,
+                        color: GOLD,
+                        fontWeight: 600,
+                        background: GOLD_LIGHT,
+                        padding: '3px 10px',
+                        borderRadius: 20,
+                        border: `1px solid ${GOLD}`,
+                      }}>
+                        ≈ ₹{revenueShare.toLocaleString('en-IN', { minimumFractionDigits: 2 })} revenue
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Include in description — 44px tap target */}
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    cursor: 'pointer',
+                    minHeight: 44,
+                    padding: '0 4px',
+                    WebkitTapHighlightColor: 'transparent',
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={v.include_in_description}
+                      onChange={() => toggleInclude(v.vehicle_id)}
+                      style={{
+                        width: 20,
+                        height: 20,
+                        cursor: 'pointer',
+                        accentColor: GOLD,
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span style={{ fontSize: 14, color: 'var(--color-text)', fontWeight: 500 }}>
+                      Include in description
+                    </span>
+                    {v.include_in_description && (
+                      <span style={{
+                        marginLeft: 'auto',
+                        fontSize: 11,
+                        color: GOLD,
+                        fontWeight: 600,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.4px',
+                      }}>
+                        Included
+                      </span>
+                    )}
+                  </label>
                 </div>
-                {v.vehicle_type && <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{v.vehicle_type}</span>}
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12 }}>
-                  <input
-                    type="checkbox"
-                    checked={v.include_in_description}
-                    onChange={() => toggleInclude(v.vehicle_id)}
-                  />
-                  Include in description
-                </label>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
@@ -219,8 +420,10 @@ export default function Section3Description({
       {/* ── Rental mode: show read-only vehicle summary from Section 2 ── */}
       {isRental && draft.rental_items.filter(ri => ri.vehicle_id !== null).length > 0 && (
         <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-muted)',
-            textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>
+          <div style={{
+            fontSize: 13, fontWeight: 600, color: 'var(--color-text-muted)',
+            textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10,
+          }}>
             🚛 Vehicles Being Billed
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -263,7 +466,12 @@ export default function Section3Description({
 
         {/* Textarea — always visible and editable */}
         {generating ? (
-          <div style={{ ...cardStyle, height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+          <div style={{
+            ...cardStyle,
+            height: 80,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            marginBottom: 12,
+          }}>
             <span style={{ color: 'var(--color-text-faint)', fontSize: 14 }}>✨ Generating description…</span>
           </div>
         ) : (
@@ -275,6 +483,14 @@ export default function Section3Description({
               onChange={e => {
                 patch({ overall_description: e.target.value })
                 setCharCount(e.target.value.length)
+              }}
+              onFocus={e => {
+                e.target.style.borderColor = 'rgba(200,169,106,0.7)'
+                e.target.style.boxShadow   = '0 0 0 3px rgba(200,169,106,0.15)'
+              }}
+              onBlur={e => {
+                e.target.style.borderColor = charOverLimit ? 'var(--color-warning)' : 'var(--color-border)'
+                e.target.style.boxShadow   = 'none'
               }}
               placeholder="Write the description yourself, or use one of the AI options below."
               style={{
@@ -319,10 +535,14 @@ export default function Section3Description({
               disabled={isAiWorking}
               style={{
                 padding: '7px 16px', borderRadius: 20,
-                border: '1.5px solid var(--color-accent)',
-                background: 'var(--color-accent)', color: '#fff',
-                fontSize: 13, fontWeight: 600, cursor: isAiWorking ? 'not-allowed' : 'pointer',
+                border: `1.5px solid ${GOLD}`,
+                background: GOLD, color: '#1a1207',
+                fontSize: 13, fontWeight: 600,
+                cursor: isAiWorking ? 'not-allowed' : 'pointer',
                 opacity: isAiWorking ? 0.6 : 1,
+                fontFamily: 'Work Sans, sans-serif',
+                transition: SPRING,
+                WebkitTapHighlightColor: 'transparent',
               }}
             >
               {generating ? '⌛ Generating…' : '✨ Generate with AI'}
@@ -339,8 +559,11 @@ export default function Section3Description({
                 padding: '7px 16px', borderRadius: 20,
                 border: '1.5px solid var(--color-border)',
                 background: 'transparent', color: 'var(--color-text-muted)',
-                fontSize: 13, fontWeight: 600, cursor: isAiWorking ? 'not-allowed' : 'pointer',
+                fontSize: 13, fontWeight: 600,
+                cursor: isAiWorking ? 'not-allowed' : 'pointer',
                 opacity: isAiWorking ? 0.6 : 1,
+                fontFamily: 'Work Sans, sans-serif',
+                WebkitTapHighlightColor: 'transparent',
               }}
             >
               {generating ? '⌛ Regenerating…' : '↺ Regenerate'}
@@ -358,6 +581,14 @@ export default function Section3Description({
               onChange={e => setRefinement(e.target.value)}
               placeholder="e.g. Make it more formal / Remove vehicle names / Shorten it"
               style={{ ...inputStyle, flex: 1 }}
+              onFocus={e => {
+                e.target.style.borderColor = 'rgba(200,169,106,0.7)'
+                e.target.style.boxShadow   = '0 0 0 3px rgba(200,169,106,0.15)'
+              }}
+              onBlur={e => {
+                e.target.style.borderColor = 'var(--color-border)'
+                e.target.style.boxShadow   = 'none'
+              }}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleRefine() } }}
             />
             <button
@@ -366,12 +597,20 @@ export default function Section3Description({
               disabled={refining || !refinement.trim() || !hasDescription}
               title={!hasDescription ? 'Write or generate a description first' : ''}
               style={{
-                padding: '0 18px', borderRadius: 12, border: 'none',
-                background: (refinement.trim() && hasDescription) ? 'var(--color-accent)' : 'var(--color-border)',
-                color: '#fff', fontWeight: 600, fontSize: 14,
+                minHeight: 44,
+                padding: '0 18px',
+                borderRadius: 12,
+                border: 'none',
+                background: (refinement.trim() && hasDescription) ? GOLD : 'var(--color-border)',
+                color: (refinement.trim() && hasDescription) ? '#1a1207' : 'var(--color-text-faint)',
+                fontWeight: 600,
+                fontSize: 14,
                 cursor: (refinement.trim() && hasDescription) ? 'pointer' : 'not-allowed',
                 whiteSpace: 'nowrap',
                 opacity: (!refinement.trim() || !hasDescription) ? 0.5 : 1,
+                fontFamily: 'Work Sans, sans-serif',
+                transition: SPRING,
+                WebkitTapHighlightColor: 'transparent',
               }}
             >
               {refining ? '…' : 'Apply'}
