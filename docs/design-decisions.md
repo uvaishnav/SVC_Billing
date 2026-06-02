@@ -5,6 +5,40 @@
 
 ---
 
+## iOS PWA Premium UI Overhaul
+
+**[2026-06-02] For iOS safe area insets — add CSS `env()` tokens to `:root`, apply everywhere.**
+All fixed/sticky elements (tab bar, page headers, modals) must add `env(safe-area-inset-top/bottom)` to their padding. Without this, the tab bar overlaps the iPhone home indicator and page headers hide behind the status bar. Tokens added to `:root`: `--safe-top`, `--safe-bottom`, `--safe-left`, `--safe-right`. Fallback value `0px` for non-iOS environments.
+
+**[2026-06-02] For viewport height — use `100dvh` everywhere instead of `100svh` or `100vh`.**
+`100dvh` (dynamic viewport height) correctly accounts for iOS Safari's collapsing address bar and the on-screen keyboard. `100svh` (small viewport height) is a fixed smaller value that works but wastes screen space. `100vh` is broken on mobile Safari (too tall). Changed in `AppShell` root div and `#root` in `index.css`.
+
+**[2026-06-02] For PDF viewing on mobile iOS PWA — chose PDF.js canvas rendering over `PDFViewer` iframe.**
+`PDFViewer` from `@react-pdf/renderer` renders an `<iframe src="blob:...">`. WKWebView (iOS standalone PWA mode) silently blocks blob URIs inside iframes — the PDF renders as a blank white frame with no error. PDF.js renders each page to a `<canvas>` element directly in the DOM, which WKWebView supports fully. A "Open in Safari" button using `window.open(URL.createObjectURL(blob))` is provided as a secondary fallback — Safari outside standalone mode can render PDFs natively. `PDFViewer` iframe is kept for desktop (≥1024px) where it works correctly. `pdfjs-dist` is already in `package.json`.
+
+**[2026-06-02] For tab bar icons — replaced emoji with inline SVG Lucide icons.**
+Emoji rendering varies between iOS 16 and iOS 17+ (different glyph shapes, sizes, color profiles), causing visual inconsistency in the fixed nav bar. Inline SVG icons are pixel-consistent across all iOS versions, render crisply at any DPI, and support CSS color/animation without additional dependencies. No CDN needed — icons are inlined as JSX SVG elements directly in `AppShell.tsx`.
+
+**[2026-06-02] For tab bar active indicator — chose a sliding gold pill over a top border line.**
+The current implementation uses a `position: absolute; top: 0; height: 2px` gold line per tab. This is static (each tab has its own element, no movement). A single shared pill element that `transform: translateX()`s to the active tab position creates a physical, spring-animated feel matching native iOS tab bars and Linear's navigation. Animation: `cubic-bezier(0.16, 1, 0.3, 1)` at 250ms (spring feel, not mechanical).
+
+**[2026-06-02] For animation system — CSS custom property easing curves, no JS animation library.**
+Two easing tokens added to `:root`:
+- `--ease-spring: cubic-bezier(0.16, 1, 0.3, 1)` at 250–300ms — for modal entrances, tab indicator slide
+- `--ease-snappy: cubic-bezier(0.25, 0, 0.3, 1)` at 150–180ms — for button presses, card tap, quick state changes
+No JS animation libraries added. All animations are pure CSS transitions. Respects `prefers-reduced-motion` via existing base rule in `index.css`.
+
+**[2026-06-02] For card elevation — shadow-based over solid border.**
+Current cards use `border: 1.5px solid var(--color-border)`. Replaced with layered `box-shadow` (contact shadow + depth shadow) which creates genuine lift without drawing attention to the boundary. Border kept but reduced to `1px solid rgba(217,211,197,0.5)` (alpha-blended, quieter). This follows iOS Settings card treatment — surfaces feel weightless, not boxed.
+
+**[2026-06-02] For page header safe area — padding-top augmented with `env(safe-area-inset-top)` on all sticky headers.**
+Every module page (`DashboardPage`, `InvoicesPage`, etc.) has a `position: sticky; top: 0` header div with `padding: '20px 20px 16px'`. The `20px` top value becomes `calc(20px + env(safe-area-inset-top, 0px))` so the header content clears the iPhone status bar (44px on iPhone 14/15 with Dynamic Island, 20px on older models).
+
+**[2026-06-02] For KPI card status — removed colored left border, replaced with badge.**
+KPI cards in `DashboardPage` used `borderLeft: '3px solid var(--color-warning)'` for accent. This is the "colored side border" anti-pattern (flags generic SaaS design). Replaced with a small colored pill badge in the top-right of the card for cards that need status indication. Neutral cards get no accent treatment — surface elevation alone creates hierarchy.
+
+---
+
 ## Deployment & PWA
 
 **[2026-06-02] For hosting — chose Cloudflare Pages over Vercel.**

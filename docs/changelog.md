@@ -4,6 +4,24 @@
 
 ---
 
+## [2026-06-02] — iOS PWA Premium UI Overhaul — Design Session
+
+### Planned (not yet implemented — branch `ui/ios-premium-redesign` to be created)
+- `app/src/index.css` — safe area CSS tokens (`--safe-top`, `--safe-bottom`), `100dvh`, spring easing vars (`--ease-spring`, `--ease-snappy`), page-enter keyframe animation
+- `app/src/ui/AppShell.tsx` — replace emoji with inline SVG Lucide icons, safe-area-aware tab bar height, sliding gold pill indicator (spring animated), page fade-in on tab change
+- `app/src/ui/settings/_components.tsx` — shadow-based card elevation (remove solid border), gold focus rings, spring button press, 44px minimum touch targets
+- `app/src/ui/invoices/pdf/InvoicePreviewModal.tsx` — PDF.js canvas renderer for mobile/iOS PWA (fixes WKWebView blob iframe bug), "Open in Safari" fallback, safe-area modal header, slide-up entrance animation
+- `app/src/ui/dashboard/DashboardPage.tsx` — safe-area-inset-top on sticky header, replace colored left border on KPI cards with pill badge
+- All module sticky headers — `padding-top: calc(Npx + env(safe-area-inset-top, 0px))` applied to InvoicesPage, ClientsPage, VehiclesPage, WorkOrdersPage, ProjectsPage, SettingsPage
+
+### Observations
+- Root cause of PDF failure on iOS PWA: `PDFViewer` uses `<iframe src="blob:...">` — WKWebView in standalone mode silently blocks blob URI iframes. PDF.js canvas approach is the correct fix.
+- Root cause of status bar overlap: zero `env(safe-area-inset-top)` usage anywhere in codebase. All sticky headers use hardcoded `padding: '20px ...'`.
+- Emoji inconsistency confirmed: iOS 16 and iOS 17 render 🚛 and 📋 at different visual sizes in fixed UI contexts.
+- All 8 design decisions documented in `docs/design-decisions.md` under "iOS PWA Premium UI Overhaul" section.
+
+---
+
 ## [2026-06-02] — Cloudflare Deployment Build Fixes
 
 ### Fixed
@@ -21,25 +39,14 @@
 
 ### Added
 - `app/public/manifest.json` — Web App Manifest.
-  - `name: "SVC Billing"`, `short_name: "SVC Billing"`, `display: "standalone"`, `orientation: "portrait"`.
-  - `theme_color` + `background_color`: `#01696f` (app's primary teal).
-  - Icons: `icons/icon-192.png` (any) + `icons/icon-512.png` (any maskable).
 - `app/public/sw.js` — Manual service worker.
-  - **Install:** pre-caches shell assets (`/`, `/index.html`, `/manifest.json`, `/favicon.svg`, both PNGs, `apple-touch-icon.png`).
-  - **Activate:** cleans up old caches by version name.
-  - **Fetch strategy:** Vite `/assets/` hashed files → cache-first. Navigation → network-first with `index.html` fallback. Supabase URLs → always bypassed.
-- `app/public/_redirects` — Cloudflare Pages SPA routing. Single line: `/* /index.html 200`.
+- `app/public/_redirects` — Cloudflare Pages SPA routing.
 - `app/src/registerSW.ts` — `registerServiceWorker()` function.
 - `app/public/icons/icon-192.png` — 192×192 PNG icon.
 
 ### Changed
 - `app/index.html` — iOS PWA meta tags, manifest link, `viewport-fit=cover`, `theme-color`.
 - `app/src/main.tsx` — `registerServiceWorker()` called after React root mount.
-
-### Observations
-- `icon-512.png` and `apple-touch-icon.png` still pending — must be added as PNG rasters manually.
-- SW deliberately bypasses all Supabase calls to prevent stale-auth bugs.
-- Cloudflare Pages: build root = `app/`, build command = `npm run build`, output = `dist`.
 
 ---
 
@@ -51,24 +58,13 @@
 - `app/src/ui/dashboard/DashboardPage.tsx` — full dashboard page.
 - `app/src/ui/AppShell.tsx` — 🏠 Home as tab 0.
 
-### Fixed
-- `DashboardPage.tsx` — `inv.totalInvoiceAmount` → `inv.totalAmount`.
-- `DashboardPage.tsx` — CSS var `--color-info` → `--color-primary`.
-
-### Changed
-- `dashboardDb.ts` — replaced `fetchRecentInvoices()` with `fetchMonthlyTrend()`.
-
-### Observations
-- `vehicle_billing_ledger` makes all dashboard queries fast — no joins needed.
-- Chart.js loaded from CDN lazily on first Dashboard render only.
-
 ---
 
 ## [2026-06-01] — Cancel Invoice + Edit Finalised Invoice + InvoicesPage Redesign
 
 ### Added
 - `supabase/migrations/008_decrement_billed_qty_rpc.sql` — `decrement_billed_qty` RPC.
-- `cancelInvoice(invoiceId)` in `invoicesDb.ts` — reverses qty + ledger, sets `status = 'cancelled'`.
+- `cancelInvoice(invoiceId)` in `invoicesDb.ts`.
 
 ### Fixed
 - `InvoiceWizard.tsx` — Next button was hidden when editing a final invoice.
