@@ -522,4 +522,41 @@ export default function DashboardPage() {
               }}>{activeUnbilled} unbilled</div>
             )}
             <button type="button" onClick={loadAll} style={{
-              background: 'rgba(200,169,106,0.
+              background: 'rgba(200,169,106,0.18)',
+              border: '1px solid rgba(200,169,106,0.35)',
+              borderRadius: 8, color: 'var(--color-accent)',
+              fontSize: 18, width: 36, height: 36,
+              cursor: 'pointer', display: 'flex',
+              alignItems: 'center', justifyContent: 'center',
+              transition: 'opacity 150ms',
+            }}>↺</button>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── Body ─── */}
+      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {loading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[1,2,3,4].map(i => (
+              <div key={i} style={{
+                height: i <= 2 ? 72 : 120, borderRadius: 12,
+                background: 'linear-gradient(90deg, var(--color-surface-offset) 25%, var(--color-surface-dynamic, #e6e4df) 50%, var(--color-surface-offset) 75%)',
+                backgroundSize: '200% 100%',
+                animation: 'shimmer 1.5s ease-in-out infinite',
+              }} />
+            ))}
+          </div>
+        ) : (
+          <>
+            <KpiStrip kpis={kpis} />
+            <UnbilledAlert items={unbilled} onIgnore={handleIgnore} onUnignore={handleUnignore} />
+            <MonthlyTrendChart data={monthlyTrend} />
+            <VehicleRevenueChart data={vehicleRevenue} period={revPeriod} onPeriodChange={handleRevPeriodChange} />
+            <WoFlags flags={woFlags} />
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
