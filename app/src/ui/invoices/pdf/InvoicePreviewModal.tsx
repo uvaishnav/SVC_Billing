@@ -95,6 +95,46 @@ function PdfJsViewer({ blob }: { blob: Blob }) {
   );
 }
 
+// ─── Inline keyframe for full-screen slide-up ────────────────────────────────────────────
+//
+// Why inline and not class-based:
+// sheet-enter uses translateY(100%) which works for partial-height bottom sheets
+// because the sheet starts below the screen and slides up into its natural position.
+//
+// For a full-screen panel (position:absolute; inset:0), translateY(100%) would
+// push the panel one full viewport-height below the screen — which is correct —
+// BUT the panel’s “natural position” is inset:0 (pinned to the viewport), not
+// a flex child at the bottom. iOS WebKit resolves this correctly when the element
+// is position:absolute;inset:0 because the translateY is applied in the compositing
+// layer AFTER layout, so the panel sits at top:0 in layout but is visually
+// offset by 100vh during the animation, then slides to translateY(0).
+//
+// Using a <style> tag injected once is the cleanest way to add this keyframe
+// without touching index.css.
+
+const FULL_SCREEN_SHEET_STYLE = `
+@keyframes full-screen-sheet-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+.full-screen-sheet-enter {
+  animation: full-screen-sheet-up 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+`;
+
+function InjectSheetStyle() {
+  useEffect(() => {
+    const id = 'full-screen-sheet-style';
+    if (document.getElementById(id)) return;
+    const style = document.createElement('style');
+    style.id = id;
+    style.textContent = FULL_SCREEN_SHEET_STYLE;
+    document.head.appendChild(style);
+    return () => { /* leave the style — it’s tiny and reused */ };
+  }, []);
+  return null;
+}
+
 // ─── Main Modal ─────────────────────────────────────────────────────────────────────────────────
 
 export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props) {
@@ -156,97 +196,110 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props
   }, [pdfBlob]);
 
   return (
-    /*
-     * STRUCTURE:
-     *   outer div  — full-screen backdrop (instant fade-in via overlay-enter, NO translateY)
-     *   inner div  — the actual panel that slides UP via sheet-enter
-     *
-     * Why: sheet-enter uses translateY(100%) → translateY(0). Applying this to a
-     * position:fixed;inset:0 element makes WebKit on iOS PWA animate it from
-     * outside the viewport unpredictably. Instead, the backdrop fades in instantly
-     * and only the inner content panel slides up — identical to how all other
-     * bottom-sheet modals in the app work.
-     */
-    <div
-      className="overlay-enter"
-      style={{
-        position: 'fixed', inset: 0, zIndex: 300,
-        background: 'rgba(20,14,8,0.82)',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'flex-end',
-      }}
-    >
-      {/* ─── Inner panel — this is what slides up ─── */}
+    <>
+      <InjectSheetStyle />
+
+      {/*
+       * STRUCTURE:
+       *
+       *  [A] Backdrop overlay   position:fixed; inset:0
+       *      └ [B] Panel wrapper  position:absolute; inset:0  ← full-screen-sheet-enter
+       *          ├ header bar
+       *          └ scrollable content
+       *
+       * [A] is the dimmed backdrop. It fades in via overlay-enter.
+       *     It does NOT animate translateY so WebKit has no layout conflict.
+       *
+       * [B] is position:absolute inside [A], so it fills the full screen.
+       *     translateY(100%) in the keyframe pushes it one full viewport below
+       *     the screen (correct off-screen start). translateY(0) brings it back
+       *     to inset:0 (fills the screen). iOS WebKit handles this correctly
+       *     because absolute-positioned elements are composited independently.
+       *
+       * This is the same pattern used by iOS UIKit’s sheet presentations:
+       * the dimming view fades in, the content view slides up.
+       */}
+
+      {/* [A] Backdrop */}
       <div
-        className="sheet-enter"
+        className="overlay-enter"
         style={{
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100dvh',
-          width: '100%',
+          position: 'fixed', inset: 0, zIndex: 300,
+          background: 'rgba(20,14,8,0.82)',
         }}
       >
-        {/* ─── Header bar ─── */}
+        {/* [B] Full-screen panel that slides up */}
         <div
+          className="full-screen-sheet-enter"
           style={{
-            background: 'var(--color-primary)',
-            paddingTop: 'calc(14px + var(--safe-top))',
-            paddingBottom: '12px',
-            paddingLeft: '16px',
-            paddingRight: '16px',
+            position: 'absolute',
+            inset: 0,
             display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            flexShrink: 0,
-            boxShadow: '0 1px 0 rgba(200,169,106,0.15)',
+            flexDirection: 'column',
+            overflow: 'hidden',
           }}
         >
-          <button
-            type="button" onClick={onClose} aria-label="Close preview"
-            style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', color: '#fff', fontSize: 18, width: 40, height: 40, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'opacity 150ms' }}
-          >✕</button>
+          {/* ─── Header bar ─── */}
+          <div
+            style={{
+              background: 'var(--color-primary)',
+              paddingTop: 'calc(14px + var(--safe-top))',
+              paddingBottom: '12px',
+              paddingLeft: '16px',
+              paddingRight: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              flexShrink: 0,
+              boxShadow: '0 1px 0 rgba(200,169,106,0.15)',
+            }}
+          >
+            <button
+              type="button" onClick={onClose} aria-label="Close preview"
+              style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '10px', color: '#fff', fontSize: 18, width: 40, height: 40, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'opacity 150ms' }}
+            >✕</button>
 
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Invoice Preview</div>
-            <div style={{ color: 'var(--color-accent)', fontWeight: 700, fontSize: 15, letterSpacing: '0.3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {invoiceNumber}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Invoice Preview</div>
+              <div style={{ color: 'var(--color-accent)', fontWeight: 700, fontSize: 15, letterSpacing: '0.3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {invoiceNumber}
+              </div>
             </div>
+
+            {uploading && <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11 }}>Saving…</span>}
+
+            {stage === 'ready' && pdfBlob && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" onClick={handleShare} aria-label="Share invoice" style={headerBtnStyle}>↑ Share</button>
+                {isMobile && (
+                  <button type="button" onClick={handleOpenInBrowser} aria-label="Open PDF in browser" style={{ ...headerBtnStyle, background: 'rgba(200,169,106,0.2)', borderColor: 'rgba(200,169,106,0.4)', color: 'var(--color-accent)' }}>⎋ Open</button>
+                )}
+                {!isMobile && payload && (
+                  <PDFDownloadLink document={<InvoicePdf {...payload} />} fileName={`${invoiceNumber.replace(/\//g, '_')}.pdf`} style={headerBtnStyle}>
+                    {({ loading }) => loading ? 'Preparing…' : '⬇ Download'}
+                  </PDFDownloadLink>
+                )}
+              </div>
+            )}
           </div>
 
-          {uploading && <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11 }}>Saving…</span>}
-
-          {stage === 'ready' && pdfBlob && (
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" onClick={handleShare} aria-label="Share invoice" style={headerBtnStyle}>↑ Share</button>
-              {isMobile && (
-                <button type="button" onClick={handleOpenInBrowser} aria-label="Open PDF in browser" style={{ ...headerBtnStyle, background: 'rgba(200,169,106,0.2)', borderColor: 'rgba(200,169,106,0.4)', color: 'var(--color-accent)' }}>⎋ Open</button>
-              )}
-              {!isMobile && payload && (
-                <PDFDownloadLink document={<InvoicePdf {...payload} />} fileName={`${invoiceNumber.replace(/\//g, '_')}.pdf`} style={headerBtnStyle}>
-                  {({ loading }) => loading ? 'Preparing…' : '⬇ Download'}
-                </PDFDownloadLink>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* ─── Content area ─── */}
-        <div style={{ flex: 1, overflow: 'auto', WebkitOverflowScrolling: 'touch' as any, position: 'relative', paddingBottom: 'var(--safe-bottom)' }}>
-          {stage === 'loading' && <CentreMessage icon="⏳" text="Loading invoice data…" />}
-          {stage === 'error'   && <CentreMessage icon="⚠️" text={errorMsg} color="#ff8585" />}
-          {stage === 'ready' && payload && (
-            isMobile ? (
-              pdfBlob ? <PdfJsViewer blob={pdfBlob} /> : <CentreMessage icon="⏳" text="Generating PDF…" />
-            ) : (
-              <PDFViewer width="100%" height="100%" style={{ border: 'none', display: 'block' }}>
-                <InvoicePdf {...payload} />
-              </PDFViewer>
-            )
-          )}
+          {/* ─── Content area ─── */}
+          <div style={{ flex: 1, overflow: 'auto', WebkitOverflowScrolling: 'touch' as any, position: 'relative', paddingBottom: 'var(--safe-bottom)' }}>
+            {stage === 'loading' && <CentreMessage icon="⏳" text="Loading invoice data…" />}
+            {stage === 'error'   && <CentreMessage icon="⚠️" text={errorMsg} color="#ff8585" />}
+            {stage === 'ready' && payload && (
+              isMobile ? (
+                pdfBlob ? <PdfJsViewer blob={pdfBlob} /> : <CentreMessage icon="⏳" text="Generating PDF…" />
+              ) : (
+                <PDFViewer width="100%" height="100%" style={{ border: 'none', display: 'block' }}>
+                  <InvoicePdf {...payload} />
+                </PDFViewer>
+              )
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
