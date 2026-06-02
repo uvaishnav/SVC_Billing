@@ -4,6 +4,36 @@
 
 ---
 
+## [2026-06-02] — iOS PWA Premium Overhaul (PR #19)
+
+### Added
+- **Skeleton shimmer loading** on all major pages (`CardSkeleton`, `InvoiceListSkeleton`, `WOListSkeleton`, `SettingsSkeleton`) — shimmer replaces plain "Loading…" text.
+- **`pdfjs-dist`** canvas-based PDF viewer — replaces broken `<iframe src="blob:">` pattern that triggered iOS Safari to open PDFs externally. Each page renders inline to `<canvas>`.
+- **`.skeleton` CSS class** with 1.4s animated gradient shimmer.
+- **`.tab-page` CSS animation** — subtle `translateY(6px) → 0` + fade on tab switch.
+- **`.card-tap` CSS class** — `scale(0.985)` press feedback for tappable cards.
+- **`touch-action: manipulation` globally** — removes iOS 300ms tap delay without `fastclick`.
+
+### Changed
+- **AppShell**: 7 tabs → 5 tabs (Home, Invoices, Clients, Work Orders, Settings). Vehicles + Projects removed from nav bar (data intact in DB).
+- **Icons**: all emoji icons replaced with Lucide React SVG icons (`LayoutDashboard`, `FileText`, `Users`, `ClipboardList`, `Settings`, `Plus`, `FileDown`, `X`, `Download`, `Share2`).
+- **Active tab indicator**: gold-tinted pill behind active icon instead of coloured text only. `strokeWidth` 2.2 active / 1.8 inactive.
+- **Typography**: `DM Serif Display` replaces `Playfair Display` globally — 25 files updated via `sed`.
+- **Google Fonts**: `@import` in `index.css` updated from Playfair Display + Work Sans → DM Serif Display + Work Sans.
+- **Dark mode**: removed entirely — `@media (prefers-color-scheme: dark)` block deleted. App stays premium warm light in all iOS appearance settings.
+- **LoginScreen**: premium card layout, DM Serif Display branding block, password show/hide toggle.
+- **SettingsPage**: emoji tab icons removed, text-only tabs with bottom-border active indicator.
+- **ClientsPage**: `+` text button → Lucide `Plus` icon with rounded square style; skeleton loading.
+- **InvoiceActions**: emoji → Lucide `FileDown` icon.
+- **`_components.tsx`**: CSS transition focus ring on `Field`; `PrimaryButton` gets warm box-shadow.
+- **`index.css`**: `color-scheme: light` (explicit, not `light dark`); `overscroll-behavior: none`; expanded token scale (`--radius-xs/xl`, `--shadow-xs/nav`).
+
+### Branch / PR
+`ui/ios-premium-overhaul` → PR #19
+
+---
+
+
 ## [2026-06-02] — Cloudflare Deployment Build Fixes
 
 ### Fixed

@@ -65,8 +65,8 @@ The `id` is the permanent identity of an invoice. Upsert-by-invoice_number faile
 
 ## Invoice PDF
 
-**[2026-05-30] For PDF rendering — chose `@react-pdf/renderer` over `jsPDF` + `html2canvas`.**
-`@react-pdf/renderer` produces vector PDF with real text (selectable, searchable, copy-pasteable). `html2canvas` rasterizes the DOM — output is a flat image inside a PDF. For a GST invoice, vector text is non-negotiable.
+**[2026-06-02] For PDF preview on iOS — chose pdfjs-dist canvas renderer over `<iframe src="blob:">` .**
+iOS Safari refuses to render PDFs inside iframes pointing at blob: URLs — it opens them externally in the system PDF viewer, breaking the in-app experience. `pdfjs-dist` renders each page to a `<canvas>` element which works natively and inline on iOS. Each page is rendered at `devicePixelRatio × 1.5` for crisp Retina output. The iframe approach is fully removed.
 
 **[2026-05-26] For invoice layout — compliance-first section structure.**
 11 sections locked to match GST Tax Invoice requirements.
@@ -89,8 +89,17 @@ A normalised query joining `invoices → invoice_rental_items → vehicles` is e
 
 ## Navigation & Shell
 
-**[2026-05-22] For tab navigation — bottom tab bar with overflow scroll.**
-Mobile-first. Bottom tabs are within thumb reach. Overflow scroll handles the growing tab count without collapsing into a hamburger menu.
+**[2026-06-02] For navigation — chose 5-tab bottom bar (Home, Invoices, Clients, Work Orders, Settings) over 7-tab scrolling bar.**
+The original 7-tab layout required horizontal scroll, which is not discoverable and feels non-native. 5 tabs fix cleanly into any iPhone screen width with no scroll. Vehicles and Projects are removed from nav (data intact in DB, accessible contextually from Work Orders). This matches the iOS Human Interface Guideline limit of 5 items in a tab bar.
+
+**[2026-06-02] For tab icons — chose Lucide React SVG icons over emoji.**
+Emoji icons vary wildly by OS version and rendering engine. Lucide icons are consistent vectors with adjustable `strokeWidth`, which we use to distinguish active (2.2) from inactive (1.8) states — a subtle premium detail. Each icon is rendered at 22×22px with a 44×44px touch target.
+
+**[2026-06-02] For page transitions — chose CSS `tab-enter` keyframe animation over React state-based imperative transitions.**
+CSS keyframes trigger on `display:block` re-attach without needing `framer-motion` or any extra runtime. Pages are kept mounted (not unmounted) to preserve scroll position and in-progress form state.
+
+**[2026-06-02] For typography — chose DM Serif Display over Playfair Display.**
+DM Serif Display has better optical weight balance at small heading sizes (22-26px) typical on mobile cards. Its letterforms feel more contemporary and slightly more condensed, which works better in tight iPhone-width containers. Replaced globally across all 25 component files.
 
 ---
 
