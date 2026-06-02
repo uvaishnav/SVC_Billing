@@ -1,40 +1,48 @@
-// Shared styled primitives for the Settings module
+// Shared styled primitives — UI/CSS only, no business logic
 import React from 'react'
 
 export const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '14px 16px',
-  borderRadius: '12px',
+  borderRadius: '10px',
   border: '1.5px solid var(--color-border)',
   background: 'var(--color-surface)',
   color: 'var(--color-text)',
-  fontSize: '16px',
+  fontSize: '16px',  // 16px prevents iOS auto-zoom
   outline: 'none',
   fontFamily: 'Work Sans, sans-serif',
+  WebkitAppearance: 'none',
+  transition: 'border-color 180ms cubic-bezier(0.25,0,0.3,1), box-shadow 180ms cubic-bezier(0.25,0,0.3,1)',
+}
+
+export const inputFocusStyle: React.CSSProperties = {
+  borderColor: 'rgba(200,169,106,0.7)',
+  boxShadow: '0 0 0 3px rgba(200,169,106,0.15)',
 }
 
 export const labelStyle: React.CSSProperties = {
   display: 'block',
-  fontSize: '13px',
+  fontSize: '11px',
   fontWeight: 600,
   color: 'var(--color-text-muted)',
   marginBottom: '6px',
-  textTransform: 'uppercase',
-  letterSpacing: '0.5px',
+  textTransform: 'uppercase' as const,
+  letterSpacing: '0.7px',
 }
 
 export const cardStyle: React.CSSProperties = {
-  background: 'var(--color-surface-2)',
-  border: '1.5px solid var(--color-border)',
-  borderRadius: '16px',
+  background: 'var(--color-surface)',
+  border: '1px solid rgba(217,211,197,0.55)',
+  borderRadius: '14px',
   padding: '16px',
+  boxShadow: '0 1px 4px rgba(59,42,31,0.08), 0 2px 8px rgba(59,42,31,0.04)',
 }
 
 export const sectionTitleStyle: React.CSSProperties = {
-  fontSize: '13px',
+  fontSize: '11px',
   fontWeight: 600,
   color: 'var(--color-text-muted)',
-  textTransform: 'uppercase',
+  textTransform: 'uppercase' as const,
   letterSpacing: '0.8px',
   marginBottom: '12px',
 }
@@ -47,7 +55,10 @@ export function Field({
   placeholder?: string; required?: boolean; type?: string; rows?: number
 }) {
   const [focused, setFocused] = React.useState(false)
-  const borderColor = focused ? 'var(--color-accent)' : 'var(--color-border)'
+
+  const dynamicStyle: React.CSSProperties = focused
+    ? { ...inputStyle, borderColor: 'rgba(200,169,106,0.7)', boxShadow: '0 0 0 3px rgba(200,169,106,0.15)' }
+    : { ...inputStyle }
 
   return (
     <div style={{ marginBottom: '16px' }}>
@@ -59,14 +70,14 @@ export function Field({
           required={required} value={value} placeholder={placeholder} rows={rows}
           onChange={e => onChange(e.target.value)}
           onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-          style={{ ...inputStyle, borderColor, resize: 'none', lineHeight: 1.5 }}
+          style={{ ...dynamicStyle, resize: 'none', lineHeight: 1.5 }}
         />
       ) : (
         <input
           type={type} required={required} value={value} placeholder={placeholder}
           onChange={e => onChange(e.target.value)}
           onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-          style={{ ...inputStyle, borderColor }}
+          style={dynamicStyle}
         />
       )}
     </div>
@@ -79,12 +90,14 @@ export function PrimaryButton({ children, onClick, disabled, type = 'button' }: 
   return (
     <button
       type={type} onClick={onClick} disabled={disabled}
-      style={{
-        width: '100%', padding: '16px', background: disabled ? 'var(--color-text-faint)' : 'var(--color-primary)',
-        color: 'var(--color-bg)', fontWeight: 600, fontSize: '16px',
-        borderRadius: '12px', border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
-        fontFamily: 'Work Sans, sans-serif', transition: 'opacity 0.15s',
-      }}
+      className={disabled ? undefined : 'btn-primary'}
+      style={disabled ? {
+        width: '100%', minHeight: '50px', padding: '14px 20px',
+        background: 'var(--color-text-faint)',
+        color: 'var(--color-bg)', fontWeight: 600, fontSize: '15px',
+        borderRadius: '10px', border: 'none', cursor: 'not-allowed',
+        fontFamily: 'Work Sans, sans-serif',
+      } : undefined}
     >
       {children}
     </button>
@@ -93,8 +106,11 @@ export function PrimaryButton({ children, onClick, disabled, type = 'button' }: 
 
 export function SavedBadge() {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-success)', fontSize: '14px', fontWeight: 600, marginTop: '8px' }}>
-      <span>✓</span> Saved successfully
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: '6px',
+      color: 'var(--color-success)', fontSize: '13px', fontWeight: 600, marginTop: '8px',
+    }}>
+      <span style={{ fontSize: '16px' }}>✓</span> Saved successfully
     </div>
   )
 }
