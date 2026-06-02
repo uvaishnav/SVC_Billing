@@ -1,16 +1,18 @@
 import { useEffect, useState, useCallback } from 'react'
-import type { VehicleWithClient } from '../../db/types'
+import type { Vehicle } from '../../db/types'
 import { getVehicles, deactivateVehicle } from '../../db/vehiclesDb'
 import { sectionTitleStyle } from '../settings/_components'
 import VehicleCard from './VehicleCard'
 import VehicleFormModal from './VehicleFormModal'
+import VehicleDetailSheet from './VehicleDetailSheet'
 
 export default function VehiclesPage() {
-  const [vehicles,       setVehicles]       = useState<VehicleWithClient[]>([])
+  const [vehicles,       setVehicles]       = useState<Vehicle[]>([])
   const [loading,        setLoading]        = useState(true)
   const [search,         setSearch]         = useState('')
   const [modalOpen,      setModalOpen]      = useState(false)
-  const [editingVehicle, setEditingVehicle] = useState<VehicleWithClient | null>(null)
+  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null)
+  const [detailVehicle,  setDetailVehicle]  = useState<Vehicle | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -22,19 +24,17 @@ export default function VehiclesPage() {
   useEffect(() => { load() }, [load])
 
   const filtered = vehicles.filter(v =>
-    (v.registration_number ?? '').toLowerCase().includes(search.toLowerCase()) ||
-    (v.make ?? '').toLowerCase().includes(search.toLowerCase()) ||
-    (v.model ?? '').toLowerCase().includes(search.toLowerCase()) ||
-    (v.client_name ?? '').toLowerCase().includes(search.toLowerCase())
+    v.reg_number.toLowerCase().includes(search.toLowerCase()) ||
+    (v.vehicle_type ?? '').toLowerCase().includes(search.toLowerCase())
   )
 
   async function handleDeactivate(id: number) {
-    if (!confirm('Archive this vehicle? It will no longer appear in active lists.')) return
+    if (!confirm('Remove this vehicle? This action cannot be undone.')) return
     await deactivateVehicle(id)
     load()
   }
 
-  function handleEdit(vehicle: VehicleWithClient) {
+  function handleEdit(vehicle: Vehicle) {
     setEditingVehicle(vehicle)
     setModalOpen(true)
   }
@@ -58,7 +58,7 @@ export default function VehiclesPage() {
           <div>
             <h1 style={{ color: 'var(--color-bg)', fontSize: '22px', fontFamily: 'Playfair Display, serif', marginBottom: '2px' }}>Vehicles</h1>
             <p style={{ color: 'var(--color-accent)', fontSize: '13px', opacity: 0.85 }}>
-              {vehicles.length} vehicle{vehicles.length !== 1 ? 's' : ''}
+              {vehicles.length} active vehicle{vehicles.length !== 1 ? 's' : ''}
             </p>
           </div>
           <button
@@ -69,7 +69,7 @@ export default function VehiclesPage() {
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Search by plate, make, model, or client…"
+          placeholder="Search by reg number or type…"
           style={{ width: '100%', padding: '11px 16px', borderRadius: '10px', border: 'none', background: 'rgba(255,255,255,0.12)', color: 'var(--color-bg)', fontSize: '15px', outline: 'none', fontFamily: 'Work Sans, sans-serif', boxSizing: 'border-box' }}
         />
       </div>
@@ -95,8 +95,9 @@ export default function VehiclesPage() {
                 <VehicleCard
                   key={v.id}
                   vehicle={v}
+                  onTap={setDetailVehicle}
                   onEdit={handleEdit}
-                  onDelete={handleDeactivate}
+                  onDeactivate={handleDeactivate}
                 />
               ))}
             </div>
@@ -109,6 +110,14 @@ export default function VehiclesPage() {
           vehicle={editingVehicle}
           onClose={() => { setModalOpen(false); setEditingVehicle(null) }}
           onSaved={handleSaved}
+        />
+      )}
+
+      {detailVehicle && (
+        <VehicleDetailSheet
+          vehicle={detailVehicle}
+          onClose={() => setDetailVehicle(null)}
+          onEdit={(v) => { setDetailVehicle(null); handleEdit(v) }}
         />
       )}
     </div>
