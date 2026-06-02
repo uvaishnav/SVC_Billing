@@ -71,6 +71,9 @@ iOS Safari refuses to render PDFs inside iframes pointing at blob: URLs — it o
 **[2026-05-26] For invoice layout — compliance-first section structure.**
 11 sections locked to match GST Tax Invoice requirements.
 
+**[2026-06-02] For PDF rendering scale — chose flat 1.5 scale over devicePixelRatio scaling.**
+Rendering at `devicePixelRatio * 1.5` scale on iOS devices with a pixel ratio of 3 creates massive canvases (~2700x3800px) that exhaust Safari's GPU memory, causing canvas context loss ("white fields"). Capping scale at a flat 1.5 preserves visual crispness on mobile while keeping memory consumption low.
+
 ---
 
 ## Work Orders
@@ -90,7 +93,16 @@ A normalised query joining `invoices → invoice_rental_items → vehicles` is e
 ## Navigation & Shell
 
 **[2026-06-02] For navigation — chose 5-tab bottom bar (Home, Invoices, Clients, Work Orders, Settings) over 7-tab scrolling bar.**
-The original 7-tab layout required horizontal scroll, which is not discoverable and feels non-native. 5 tabs fix cleanly into any iPhone screen width with no scroll. Vehicles and Projects are removed from nav (data intact in DB, accessible contextually from Work Orders). This matches the iOS Human Interface Guideline limit of 5 items in a tab bar.
+The original 7-tab layout required horizontal scroll, which is not discoverable and feels non-native. 5 tabs fix cleanly into any iPhone screen width with no scroll. This matches the iOS Human Interface Guideline limit of 5 items in a tab bar.
+
+**[2026-06-02] For Vehicles & Projects navigation — chose Settings sub-pages over scrolling tab-bar.**
+Keeps the 5-tab bottom navigation clean and native-like on iOS, while restoring full CRUD management of Vehicles and Projects within the Settings space.
+
+**[2026-06-02] For modals and sheets — chose React Portals over position: fixed within page tabs.**
+iOS Safari resets the coordinate system of position: fixed elements inside container wrappers that have CSS transforms or opacity animations. Rendering modals directly under document.body guarantees viewport-centered positioning.
+
+**[2026-06-02] For design aesthetics — chose premium warm-toned card layouts with micro-interactions and gold styling over flat generic surfaces.**
+To prevent the app from feeling like "generic AI slop," we will use premium design tokens: warm subtle backgrounds, thin borders with cream/gold details, deep espresso colors, and high-quality fonts. Buttons and interactive cards will have responsive scale-down transitions on press (`active:scale-[0.98]`).
 
 **[2026-06-02] For tab icons — chose Lucide React SVG icons over emoji.**
 Emoji icons vary wildly by OS version and rendering engine. Lucide icons are consistent vectors with adjustable `strokeWidth`, which we use to distinguish active (2.2) from inactive (1.8) states — a subtle premium detail. Each icon is rendered at 22×22px with a 44×44px touch target.

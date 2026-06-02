@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { WorkOrderWithClient, WorkOrderItem } from '../../db/types'
 import { getWorkOrderItems } from '../../db/workOrdersDb'
 import { getWorkOrderPdfSignedUrl } from '../../utils/uploadWorkOrderPdf'
@@ -57,7 +58,7 @@ export default function WorkOrderDetailSheet({ workOrder: wo, onClose, onEdit }:
     }
   }
 
-  return (
+  return createPortal(
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(30,20,10,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }}>
       <div style={{ background: 'var(--color-bg)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: '640px', maxHeight: '92svh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
@@ -255,6 +256,7 @@ export default function WorkOrderDetailSheet({ workOrder: wo, onClose, onEdit }:
           </div>
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   )
 }

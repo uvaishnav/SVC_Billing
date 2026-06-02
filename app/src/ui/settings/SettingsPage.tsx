@@ -3,16 +3,20 @@ import BusinessProfileForm from './BusinessProfileForm'
 import BankAccountsSection from './BankAccountsSection'
 import SacCodesSection from './SacCodesSection'
 import BillingDefaultsForm from './BillingDefaultsForm'
+import VehiclesPage from '../vehicles/VehiclesPage'
+import ProjectsPage from '../projects/ProjectsPage'
 import { getSettings } from '../../db/settingsDb'
 import type { Settings } from '../../db/types'
 
-type Tab = 'profile' | 'bank' | 'sac' | 'defaults'
+type Tab = 'profile' | 'bank' | 'sac' | 'defaults' | 'vehicles' | 'projects'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'profile',  label: 'Business' },
   { id: 'bank',     label: 'Banks'    },
   { id: 'sac',      label: 'SAC Codes'},
   { id: 'defaults', label: 'Defaults' },
+  { id: 'vehicles', label: 'Vehicles' },
+  { id: 'projects', label: 'Projects' },
 ]
 
 export default function SettingsPage() {
@@ -53,44 +57,62 @@ export default function SettingsPage() {
         </h1>
 
         {/* Segmented Tab Bar */}
-        <div
-          style={{
-            display:    'flex',
-            gap:        '2px',
-            overflowX:  'auto',
-            paddingBottom: '0',
-          }}
-        >
-          {TABS.map(tab => {
-            const isActive = activeTab === tab.id
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                style={{
-                  flex:         '1',
-                  minWidth:     'max-content',
-                  padding:      '10px 16px',
-                  background:   isActive ? 'rgba(255,255,255,0.15)' : 'transparent',
-                  color:        isActive ? '#fff' : 'rgba(255,255,255,0.55)',
-                  fontWeight:   isActive ? 600 : 400,
-                  fontSize:     '14px',
-                  border:       'none',
-                  borderBottom: isActive
-                    ? '2px solid rgba(200, 169, 106, 0.9)'
-                    : '2px solid transparent',
-                  cursor:       'pointer',
-                  borderRadius: '0',
-                  fontFamily:   'Work Sans, sans-serif',
-                  transition:   'color 160ms, border-color 160ms, background 160ms',
-                  minHeight:    '44px',
-                }}
-              >
-                {tab.label}
-              </button>
-            )
-          })}
+        <div style={{ position: 'relative', margin: '0 -20px', padding: '0 20px' }}>
+          <div
+            style={{
+              display:    'flex',
+              gap:        '4px',
+              overflowX:  'auto',
+              WebkitOverflowScrolling: 'touch',
+              scrollbarWidth: 'none',
+              paddingBottom: '4px',
+            }}
+          >
+            {TABS.map(tab => {
+              const isActive = activeTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  style={{
+                    flex:         '1',
+                    minWidth:     'max-content',
+                    padding:      '10px 16px',
+                    background:   isActive ? 'rgba(255,255,255,0.12)' : 'transparent',
+                    color:        isActive ? '#fff' : 'rgba(255,255,255,0.55)',
+                    fontWeight:   isActive ? 600 : 400,
+                    fontSize:     '14px',
+                    border:       'none',
+                    borderBottom: isActive
+                      ? '2px solid rgba(200, 169, 106, 0.95)'
+                      : '2px solid transparent',
+                    cursor:       'pointer',
+                    borderRadius: '0',
+                    fontFamily:   'Work Sans, sans-serif',
+                    transition:   'color 160ms, border-color 160ms, background 160ms',
+                    minHeight:    '44px',
+                  }}
+                >
+                  {tab.label}
+                </button>
+              )
+            })}
+            <div style={{ minWidth: '32px', flexShrink: 0 }} />
+          </div>
+          {/* Subtle fade overlay on right */}
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: '40px',
+              background: 'linear-gradient(to right, transparent, var(--color-primary))',
+              pointerEvents: 'none',
+              zIndex: 2,
+            }}
+          />
         </div>
       </div>
 
@@ -110,6 +132,8 @@ export default function SettingsPage() {
             {activeTab === 'bank'     && <BankAccountsSection settings={settings} onSettingsUpdate={setSettings} />}
             {activeTab === 'sac'      && <SacCodesSection settings={settings} onSettingsUpdate={setSettings} />}
             {activeTab === 'defaults' && <BillingDefaultsForm settings={settings} onSaved={setSettings} />}
+            {activeTab === 'vehicles' && <VehiclesPage embedded />}
+            {activeTab === 'projects' && <ProjectsPage embedded />}
           </>
         )}
       </div>

@@ -10,6 +10,7 @@
  * Does NOT change: buildInvoicePayload, InvoicePdf, uploadInvoicePdf (business logic).
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { pdf } from '@react-pdf/renderer';
 import * as PDFJS from 'pdfjs-dist';
 import { InvoicePdf } from './InvoicePdf';
@@ -115,14 +116,14 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props
             const canvas = canvasRefs.current[i - 1];
             if (!canvas) continue;
 
-            const viewport = page.getViewport({ scale: window.devicePixelRatio * 1.5 });
+            const viewport = page.getViewport({ scale: 1.5 });
             const ctx = canvas.getContext('2d');
             if (!ctx) continue;
 
             canvas.width  = viewport.width;
             canvas.height = viewport.height;
-            canvas.style.width  = `${viewport.width  / window.devicePixelRatio}px`;
-            canvas.style.height = `${viewport.height / window.devicePixelRatio}px`;
+            canvas.style.width  = '100%';
+            canvas.style.height = 'auto';
 
             const task = page.render({ canvasContext: ctx, viewport });
             renderTasksRef.current.push(task);
@@ -175,7 +176,7 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props
   const isReady   = stage === 'ready';
 
   // ── Render ────────────────────────────────────────────────────────────────
-  return (
+  return createPortal(
     <div
       style={{
         position:        'fixed',
@@ -375,17 +376,19 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props
               borderRadius: '4px',
               boxShadow:    '0 4px 20px rgba(0,0,0,0.4)',
               overflow:     'hidden',
-              maxWidth:     'calc(100vw - 32px)',
+              width:        '100%',
+              maxWidth:     '600px',
             }}
           >
             <canvas
               ref={el => { canvasRefs.current[i] = el; }}
-              style={{ display: 'block' }}
+              style={{ display: 'block', width: '100%', height: 'auto' }}
             />
           </div>
         ))}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

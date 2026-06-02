@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import type { WorkOrderWithClient, Client, Project } from '../../db/types'
 import type { ParsedWorkOrder } from '../../utils/parseWorkOrder'
 import { upsertWorkOrder, upsertWorkOrderItems, getWorkOrderItems } from '../../db/workOrdersDb'
@@ -206,7 +207,7 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile: propPd
   const hasPdfSelected  = !!selectedPdf
   const hasExistingPdf  = !!existingPdfPath && !hasPdfSelected  // existing DB pdf, no new one chosen
 
-  return (
+  return createPortal(
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(30,20,10,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }}>
       <div style={{ background: 'var(--color-bg)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: '640px', maxHeight: '92svh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
@@ -432,6 +433,7 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile: propPd
           <PrimaryButton onClick={handleSave} disabled={isBusy}>{saveLabel}</PrimaryButton>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

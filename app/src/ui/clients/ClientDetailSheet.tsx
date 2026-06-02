@@ -1,4 +1,5 @@
 import React from 'react'
+import { createPortal } from 'react-dom'
 import type { ClientWithGstins } from '../../db/types'
 import { cardStyle, sectionTitleStyle } from '../settings/_components'
 
@@ -11,7 +12,7 @@ interface Props {
 export default function ClientDetailSheet({ client, onClose, onEdit }: Props) {
   const primaryGstin = client.gstins.find(g => g.is_primary) ?? client.gstins[0]
 
-  return (
+  return createPortal(
     <div style={{
       position: 'fixed', inset: 0,
       background: 'rgba(30,20,10,0.55)',
@@ -111,9 +112,10 @@ export default function ClientDetailSheet({ client, onClose, onEdit }: Props) {
         {/* Footer */}
         <div style={{ padding: '16px 20px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface)', flexShrink: 0, display: 'flex', gap: '12px' }}>
           <button type="button" onClick={onClose} style={{ flex: 1, padding: '16px', background: 'var(--color-surface-offset)', color: 'var(--color-text-muted)', fontWeight: 600, fontSize: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontFamily: 'Work Sans, sans-serif' }}>Close</button>
-          <button type="button" onClick={() => { onClose(); onEdit(client) }} style={{ flex: 2, padding: '16px', background: 'var(--color-primary)', color: 'var(--color-text-inverse)', fontWeight: 600, fontSize: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontFamily: 'Work Sans, sans-serif' }}>Edit Client</button>
+          <button type="button" onClick={() => onEdit(client)} style={{ flex: 2, padding: '16px', background: 'var(--color-primary)', color: 'var(--color-text-inverse)', fontWeight: 600, fontSize: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontFamily: 'Work Sans, sans-serif' }}>Edit Client</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

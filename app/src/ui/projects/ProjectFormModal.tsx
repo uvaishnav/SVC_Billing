@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import type { ProjectWithClient, Client } from '../../db/types'
 import { upsertProject } from '../../db/projectsDb'
 import { supabase } from '../../db/supabaseClient'
@@ -75,7 +76,7 @@ export default function ProjectFormModal({ project, onClose, onSaved }: Props) {
     boxSizing: 'border-box', outline: 'none',
   }
 
-  return (
+  return createPortal(
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(30,20,10,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }}>
       <div style={{ background: 'var(--color-bg)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: '640px', maxHeight: '92svh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
@@ -151,6 +152,7 @@ export default function ProjectFormModal({ project, onClose, onSaved }: Props) {
           <PrimaryButton onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Project'}</PrimaryButton>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

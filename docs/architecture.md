@@ -84,7 +84,7 @@ Mobile-first PWA (React + Vite) — Supabase backend (Postgres + Auth + Storage 
         index.ts                — re-exports all DB modules
       ui/
         LoginScreen.tsx
-        AppShell.tsx            — 7-tab bar (Home | Clients | Vehicles | Work Orders | Projects | Invoices | Settings)
+        AppShell.tsx            — 5-tab bar (Home | Invoices | Clients | Work Orders | Settings [incl. Vehicles & Projects])
         dashboard/
           DashboardPage.tsx     — sticky header, unbilled alert, KPI strip, vehicle revenue chart, WO flags, 6-month billing trend chart
         settings/
@@ -419,7 +419,7 @@ For boolean fields (rates_firm, tds_applicable), use the pill-toggle pattern est
 
 ***
 
-## AppShell Layout (7 tabs)
+## AppShell Layout (5 tabs)
 
 ```
 ┌──────────────────────────────┐
@@ -427,21 +427,19 @@ For boolean fields (rates_firm, tds_applicable), use the pill-toggle pattern est
 │  paddingBottom: 64px           │
 │                                │
 │  <DashboardPage />             │
-│  <ClientsPage />               │
-│  <VehiclesPage />              │
-│  <WorkOrdersPage />            │
-│  <ProjectsPage />              │
 │  <InvoicesPage />              │
+│  <ClientsPage />               │
+│  <WorkOrdersPage />            │
 │  <SettingsPage />              │
+│    ├── Vehicles Master         │
+│    └── Projects Master         │
 └──────────────────────────────┘
 ┌──────────────────────────────┐
 │  Bottom Tab Bar (fixed)        │  ← position: fixed, bottom: 0, height: 64px
 │  🏠 Home                      │  font: 10px Work Sans
-│  👤 Clients                   │  icon: 18px emoji
-│  🚛 Vehicles                  │
+│  🧾 Invoices                  │  icon: 22px Lucide SVG
+│  👤 Clients                   │
 │  📋 Work Orders               │
-│  📁 Projects                  │
-│  🧾 Invoices                  │
 │  ⚙️ Settings                  │
 └──────────────────────────────┘
 ```

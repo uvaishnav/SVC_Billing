@@ -1,4 +1,5 @@
 import React from 'react'
+import { createPortal } from 'react-dom'
 import type { Vehicle } from '../../db/types'
 import { cardStyle, sectionTitleStyle } from '../settings/_components'
 
@@ -12,7 +13,7 @@ export default function VehicleDetailSheet({ vehicle, onClose, onEdit }: Props) 
   const hasCapacity = vehicle.capacity != null
   const hasRent     = vehicle.default_monthly_rent != null
 
-  return (
+  return createPortal(
     <div
       style={{ position: 'fixed', inset: 0, background: 'rgba(30,20,10,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }}
       onClick={onClose}
@@ -101,9 +102,10 @@ export default function VehicleDetailSheet({ vehicle, onClose, onEdit }: Props) 
         {/* Footer */}
         <div style={{ padding: '16px 20px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface)', flexShrink: 0, display: 'flex', gap: '12px' }}>
           <button type="button" onClick={onClose} style={{ flex: 1, padding: '16px', background: 'var(--color-surface-offset)', color: 'var(--color-text-muted)', fontWeight: 600, fontSize: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontFamily: 'Work Sans, sans-serif' }}>Close</button>
-          <button type="button" onClick={() => { onClose(); onEdit(vehicle) }} style={{ flex: 2, padding: '16px', background: 'var(--color-primary)', color: 'var(--color-text-inverse)', fontWeight: 600, fontSize: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontFamily: 'Work Sans, sans-serif' }}>Edit Vehicle</button>
+          <button type="button" onClick={() => onEdit(vehicle)} style={{ flex: 2, padding: '16px', background: 'var(--color-primary)', color: 'var(--color-text-inverse)', fontWeight: 600, fontSize: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontFamily: 'Work Sans, sans-serif' }}>Edit Vehicle</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

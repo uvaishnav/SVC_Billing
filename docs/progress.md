@@ -77,6 +77,8 @@
 3. Merge `feature/pdf-rendering-part3-20260530` → main
 
 ### Remaining Phase 4 items
+- [ ] Test embedded Vehicles and Projects panels under Settings tab
+- [ ] Verify React Portal rendering of all form modals and detail sheets
 - Invoice detail sheet (full read-only view of a finalized invoice)
 - Filter/search invoices by client, date range, status
 - Work Order utilisation bars (consumed vs contracted qty per WO item)

@@ -6,7 +6,11 @@ import VehicleFormModal from './VehicleFormModal'
 import VehicleDetailSheet from './VehicleDetailSheet'
 import { sectionTitleStyle } from '../settings/_components'
 
-export default function VehiclesPage() {
+interface Props {
+  embedded?: boolean
+}
+
+export default function VehiclesPage({ embedded = false }: Props) {
   const [vehicles,       setVehicles]       = useState<Vehicle[]>([])
   const [loading,        setLoading]        = useState(true)
   const [search,         setSearch]         = useState('')
@@ -51,38 +55,83 @@ export default function VehiclesPage() {
   }
 
   return (
-    <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
+    <div style={embedded ? { width: '100%' } : { minHeight: '100%', background: 'var(--color-bg)' }}>
 
-      {/* Sticky header */}
-      <div style={{
-        background: 'var(--topbar-bg)',
-        padding: 'calc(14px + var(--safe-top)) calc(20px + var(--safe-right)) 16px calc(20px + var(--safe-left))',
-        position: 'sticky', top: 0, zIndex: 10,
-        backdropFilter: 'blur(12px)',
-        borderBottom: '1px solid rgba(200,169,106,0.18)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-          <div>
-            <h1 style={{ color: 'var(--color-text-inverse)', fontSize: '22px', fontFamily: 'DM Serif Display, Georgia, serif', marginBottom: '2px' }}>Vehicles</h1>
-            <p style={{ color: 'var(--color-accent)', fontSize: '13px', opacity: 0.85 }}>
-              {vehicles.length} active vehicle{vehicles.length !== 1 ? 's' : ''}
-            </p>
+      {/* Sticky header / Inline Header */}
+      {!embedded ? (
+        <div style={{
+          background: 'var(--topbar-bg)',
+          padding: 'calc(14px + var(--safe-top)) calc(20px + var(--safe-right)) 16px calc(20px + var(--safe-left))',
+          position: 'sticky', top: 0, zIndex: 10,
+          backdropFilter: 'blur(12px)',
+          borderBottom: '1px solid rgba(200,169,106,0.18)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+            <div>
+              <h1 style={{ color: 'var(--color-text-inverse)', fontSize: '22px', fontFamily: 'DM Serif Display, Georgia, serif', marginBottom: '2px' }}>Vehicles</h1>
+              <p style={{ color: 'var(--color-accent)', fontSize: '13px', opacity: 0.85 }}>
+                {vehicles.length} active vehicle{vehicles.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+            <button
+              onClick={handleAdd}
+              style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--color-accent)', color: 'var(--color-primary)', fontSize: '24px', fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)', flexShrink: 0 }}
+            >+</button>
+          </div>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by reg number or type…"
+            style={{ width: '100%', padding: '11px 16px', borderRadius: '10px', border: 'none', background: 'rgba(255,255,255,0.12)', color: 'var(--color-text-inverse)', fontSize: '15px', outline: 'none', fontFamily: 'Work Sans, sans-serif', boxSizing: 'border-box' }}
+          />
+        </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px', gap: '12px' }}>
+          <div style={{ flex: 1 }}>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search vehicles by reg number or type…"
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                border: '1.5px solid var(--color-border)',
+                background: 'var(--color-surface)',
+                color: 'var(--color-text)',
+                fontSize: '14px',
+                outline: 'none',
+                fontFamily: 'Work Sans, sans-serif',
+                boxSizing: 'border-box'
+              }}
+            />
           </div>
           <button
             onClick={handleAdd}
-            style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--color-accent)', color: 'var(--color-primary)', fontSize: '24px', fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)', flexShrink: 0 }}
-          >+</button>
+            style={{
+              padding: '10px 16px',
+              borderRadius: '8px',
+              background: 'var(--color-accent)',
+              color: 'var(--color-primary)',
+              fontSize: '14px',
+              fontWeight: 600,
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: 'var(--shadow-sm)',
+              height: '38px',
+              fontFamily: 'Work Sans, sans-serif'
+            }}
+          >
+            <span>+ Add</span>
+          </button>
         </div>
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search by reg number or type…"
-          style={{ width: '100%', padding: '11px 16px', borderRadius: '10px', border: 'none', background: 'rgba(255,255,255,0.12)', color: 'var(--color-text-inverse)', fontSize: '15px', outline: 'none', fontFamily: 'Work Sans, sans-serif', boxSizing: 'border-box' }}
-        />
-      </div>
+      )}
 
       {/* Content */}
-      <div style={{ maxWidth: '640px', margin: '0 auto', padding: '20px calc(16px + var(--safe-right)) 32px calc(16px + var(--safe-left))' }}>
+      <div style={embedded ? { width: '100%' } : { maxWidth: '640px', margin: '0 auto', padding: '20px calc(16px + var(--safe-right)) 32px calc(16px + var(--safe-left))' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--color-text-muted)', fontSize: '15px' }}>Loading vehicles…</div>
         ) : filtered.length === 0 ? (

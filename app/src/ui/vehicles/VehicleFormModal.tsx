@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { Vehicle } from '../../db/types'
 import { upsertVehicle } from '../../db/vehiclesDb'
 import { Field, PrimaryButton, sectionTitleStyle } from '../settings/_components'
@@ -45,7 +46,7 @@ export default function VehicleFormModal({ vehicle, onClose, onSaved }: Props) {
     onSaved()
   }
 
-  return (
+  return createPortal(
     <div style={{
       position: 'fixed', inset: 0,
       background: 'rgba(30,20,10,0.55)',
@@ -158,6 +159,7 @@ export default function VehicleFormModal({ vehicle, onClose, onSaved }: Props) {
           <PrimaryButton onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Vehicle'}</PrimaryButton>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

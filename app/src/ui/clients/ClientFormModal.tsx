@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { ClientWithGstins } from '../../db/types'
 import { upsertClient, upsertClientGstin, deleteClientGstin, setPrimaryGstin } from '../../db/clientsDb'
 import { Field, PrimaryButton, cardStyle, sectionTitleStyle, inputStyle, labelStyle } from '../settings/_components'
@@ -118,7 +119,7 @@ export default function ClientFormModal({ client, onClose, onSaved }: Props) {
     onSaved()
   }
 
-  return (
+  return createPortal(
     <div style={{
       position: 'fixed', inset: 0,
       background: 'rgba(30,20,10,0.55)',
@@ -222,6 +223,7 @@ export default function ClientFormModal({ client, onClose, onSaved }: Props) {
           <PrimaryButton onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Client'}</PrimaryButton>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
