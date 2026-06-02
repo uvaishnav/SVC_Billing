@@ -43,12 +43,12 @@ export default function ClientDetailSheet({ client, onClose, onEdit }: Props) {
               border: '2px solid var(--color-accent)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               flexShrink: 0, fontSize: '20px', fontWeight: 700,
-              color: 'var(--color-accent)', fontFamily: 'Playfair Display, serif',
+              color: 'var(--color-accent)', fontFamily: 'DM Serif Display, Georgia, serif',
             }}>
               {client.name.charAt(0).toUpperCase()}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <h2 style={{ color: 'var(--color-text-inverse)', fontSize: '20px', fontFamily: 'Playfair Display, serif', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <h2 style={{ color: 'var(--color-text-inverse)', fontSize: '20px', fontFamily: 'DM Serif Display, Georgia, serif', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {client.name}
               </h2>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>

@@ -1,9 +1,10 @@
 /**
  * InvoiceActions.tsx
- * Reusable action row shown on a finalized invoice (detail sheet or list card).
+ * Reusable action row shown on a finalized invoice card.
  * Renders the "View PDF" button which opens InvoicePreviewModal.
  */
 import { useState } from 'react';
+import { FileDown } from 'lucide-react';
 import { InvoicePreviewModal } from './pdf/InvoicePreviewModal';
 
 interface Props {
@@ -23,21 +24,24 @@ export function InvoiceActions({ invoiceId, invoiceNumber, status }: Props) {
         type="button"
         onClick={() => setShowPreview(true)}
         style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-          background: 'var(--color-primary)',
-          color: '#fff',
-          border: 'none',
-          borderRadius: 8,
-          padding: '8px 16px',
-          fontSize: 13,
-          fontWeight: 600,
-          cursor: 'pointer',
-          fontFamily: 'Work Sans, sans-serif',
+          display:        'inline-flex',
+          alignItems:     'center',
+          gap:            '6px',
+          background:     'var(--color-primary)',
+          color:          '#fff',
+          border:         'none',
+          borderRadius:   'var(--radius-sm)',
+          padding:        '10px 16px',
+          fontSize:       '14px',
+          fontWeight:     600,
+          cursor:         'pointer',
+          fontFamily:     'Work Sans, sans-serif',
+          boxShadow:      '0 2px 8px rgba(59, 42, 31, 0.22)',
+          letterSpacing:  '0.1px',
         }}
       >
-        📄 View / Download PDF
+        <FileDown size={15} strokeWidth={2} />
+        View / Download PDF
       </button>
 
       {showPreview && (

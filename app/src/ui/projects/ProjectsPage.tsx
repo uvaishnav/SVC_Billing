@@ -61,7 +61,7 @@ export default function ProjectsPage() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
           <div>
-            <h1 style={{ color: 'var(--color-text-inverse)', fontSize: '22px', fontFamily: 'Playfair Display, serif', marginBottom: '2px' }}>Projects</h1>
+            <h1 style={{ color: 'var(--color-text-inverse)', fontSize: '22px', fontFamily: 'DM Serif Display, Georgia, serif', marginBottom: '2px' }}>Projects</h1>
             <p style={{ color: 'var(--color-accent)', fontSize: '13px', opacity: 0.85 }}>
               {projects.length} active project{projects.length !== 1 ? 's' : ''}
             </p>

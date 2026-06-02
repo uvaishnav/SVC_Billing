@@ -75,7 +75,7 @@ export default function WorkOrderDetailSheet({ workOrder: wo, onClose, onEdit }:
                   <span style={{ fontSize: '12px', padding: '2px 8px', borderRadius: '20px', background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.7)' }}>📎 PDF</span>
                 )}
               </div>
-              <h2 style={{ color: 'var(--color-text-inverse)', fontSize: '18px', fontFamily: 'Playfair Display, serif', lineHeight: 1.3 }}>{wo.subject}</h2>
+              <h2 style={{ color: 'var(--color-text-inverse)', fontSize: '18px', fontFamily: 'DM Serif Display, Georgia, serif', lineHeight: 1.3 }}>{wo.subject}</h2>
             </div>
             <button type="button" onClick={onClose} style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.15)', color: 'var(--color-text-inverse)', fontSize: '18px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
           </div>

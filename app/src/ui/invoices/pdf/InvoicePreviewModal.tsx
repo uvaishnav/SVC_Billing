@@ -1,15 +1,30 @@
 /**
  * InvoicePreviewModal.tsx
- * Full-screen modal showing the react-pdf preview for an invoice.
- * Offers Download and Share (Web Share API) actions.
- * Triggers PDF upload to Supabase Storage on first open (lazy, once per invoice).
+ * Full-screen modal showing the invoice PDF.
+ *
+ * iOS FIX: replaces <iframe src="blob:..."> with pdfjs-dist canvas rendering.
+ * iOS Safari cannot render PDFs inside iframes — it opens them externally.
+ * pdfjs renders each page to a <canvas> element, which works natively on iOS.
+ *
+ * Keeps: Download, Share (Web Share API), upload to Supabase Storage.
+ * Does NOT change: buildInvoicePayload, InvoicePdf, uploadInvoicePdf (business logic).
  */
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { pdf } from '@react-pdf/renderer';
+import * as PDFJS from 'pdfjs-dist';
 import { InvoicePdf } from './InvoicePdf';
 import { buildInvoicePayload } from './buildInvoicePayload';
 import { uploadInvoicePdf } from '../../../db/invoicePdfDb';
 import type { InvoicePdfProps } from './invoicePayloadTypes';
+import { X, Download, Share2 } from 'lucide-react';
+
+// Point pdfjs-dist worker at the bundled worker (Vite handles this)
+PDFJS.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url,
+).toString();
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Props {
   invoiceId: number;
@@ -17,250 +32,387 @@ interface Props {
   onClose: () => void;
 }
 
-type Stage = 'loading' | 'ready' | 'error';
+type Stage = 'loading-data' | 'rendering-pdf' | 'rendering-pages' | 'ready' | 'error';
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export function InvoicePreviewModal({ invoiceId, invoiceNumber, onClose }: Props) {
-  const [stage, setStage] = useState<Stage>('loading');
-  const [payload, setPayload] = useState<InvoicePdfProps | null>(null);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [stage,     setStage]     = useState<Stage>('loading-data');
+  const [payload,   setPayload]   = useState<InvoicePdfProps | null>(null);
+  const [errorMsg,  setErrorMsg]  = useState('');
   const [uploading, setUploading] = useState(false);
-  const [uploaded, setUploaded] = useState(false);
-  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
-  const [viewerLoading, setViewerLoading] = useState(false);
+  const [uploaded,  setUploaded]  = useState(false);
+  const [pdfBlob,   setPdfBlob]   = useState<Blob | null>(null);
+  const [pageCount, setPageCount] = useState(0);
 
+  const scrollRef    = useRef<HTMLDivElement>(null);
+  const canvasRefs   = useRef<(HTMLCanvasElement | null)[]>([]);
+  const renderTasksRef = useRef<PDFJS.RenderTask[]>([]);
+
+  // ── Step 1: Load invoice data ─────────────────────────────────────────────
   useEffect(() => {
     buildInvoicePayload(invoiceId)
-      .then((p) => {
+      .then(p => {
         setPayload(p);
-        setStage('ready');
+        setStage('rendering-pdf');
       })
-      .catch((e) => {
-        setErrorMsg(e.message ?? 'Failed to load invoice data.');
+      .catch(e => {
+        setErrorMsg(e?.message ?? 'Failed to load invoice data.');
         setStage('error');
       });
   }, [invoiceId]);
 
-  // Upload once after payload is ready
+  // ── Step 2: Render PDF → Blob ─────────────────────────────────────────────
   useEffect(() => {
-    if (stage !== 'ready' || !payload || uploaded || uploading) return;
-    setUploading(true);
-    pdf(<InvoicePdf {...payload} />)
-      .toBlob()
-      .then((blob) => uploadInvoicePdf(invoiceId, invoiceNumber, blob))
-      .then(() => setUploaded(true))
-      .catch((e) => console.warn('PDF upload failed (non-blocking):', e.message))
-      .finally(() => setUploading(false));
-  }, [stage, payload, uploaded, uploading, invoiceId, invoiceNumber]);
+    if (stage !== 'rendering-pdf' || !payload) return;
+    let active = true;
 
-  useEffect(() => {
-    if (stage !== 'ready' || !payload) return;
-    let isActive = true;
-    setViewerLoading(true);
     pdf(<InvoicePdf {...payload} />)
       .toBlob()
-      .then((blob) => {
-        if (!isActive) return;
-        const url = URL.createObjectURL(blob);
-        setViewerUrl((prev) => {
-          if (prev) URL.revokeObjectURL(prev);
-          return url;
-        });
+      .then(blob => {
+        if (!active) return;
+        setPdfBlob(blob);
+        setStage('rendering-pages');
+
+        // Upload to storage (non-blocking, runs in background)
+        if (!uploaded && !uploading) {
+          setUploading(true);
+          uploadInvoicePdf(invoiceId, invoiceNumber, blob)
+            .then(() => setUploaded(true))
+            .catch(e => console.warn('PDF upload failed (non-blocking):', e.message))
+            .finally(() => setUploading(false));
+        }
       })
-      .catch((e) => {
-        if (!isActive) return;
-        setErrorMsg(e?.message ?? 'Failed to render PDF preview.');
+      .catch(e => {
+        if (!active) return;
+        setErrorMsg(e?.message ?? 'Failed to render PDF.');
         setStage('error');
-      })
-      .finally(() => {
-        if (isActive) setViewerLoading(false);
       });
-    return () => { isActive = false; };
-  }, [stage, payload]);
 
+    return () => { active = false; };
+  }, [stage, payload, invoiceId, invoiceNumber, uploaded, uploading]);
+
+  // ── Step 3: Render pages to canvas via pdfjs ──────────────────────────────
   useEffect(() => {
-    return () => {
-      if (viewerUrl) URL.revokeObjectURL(viewerUrl);
-    };
-  }, [viewerUrl]);
+    if (stage !== 'rendering-pages' || !pdfBlob) return;
+    let active = true;
 
+    (async () => {
+      try {
+        const arrayBuffer = await pdfBlob.arrayBuffer();
+        const loadingTask = PDFJS.getDocument({ data: arrayBuffer });
+        const pdfDoc = await loadingTask.promise;
+
+        if (!active) return;
+        setPageCount(pdfDoc.numPages);
+        setStage('ready');
+
+        // Render each page after state update (canvas elements will be ready)
+        requestAnimationFrame(async () => {
+          for (let i = 1; i <= pdfDoc.numPages; i++) {
+            if (!active) break;
+            const page = await pdfDoc.getPage(i);
+            const canvas = canvasRefs.current[i - 1];
+            if (!canvas) continue;
+
+            const viewport = page.getViewport({ scale: window.devicePixelRatio * 1.5 });
+            const ctx = canvas.getContext('2d');
+            if (!ctx) continue;
+
+            canvas.width  = viewport.width;
+            canvas.height = viewport.height;
+            canvas.style.width  = `${viewport.width  / window.devicePixelRatio}px`;
+            canvas.style.height = `${viewport.height / window.devicePixelRatio}px`;
+
+            const task = page.render({ canvasContext: ctx, viewport });
+            renderTasksRef.current.push(task);
+            await task.promise;
+          }
+        });
+      } catch (e: any) {
+        if (!active) return;
+        setErrorMsg(e?.message ?? 'Failed to render PDF pages.');
+        setStage('error');
+      }
+    })();
+
+    return () => {
+      active = false;
+      renderTasksRef.current.forEach(t => t.cancel());
+      renderTasksRef.current = [];
+    };
+  }, [stage, pdfBlob]);
+
+  // ── Download ──────────────────────────────────────────────────────────────
+  const handleDownload = useCallback(() => {
+    if (!pdfBlob) return;
+    const url = URL.createObjectURL(pdfBlob);
+    const a   = document.createElement('a');
+    a.href     = url;
+    a.download = `${invoiceNumber.replace(/\//g, '_')}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [pdfBlob, invoiceNumber]);
+
+  // ── Share (Web Share API — native iOS share sheet) ───────────────────────
   const handleShare = useCallback(async () => {
-    if (!payload) return;
+    if (!pdfBlob) return;
+    const file = new File([pdfBlob], `${invoiceNumber.replace(/\//g, '_')}.pdf`, {
+      type: 'application/pdf',
+    });
     try {
-      const blob = await pdf(<InvoicePdf {...payload} />).toBlob();
-      const file = new File([blob], `${invoiceNumber.replace(/\//g, '_')}.pdf`, {
-        type: 'application/pdf',
-      });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      if (navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], title: `Invoice ${invoiceNumber}` });
       } else {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = file.name;
-        a.click();
-        URL.revokeObjectURL(url);
+        handleDownload();
       }
     } catch (e: any) {
       if (e?.name !== 'AbortError') console.error('Share failed:', e);
     }
-  }, [payload, invoiceNumber]);
+  }, [pdfBlob, invoiceNumber, handleDownload]);
 
-  const handleDownload = useCallback(() => {
-    if (!viewerUrl) return;
-    const a = document.createElement('a');
-    a.href = viewerUrl;
-    a.download = `${invoiceNumber.replace(/\//g, '_')}.pdf`;
-    a.click();
-  }, [viewerUrl, invoiceNumber]);
+  const isLoading = stage === 'loading-data' || stage === 'rendering-pdf' || stage === 'rendering-pages';
+  const isReady   = stage === 'ready';
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div
       style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 300,
-        background: 'rgba(20,14,8,0.7)',
-        display: 'flex',
-        flexDirection: 'column',
+        position:        'fixed',
+        inset:           0,
+        zIndex:          300,
+        background:      'rgba(20, 14, 8, 0.72)',
+        display:         'flex',
+        flexDirection:   'column',
       }}
     >
-      {/* Header bar */}
+      {/* ── Header bar ── */}
       <div
         style={{
-          background: 'var(--topbar-bg)',
-          padding: 'calc(12px + var(--safe-top)) calc(16px + var(--safe-right)) 12px calc(16px + var(--safe-left))',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          flexShrink: 0,
-          borderBottom: '1px solid rgba(200,169,106,0.18)',
-          backdropFilter: 'blur(12px)',
+          background:      'var(--topbar-bg)',
+          padding:         `calc(12px + var(--safe-top)) calc(16px + var(--safe-right)) 12px calc(16px + var(--safe-left))`,
+          display:         'flex',
+          alignItems:      'center',
+          gap:             12,
+          flexShrink:      0,
+          borderBottom:    '1px solid rgba(200, 169, 106, 0.18)',
+          backdropFilter:  'blur(12px)',
         }}
       >
+        {/* Close */}
         <button
           type="button"
           onClick={onClose}
-          style={{
-            background: 'rgba(255,255,255,0.15)',
-            border: 'none',
-            borderRadius: 8,
-            color: '#fff',
-            fontSize: 20,
-            width: 36,
-            height: 36,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
           aria-label="Close preview"
+          style={{
+            background:     'rgba(255,255,255,0.12)',
+            border:         'none',
+            borderRadius:   '10px',
+            color:          '#fff',
+            width:          '36px',
+            height:         '36px',
+            minHeight:      '36px',
+            minWidth:       '36px',
+            cursor:         'pointer',
+            display:        'flex',
+            alignItems:     'center',
+            justifyContent: 'center',
+            flexShrink:     0,
+          }}
         >
-          ✕
+          <X size={18} />
         </button>
+
+        {/* Title */}
         <div style={{ flex: 1 }}>
-          <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>Invoice Preview</div>
-          <div style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>{invoiceNumber}</div>
+          <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: '11px', fontWeight: 500 }}>
+            Invoice Preview
+          </div>
+          <div style={{ color: '#fff', fontWeight: 700, fontSize: '15px', letterSpacing: '-0.2px' }}>
+            {invoiceNumber}
+          </div>
         </div>
+
+        {/* Uploading badge */}
         {uploading && (
-          <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11 }}>Saving…</span>
+          <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: '11px' }}>
+            Saving…
+          </span>
         )}
-        {stage === 'ready' && payload && (
+
+        {/* Actions */}
+        {isReady && pdfBlob && (
           <>
             <button
               type="button"
               onClick={handleDownload}
-              disabled={!viewerUrl}
+              aria-label="Download PDF"
               style={{
-                background: 'rgba(255,255,255,0.15)',
-                border: '1px solid rgba(255,255,255,0.3)',
-                borderRadius: 8,
-                color: '#fff',
-                fontSize: 12,
-                padding: '6px 14px',
-                cursor: 'pointer',
+                background:  'rgba(255,255,255,0.12)',
+                border:      '1px solid rgba(255,255,255,0.2)',
+                borderRadius:'10px',
+                color:       '#fff',
+                fontSize:    '13px',
+                fontWeight:  500,
+                padding:     '8px 14px',
+                cursor:      'pointer',
+                display:     'flex',
+                alignItems:  'center',
+                gap:         '6px',
+                minHeight:   '36px',
               }}
             >
-              {viewerUrl ? '⬇ Download' : 'Preparing…'}
+              <Download size={15} />
+              Download
             </button>
+
             <button
               type="button"
               onClick={handleShare}
+              aria-label="Share PDF"
               style={{
-                background: 'rgba(255,255,255,0.15)',
-                border: '1px solid rgba(255,255,255,0.3)',
-                borderRadius: 8,
-                color: '#fff',
-                fontSize: 12,
-                padding: '6px 14px',
-                cursor: 'pointer',
+                background:  'var(--color-accent)',
+                border:      'none',
+                borderRadius:'10px',
+                color:       'var(--color-primary)',
+                fontSize:    '13px',
+                fontWeight:  600,
+                padding:     '8px 14px',
+                cursor:      'pointer',
+                display:     'flex',
+                alignItems:  'center',
+                gap:         '6px',
+                minHeight:   '36px',
               }}
             >
-              ↑ Share
+              <Share2 size={15} />
+              Share
             </button>
           </>
         )}
       </div>
 
-      {/* Content area */}
-      <div style={{ flex: 1, overflow: 'hidden', position: 'relative', paddingBottom: 'var(--safe-bottom)' }}>
-        {stage === 'loading' && (
+      {/* ── Content area ── */}
+      <div
+        ref={scrollRef}
+        style={{
+          flex:                    1,
+          overflowY:               'auto',
+          overflowX:               'hidden',
+          WebkitOverflowScrolling: 'touch' as any,
+          padding:                 '16px 0',
+          paddingBottom:           `calc(16px + var(--safe-bottom))`,
+          background:              '#3a3530',
+          display:                 'flex',
+          flexDirection:           'column',
+          alignItems:              'center',
+          gap:                     '12px',
+        }}
+      >
+        {/* Loading state */}
+        {isLoading && (
           <div
             style={{
-              display: 'flex',
-              alignItems: 'center',
+              flex:           1,
+              display:        'flex',
+              flexDirection:  'column',
+              alignItems:     'center',
               justifyContent: 'center',
-              height: '100%',
-              color: '#fff',
-              fontSize: 14,
-              flexDirection: 'column',
-              gap: 12,
+              gap:            '16px',
+              minHeight:      '60vh',
             }}
           >
-            <div style={{ fontSize: 28 }}>⏳</div>
-            <div>Loading invoice data…</div>
+            <LoadingSpinner />
+            <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '14px', margin: 0 }}>
+              {stage === 'loading-data'     ? 'Loading invoice data…'   :
+               stage === 'rendering-pdf'   ? 'Generating PDF…'         :
+                                             'Rendering preview…'}
+            </p>
           </div>
         )}
 
+        {/* Error state */}
         {stage === 'error' && (
           <div
             style={{
-              display: 'flex',
-              alignItems: 'center',
+              flex:           1,
+              display:        'flex',
+              flexDirection:  'column',
+              alignItems:     'center',
               justifyContent: 'center',
-              height: '100%',
-              color: '#ff8585',
-              fontSize: 14,
-              flexDirection: 'column',
-              gap: 8,
+              gap:            '12px',
+              minHeight:      '60vh',
             }}
           >
-            <div style={{ fontSize: 28 }}>⚠️</div>
-            <div>{errorMsg}</div>
+            <span style={{ fontSize: '36px' }}>⚠️</span>
+            <p style={{ color: '#ff9a9a', fontSize: '14px', textAlign: 'center', padding: '0 24px', margin: 0 }}>
+              {errorMsg}
+            </p>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                background:   'rgba(255,255,255,0.12)',
+                border:       '1px solid rgba(255,255,255,0.2)',
+                borderRadius: '10px',
+                color:        '#fff',
+                padding:      '10px 20px',
+                fontSize:     '14px',
+                cursor:       'pointer',
+              }}
+            >
+              Close
+            </button>
           </div>
         )}
 
-        {stage === 'ready' && payload && (
-          viewerLoading || !viewerUrl ? (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                height: '100%',
-                color: '#fff',
-                fontSize: 14,
-                flexDirection: 'column',
-                gap: 12,
-              }}
-            >
-              <div style={{ fontSize: 28 }}>⏳</div>
-              <div>Rendering PDF preview…</div>
-            </div>
-          ) : (
-            <iframe title="Invoice PDF" src={viewerUrl} style={{ width: '100%', height: '100%', border: 'none', background: 'var(--color-bg)' }} />
-          )
-        )}
+        {/* Canvas pages */}
+        {isReady && Array.from({ length: pageCount }, (_, i) => (
+          <div
+            key={i}
+            style={{
+              background:   '#fff',
+              borderRadius: '4px',
+              boxShadow:    '0 4px 20px rgba(0,0,0,0.4)',
+              overflow:     'hidden',
+              maxWidth:     'calc(100vw - 32px)',
+            }}
+          >
+            <canvas
+              ref={el => { canvasRefs.current[i] = el; }}
+              style={{ display: 'block' }}
+            />
+          </div>
+        ))}
       </div>
     </div>
   );
+}
+
+// ─── Loading Spinner ──────────────────────────────────────────────────────────
+
+function LoadingSpinner() {
+  return (
+    <div
+      style={{
+        width:        '40px',
+        height:       '40px',
+        border:       '3px solid rgba(255,255,255,0.15)',
+        borderTop:    '3px solid rgba(200, 169, 106, 0.9)',
+        borderRadius: '50%',
+        animation:    'spin 0.9s linear infinite',
+      }}
+    />
+  );
+}
+
+// inject spin keyframe once
+if (typeof document !== 'undefined') {
+  const id = '__svc-spinner';
+  if (!document.getElementById(id)) {
+    const style = document.createElement('style');
+    style.id = id;
+    style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
+    document.head.appendChild(style);
+  }
 }

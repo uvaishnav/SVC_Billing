@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { Plus } from 'lucide-react'
 import type { ClientWithGstins } from '../../db/types'
 import { getClients, deactivateClient } from '../../db/clientsDb'
 import ClientCard from './ClientCard'
@@ -63,12 +64,19 @@ export default function ClientsPage() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
           <div>
-            <h1 style={{ color: 'var(--color-text-inverse)', fontSize: '22px', fontFamily: 'Playfair Display, serif', marginBottom: '2px' }}>Clients</h1>
+            <h1 style={{ color: 'var(--color-text-inverse)', fontSize: '24px', fontFamily: 'DM Serif Display, Georgia, serif', fontWeight: 400, marginBottom: '2px' }}>Clients</h1>
             <p style={{ color: 'var(--color-accent)', fontSize: '13px', opacity: 0.85 }}>
               {clients.length} active client{clients.length !== 1 ? 's' : ''}
             </p>
           </div>
-          <button onClick={handleAdd} style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--color-accent)', color: 'var(--color-primary)', fontSize: '24px', fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)', flexShrink: 0 }}>+</button>
+          <button
+            type="button"
+            onClick={handleAdd}
+            aria-label="Add client"
+            style={{ width: '44px', height: '44px', borderRadius: '14px', background: 'var(--color-accent)', color: 'var(--color-primary)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(200, 169, 106, 0.4)', flexShrink: 0 }}
+          >
+            <Plus size={20} strokeWidth={2.5} />
+          </button>
         </div>
         <input
           value={search}
@@ -81,11 +89,13 @@ export default function ClientsPage() {
       {/* Content */}
       <div style={{ maxWidth: '640px', margin: '0 auto', padding: '20px calc(16px + var(--safe-right)) 32px calc(16px + var(--safe-left))' }}>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--color-text-muted)', fontSize: '15px' }}>Loading clients…</div>
+          <CardSkeleton />
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 0' }}>
-            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--color-surface-offset)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: '28px' }}>👤</div>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: '15px' }}>
+            <div style={{ width: '60px', height: '60px', borderRadius: '18px', background: 'var(--color-surface-offset)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <span style={{ fontSize: '26px', color: 'var(--color-text-faint)' }}>—</span>
+            </div>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '15px', fontWeight: 500 }}>
               {search ? `No clients matching "${search}"` : 'No clients yet.'}
             </p>
             {!search && <p style={{ color: 'var(--color-text-faint)', fontSize: '13px', marginTop: '6px' }}>Tap + to add your first client.</p>}
@@ -127,6 +137,30 @@ export default function ClientsPage() {
           onEdit={(c) => { setDetailClient(null); handleEdit(c) }}
         />
       )}
+    </div>
+  )
+}
+
+// ── Skeleton ──────────────────────────────────────────────────────────────────
+
+function CardSkeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingTop: '4px' }}>
+      {[1, 2, 3, 4].map(i => (
+        <div
+          key={i}
+          style={{
+            background:   'var(--color-surface)',
+            borderRadius: 'var(--radius-md)',
+            padding:      '16px',
+            border:       '1px solid var(--color-border)',
+          }}
+        >
+          <div className="skeleton" style={{ height: '16px', width: '60%', marginBottom: '10px' }} />
+          <div className="skeleton" style={{ height: '12px', width: '40%', marginBottom: '6px' }} />
+          <div className="skeleton" style={{ height: '12px', width: '75%' }} />
+        </div>
+      ))}
     </div>
   )
 }

@@ -14,7 +14,7 @@
     "@react-pdf/renderer": "^4.3.0",
     "@supabase/supabase-js": "^2.49.4",
     "lucide-react": "^0.511.0",
-    "pdfjs-dist": "^4.0.0",
+    "pdfjs-dist": "^4.10.38",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "tesseract.js": "^5.0.0"

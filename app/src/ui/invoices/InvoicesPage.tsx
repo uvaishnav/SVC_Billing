@@ -151,7 +151,7 @@ function InvoiceCard({
 
       {/* Top row */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-        <span style={{ fontFamily: 'Playfair Display, serif', fontSize: 15, fontWeight: 700, color: isDraft ? 'var(--color-warning)' : isCancelled ? 'var(--color-error)' : 'var(--color-primary)' }}>
+        <span style={{ fontFamily: 'DM Serif Display, Georgia, serif', fontSize: 15, fontWeight: 400, color: isDraft ? 'var(--color-warning)' : isCancelled ? 'var(--color-error)' : 'var(--color-primary)' }}>
           {inv.invoice_number}
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -193,10 +193,8 @@ function InvoiceCard({
               type="button"
               disabled={loadingEdit === inv.id}
               onClick={() => onOpen(inv)}
-              style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--color-primary)', background: 'transparent', color: 'var(--color-primary)', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'background 150ms, color 150ms', opacity: loadingEdit === inv.id ? 0.6 : 1 }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-primary)'; e.currentTarget.style.color = '#fff' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-primary)' }}
-            >{loadingEdit === inv.id ? 'Loading…' : '✏️ Edit'}</button>
+              style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--color-primary)', background: 'transparent', color: 'var(--color-primary)', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: loadingEdit === inv.id ? 0.6 : 1 }}
+            >{loadingEdit === inv.id ? <div style={{ width: 24, height: 12, borderRadius: 4, background: 'var(--color-primary)', opacity: 0.3 }} /> : 'Edit'}</button>
           </div>
           <CancelInvoiceButton invoiceId={inv.id} onCancelled={() => onCancelled(inv.id)} />
         </div>
@@ -360,7 +358,7 @@ export default function InvoicesPage() {
         {/* Title row */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div>
-            <h1 style={{ color: 'var(--color-text-inverse)', fontSize: 22, fontFamily: 'Playfair Display, serif', marginBottom: 2 }}>Invoices</h1>
+            <h1 style={{ color: 'var(--color-text-inverse)', fontSize: 24, fontFamily: 'DM Serif Display, Georgia, serif', fontWeight: 400, marginBottom: 2 }}>Invoices</h1>
             <p style={{ color: 'var(--color-accent)', fontSize: 13, opacity: 0.85 }}>
               FY {selectedFY} &bull; {counts.final} finalised
             </p>
@@ -426,7 +424,7 @@ export default function InvoicesPage() {
       {/* ── Content ── */}
       <div style={{ maxWidth: 640, margin: '0 auto', padding: '16px calc(16px + var(--safe-right)) 32px calc(16px + var(--safe-left))' }}>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--color-text-muted)', fontSize: 15 }}>Loading invoices…</div>
+          <InvoiceListSkeleton />
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 0' }}>
             <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--color-surface-offset)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 28 }}>📄</div>
@@ -457,6 +455,34 @@ export default function InvoicesPage() {
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+// ── Skeleton ──────────────────────────────────────────────────────────────────
+
+function InvoiceListSkeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {[1, 2, 3, 4].map(i => (
+        <div
+          key={i}
+          style={{
+            background:   'var(--color-surface)',
+            borderRadius: '14px',
+            padding:      '14px 16px',
+            border:       '1px solid var(--color-border)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+            <div className="skeleton" style={{ height: '14px', width: '45%' }} />
+            <div className="skeleton" style={{ height: '14px', width: '20%' }} />
+          </div>
+          <div className="skeleton" style={{ height: '12px', width: '65%', marginBottom: '6px' }} />
+          <div className="skeleton" style={{ height: '12px', width: '80%', marginBottom: '12px' }} />
+          <div className="skeleton" style={{ height: '36px', width: '100%', borderRadius: '8px' }} />
+        </div>
+      ))}
     </div>
   )
 }

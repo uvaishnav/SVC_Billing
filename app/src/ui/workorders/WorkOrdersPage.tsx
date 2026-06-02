@@ -199,7 +199,7 @@ export default function WorkOrdersPage() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
           <div>
-            <h1 style={{ color: 'var(--color-text-inverse)', fontSize: '22px', fontFamily: 'Playfair Display, serif', marginBottom: '2px' }}>Work Orders</h1>
+            <h1 style={{ color: 'var(--color-text-inverse)', fontSize: '24px', fontFamily: 'DM Serif Display, Georgia, serif', fontWeight: 400, marginBottom: '2px' }}>Work Orders</h1>
             <p style={{ color: 'var(--color-accent)', fontSize: '13px', opacity: 0.85 }}>
               {workOrders.filter(wo => wo.status === 'active' || wo.status === 'expiring_soon').length} active
             </p>
@@ -256,10 +256,10 @@ export default function WorkOrdersPage() {
       {/* Content */}
       <div style={{ maxWidth: '640px', margin: '0 auto', padding: '20px calc(16px + var(--safe-right)) 32px calc(16px + var(--safe-left))' }}>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--color-text-muted)', fontSize: '15px' }}>Loading work orders…</div>
+          <WOListSkeleton />
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 0' }}>
-            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--color-surface-offset)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: '28px' }}>📋</div>
+            <div style={{ width: '60px', height: '60px', borderRadius: '18px', background: 'var(--color-surface-offset)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}><span style={{ color: 'var(--color-text-faint)', fontSize: '22px' }}>—</span></div>
             <p style={{ color: 'var(--color-text-muted)', fontSize: '15px' }}>
               {search || filterStatus !== 'all' ? 'No work orders match your filter.' : 'No work orders yet.'}
             </p>
@@ -307,6 +307,33 @@ export default function WorkOrdersPage() {
           onRefresh={load}
         />
       )}
+    </div>
+  )
+}
+
+// ── Skeleton ──────────────────────────────────────────────────────────────────
+
+function WOListSkeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {[1, 2, 3].map(i => (
+        <div
+          key={i}
+          style={{
+            background:   'var(--color-surface)',
+            borderRadius: 'var(--radius-md)',
+            padding:      '14px 16px',
+            border:       '1px solid var(--color-border)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+            <div className="skeleton" style={{ height: '14px', width: '50%' }} />
+            <div className="skeleton" style={{ height: '20px', width: '20%', borderRadius: '20px' }} />
+          </div>
+          <div className="skeleton" style={{ height: '12px', width: '70%', marginBottom: '6px' }} />
+          <div className="skeleton" style={{ height: '12px', width: '55%' }} />
+        </div>
+      ))}
     </div>
   )
 }

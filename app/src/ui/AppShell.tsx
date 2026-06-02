@@ -1,97 +1,226 @@
-import { useState } from 'react'
-import DashboardPage from './dashboard/DashboardPage'
-import SettingsPage from './settings/SettingsPage'
-import ClientsPage from './clients/ClientsPage'
-import VehiclesPage from './vehicles/VehiclesPage'
-import WorkOrdersPage from './workorders/WorkOrdersPage'
-import ProjectsPage from './projects/ProjectsPage'
-import InvoicesPage from './invoices/InvoicesPage'
+import { useState, useCallback } from 'react'
+import {
+  LayoutDashboard,
+  FileText,
+  Users,
+  ClipboardList,
+  Settings,
+} from 'lucide-react'
+import DashboardPage   from './dashboard/DashboardPage'
+import SettingsPage    from './settings/SettingsPage'
+import ClientsPage     from './clients/ClientsPage'
+import WorkOrdersPage  from './workorders/WorkOrdersPage'
+import InvoicesPage    from './invoices/InvoicesPage'
 
-type Tab = 'home' | 'invoices' | 'clients' | 'vehicles' | 'workorders' | 'projects' | 'settings'
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'home',       label: 'Home',       icon: '🏠' },
-  { id: 'invoices',   label: 'Invoices',   icon: '📄' },
-  { id: 'clients',    label: 'Clients',    icon: '👤' },
-  { id: 'vehicles',   label: 'Vehicles',   icon: '🚛' },
-  { id: 'workorders', label: 'Work Orders', icon: '📋' },
-  { id: 'projects',   label: 'Projects',   icon: '📁' },
-  { id: 'settings',   label: 'Settings',   icon: '⚙️' },
+type Tab = 'home' | 'invoices' | 'clients' | 'workorders' | 'settings'
+
+const TABS: {
+  id: Tab
+  label: string
+  Icon: React.ComponentType<{ size?: number; strokeWidth?: number }>
+}[] = [
+  { id: 'home',       label: 'Home',       Icon: LayoutDashboard },
+  { id: 'invoices',   label: 'Invoices',   Icon: FileText        },
+  { id: 'clients',    label: 'Clients',    Icon: Users           },
+  { id: 'workorders', label: 'Work Orders',Icon: ClipboardList   },
+  { id: 'settings',   label: 'Settings',   Icon: Settings        },
 ]
 
-const NAV_HEIGHT = 64
+const NAV_HEIGHT = 64 // px
+
+// ─── AppShell ─────────────────────────────────────────────────────────────────
 
 export default function AppShell() {
   const [activeTab, setActiveTab] = useState<Tab>('home')
+  const [prevTab,   setPrevTab]   = useState<Tab>('home')
+
+  const handleTabChange = useCallback((id: Tab) => {
+    if (id === activeTab) return
+    setPrevTab(activeTab)
+    setActiveTab(id)
+  }, [activeTab])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--color-bg)' }}>
-
-      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: `calc(${NAV_HEIGHT}px + var(--safe-bottom))` }}>
-        {activeTab === 'home'       && <DashboardPage />}
-        {activeTab === 'invoices'   && <InvoicesPage />}
-        {activeTab === 'clients'    && <ClientsPage />}
-        {activeTab === 'vehicles'   && <VehiclesPage />}
-        {activeTab === 'workorders' && <WorkOrdersPage />}
-        {activeTab === 'projects'   && <ProjectsPage />}
-        {activeTab === 'settings'   && <SettingsPage />}
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: '100dvh',
+        background: 'var(--color-bg)',
+      }}
+    >
+      {/* ── Scrollable content ── */}
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          paddingBottom: `calc(${NAV_HEIGHT}px + var(--safe-bottom))`,
+          WebkitOverflowScrolling: 'touch' as any,
+        }}
+      >
+        {/*
+          We render all pages but hide inactive ones with visibility:hidden +
+          height:0 so state is preserved. The active page gets the tab-enter
+          animation class on each tab change.
+        */}
+        <TabPage id="home"       active={activeTab === 'home'}       prev={prevTab}><DashboardPage /></TabPage>
+        <TabPage id="invoices"   active={activeTab === 'invoices'}   prev={prevTab}><InvoicesPage /></TabPage>
+        <TabPage id="clients"    active={activeTab === 'clients'}    prev={prevTab}><ClientsPage /></TabPage>
+        <TabPage id="workorders" active={activeTab === 'workorders'} prev={prevTab}><WorkOrdersPage /></TabPage>
+        <TabPage id="settings"   active={activeTab === 'settings'}   prev={prevTab}><SettingsPage /></TabPage>
       </div>
 
-      <nav style={{
-        position: 'fixed', bottom: 0, left: 0, right: 0,
-        height: `calc(${NAV_HEIGHT}px + var(--safe-bottom))`,
-        paddingBottom: 'var(--safe-bottom)',
-        paddingLeft: 'var(--safe-left)',
-        paddingRight: 'var(--safe-right)',
-        background: 'var(--nav-bg)',
-        borderTop: '1px solid var(--color-border)',
-        backdropFilter: 'blur(18px)',
-        display: 'flex',
-        zIndex: 100,
-        overflowX: 'auto',
-        boxShadow: '0 -8px 24px rgba(20,14,8,0.12)',
-      }}>
-        {TABS.map(tab => {
-          const isActive = activeTab === tab.id
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                flex: 1,
-                minWidth: 64,
-                display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center',
-                gap: '4px',
-                border: 'none',
-                background: 'transparent',
-                cursor: 'pointer',
-                padding: '6px 4px',
-                position: 'relative',
-                color: isActive ? 'var(--color-accent)' : 'var(--color-text-muted)',
-              }}
-            >
-              {isActive && (
-                <span style={{
-                  position: 'absolute', top: 4, left: '50%',
-                  transform: 'translateX(-50%)',
-                  width: '32px', height: '2px',
-                  background: 'var(--color-accent)',
-                  borderRadius: '0 0 2px 2px',
-                }} />
-              )}
-              <span style={{ fontSize: '18px', lineHeight: 1 }}>{tab.icon}</span>
-              <span style={{
-                fontSize: '11px',
-                fontWeight: isActive ? 600 : 400,
-                color: isActive ? 'var(--color-accent)' : 'var(--color-text-muted)',
-                fontFamily: 'Work Sans, sans-serif',
-                letterSpacing: '0.2px',
-              }}>{tab.label}</span>
-            </button>
-          )
-        })}
-      </nav>
+      {/* ── Bottom Navigation Bar ── */}
+      <BottomNavBar activeTab={activeTab} onTabChange={handleTabChange} />
     </div>
+  )
+}
+
+// ─── TabPage ──────────────────────────────────────────────────────────────────
+
+function TabPage({
+  id, active, prev, children,
+}: {
+  id: Tab; active: boolean; prev: Tab; children: React.ReactNode
+}) {
+  // Use display:none only when never visited — otherwise keep in DOM for state
+  return (
+    <div
+      key={`${prev}->${id}`}
+      style={{
+        display: active ? 'block' : 'none',
+      }}
+      className={active ? 'tab-page' : undefined}
+    >
+      {children}
+    </div>
+  )
+}
+
+// ─── BottomNavBar ────────────────────────────────────────────────────────────
+
+function BottomNavBar({
+  activeTab,
+  onTabChange,
+}: {
+  activeTab: Tab
+  onTabChange: (id: Tab) => void
+}) {
+  return (
+    <nav
+      aria-label="Main navigation"
+      style={{
+        position:      'fixed',
+        bottom:        0,
+        left:          0,
+        right:         0,
+        height:        `calc(${NAV_HEIGHT}px + var(--safe-bottom))`,
+        paddingBottom: 'var(--safe-bottom)',
+        paddingLeft:   'var(--safe-left)',
+        paddingRight:  'var(--safe-right)',
+        background:    'var(--nav-bg)',
+        backdropFilter:'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderTop:     '1px solid rgba(59, 42, 31, 0.08)',
+        boxShadow:     'var(--shadow-nav)',
+        display:       'flex',
+        zIndex:        100,
+      }}
+    >
+      {TABS.map(tab => {
+        const isActive = activeTab === tab.id
+        return (
+          <NavTab
+            key={tab.id}
+            tab={tab}
+            isActive={isActive}
+            onPress={() => onTabChange(tab.id)}
+          />
+        )
+      })}
+    </nav>
+  )
+}
+
+// ─── NavTab ───────────────────────────────────────────────────────────────────
+
+function NavTab({
+  tab,
+  isActive,
+  onPress,
+}: {
+  tab: typeof TABS[number]
+  isActive: boolean
+  onPress: () => void
+}) {
+  const { Icon, label } = tab
+
+  return (
+    <button
+      type="button"
+      onClick={onPress}
+      aria-label={label}
+      aria-selected={isActive}
+      role="tab"
+      style={{
+        flex:           1,
+        display:        'flex',
+        flexDirection:  'column',
+        alignItems:     'center',
+        justifyContent: 'center',
+        gap:            '3px',
+        border:         'none',
+        background:     'transparent',
+        cursor:         'pointer',
+        padding:        '6px 4px',
+        position:       'relative',
+        minHeight:      '44px',
+        minWidth:       '44px',
+        /* Override global button spring so tab transitions feel snappier */
+        transition:     'color 160ms var(--ease-out)',
+        color: isActive ? 'var(--color-primary)' : 'var(--color-text-faint)',
+      }}
+    >
+      {/* Active indicator pill behind icon */}
+      {isActive && (
+        <span
+          aria-hidden="true"
+          style={{
+            position:     'absolute',
+            top:          '6px',
+            left:         '50%',
+            transform:    'translateX(-50%)',
+            width:        '40px',
+            height:       '28px',
+            background:   'rgba(200, 169, 106, 0.15)',
+            borderRadius: '10px',
+            transition:   'opacity var(--duration-fast) var(--ease-out)',
+          }}
+        />
+      )}
+
+      {/* Icon */}
+      <Icon
+        size={22}
+        strokeWidth={isActive ? 2.2 : 1.8}
+        aria-hidden="true"
+      />
+
+      {/* Label */}
+      <span
+        style={{
+          fontSize:      '10px',
+          fontWeight:    isActive ? 600 : 400,
+          letterSpacing: isActive ? '0.1px' : '0px',
+          fontFamily:    'Work Sans, sans-serif',
+          lineHeight:    1,
+        }}
+      >
+        {label}
+      </span>
+    </button>
   )
 }

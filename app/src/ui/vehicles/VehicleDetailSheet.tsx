@@ -29,7 +29,7 @@ export default function VehicleDetailSheet({ vehicle, onClose, onEdit }: Props) 
               🚛
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <h2 style={{ color: 'var(--color-text-inverse)', fontSize: '20px', fontFamily: 'Playfair Display, serif', marginBottom: '4px', fontVariantNumeric: 'tabular-nums', letterSpacing: '0.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <h2 style={{ color: 'var(--color-text-inverse)', fontSize: '20px', fontFamily: 'DM Serif Display, Georgia, serif', marginBottom: '4px', fontVariantNumeric: 'tabular-nums', letterSpacing: '0.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {vehicle.reg_number}
               </h2>
               {vehicle.vehicle_type && (

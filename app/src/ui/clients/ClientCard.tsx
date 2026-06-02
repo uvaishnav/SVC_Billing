@@ -23,7 +23,7 @@ export default function ClientCard({ client, onTap, onEdit, onDeactivate }: Prop
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
 
         {/* Avatar */}
-        <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--color-surface-offset)', border: '1.5px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '17px', fontWeight: 700, color: 'var(--color-primary)', fontFamily: 'Playfair Display, serif' }}>
+        <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--color-surface-offset)', border: '1.5px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '17px', fontWeight: 700, color: 'var(--color-primary)', fontFamily: 'DM Serif Display, Georgia, serif' }}>
           {client.name.charAt(0).toUpperCase()}
         </div>
 

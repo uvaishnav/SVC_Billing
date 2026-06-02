@@ -12,7 +12,7 @@ export default function ProjectCard({ project: p, onEdit, onDeactivate }: Props)
     <div style={{ background: 'var(--color-surface)', borderRadius: '14px', padding: '16px', border: '1px solid var(--color-border)' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: '8px' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text)', margin: '0 0 4px', fontFamily: 'Playfair Display, serif' }}>{p.name}</p>
+          <p style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text)', margin: '0 0 4px', fontFamily: 'DM Serif Display, Georgia, serif' }}>{p.name}</p>
           {p.site_location && (
             <p style={{ fontSize: '13px', color: 'var(--color-accent)', margin: '0 0 4px', fontWeight: 500 }}>📍 {p.site_location}</p>
           )}

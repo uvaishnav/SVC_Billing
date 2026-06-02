@@ -380,7 +380,7 @@ export default function Section1Header({
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {isLocked && <span style={{ fontSize: 11, color: 'var(--color-accent)', opacity: 0.6 }}>🔒</span>}
           <span style={{
-            fontFamily: 'Playfair Display, serif',
+            fontFamily: 'DM Serif Display, Georgia, serif',
             fontSize: isLocked ? 20 : 15, fontWeight: 700,
             color: isLocked ? 'var(--color-accent)' : 'rgba(245,241,232,0.35)',
             fontStyle: isLocked ? 'normal' : 'italic',

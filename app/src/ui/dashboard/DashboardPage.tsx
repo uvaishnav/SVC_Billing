@@ -105,7 +105,7 @@ function VehicleRevenueChart({ data, period, onPeriodChange }: {
   return (
     <div style={{ background: 'var(--color-surface)', borderRadius: 12, padding: '16px 16px 12px', boxShadow: 'var(--shadow-sm)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', fontFamily: 'Playfair Display, serif' }}>Vehicle Revenue</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', fontFamily: 'DM Serif Display, Georgia, serif' }}>Vehicle Revenue</span>
         <div style={{ display: 'flex', gap: 4 }}>
           {(['month', 'fy'] as const).map(p => (
             <button key={p} type="button" onClick={() => onPeriodChange(p)} style={{
@@ -222,7 +222,7 @@ function MonthlyTrendChart({ data }: { data: MonthlyTrend[] }) {
     <div style={{ background: 'var(--color-surface)', borderRadius: 12, padding: '16px 16px 14px', boxShadow: 'var(--shadow-sm)' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', fontFamily: 'Playfair Display, serif' }}>6-Month Billing Trend</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', fontFamily: 'DM Serif Display, Georgia, serif' }}>6-Month Billing Trend</span>
         {momDiff !== null && (
           <span style={{
             fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20,
@@ -393,7 +393,7 @@ function WoFlags({ flags }: { flags: WoFlag[] }) {
   if (flags.length === 0) return null
   return (
     <div style={{ background: 'var(--color-surface)', borderRadius: 12, padding: '14px 14px 10px', boxShadow: 'var(--shadow-sm)' }}>
-      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', fontFamily: 'Playfair Display, serif', marginBottom: 10 }}>Work Order Flags</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', fontFamily: 'DM Serif Display, Georgia, serif', marginBottom: 10 }}>Work Order Flags</div>
       {flags.map(f => {
         const isExpiring = f.flagType === 'expiring_soon'
         const accent = isExpiring
