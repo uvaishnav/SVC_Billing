@@ -16,7 +16,8 @@
     "lucide-react": "^0.511.0",
     "pdfjs-dist": "^4.0.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "tesseract.js": "^5.0.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
