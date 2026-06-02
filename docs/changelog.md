@@ -4,6 +4,19 @@
 
 ---
 
+## [2026-06-02] — Cloudflare Deployment Build Fixes
+
+### Fixed
+- `app/package-lock.json` — deleted stale v3 lock file. Lock file still referenced `tailwindcss@3.4.19` while `package.json` required `^4.0.0`, causing `npm ci` to fail with "lock file not in sync" error. Cloudflare regenerates a clean lock on fresh install.
+- `app/package.json` — added `pdfjs-dist@^4.0.0` and `tesseract.js@^5.0.0` to `dependencies`. Both packages were imported in `ocrPdf.ts` but missing from `package.json`. They worked locally as transitive/global installs but Cloudflare's clean CI environment has no such fallback.
+- `app/src/index.css` — moved `@import url(Google Fonts)` to line 1, before `@tailwind` directives. CSS spec requires `@import` to precede all other rules. Tailwind v4 compiles `@tailwind` directives into real CSS rules, making the out-of-order `@import` a hard build error in Vite.
+
+### Observations
+- Root cause of all three errors: packages were installed locally in a non-clean environment, masking missing `package.json` entries. Running `rm -rf node_modules && npm install && npm run build` locally before pushing would have caught these before CI.
+- Cloudflare Pages falls back from `npm ci` to `npm install` automatically when no lock file is present — useful escape hatch during initial setup.
+
+---
+
 ## [2026-06-02] — PWA + Cloudflare Deployment Prerequisites
 
 ### Added
@@ -14,57 +27,40 @@
 - `app/public/sw.js` — Manual service worker.
   - **Install:** pre-caches shell assets (`/`, `/index.html`, `/manifest.json`, `/favicon.svg`, both PNGs, `apple-touch-icon.png`).
   - **Activate:** cleans up old caches by version name.
-  - **Fetch strategy:** Vite `/assets/` hashed files → cache-first (safe: filename changes on each build). Navigation → network-first with `index.html` fallback (offline shell). Supabase (`supabase.co` / `supabase.io`) → always bypassed (never cached). All non-GET requests → bypassed.
+  - **Fetch strategy:** Vite `/assets/` hashed files → cache-first. Navigation → network-first with `index.html` fallback. Supabase URLs → always bypassed.
 - `app/public/_redirects` — Cloudflare Pages SPA routing. Single line: `/* /index.html 200`.
-- `app/src/registerSW.ts` — `registerServiceWorker()` function. Registers `sw.js` at scope `/` on `window load`. Silent fail if browser lacks SW support.
-- `app/public/icons/icon-192.png` — 192×192 PNG icon (PWA install prompt, Android home screen).
+- `app/src/registerSW.ts` — `registerServiceWorker()` function.
+- `app/public/icons/icon-192.png` — 192×192 PNG icon.
 
 ### Changed
-- `app/index.html`:
-  - Added `<link rel="manifest">`, `<meta name="apple-mobile-web-app-capable">`, `<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">`, `<meta name="apple-mobile-web-app-title">`, `<link rel="apple-touch-icon">`.
-  - Added `<meta name="theme-color" content="#01696f">`.
-  - Updated `<title>` to `SVC Billing`.
-  - Updated viewport to include `viewport-fit=cover` (needed for iPhone notch/dynamic island safe areas).
-- `app/src/main.tsx` — added `import { registerServiceWorker } from './registerSW'` and `registerServiceWorker()` call after React root mount.
+- `app/index.html` — iOS PWA meta tags, manifest link, `viewport-fit=cover`, `theme-color`.
+- `app/src/main.tsx` — `registerServiceWorker()` called after React root mount.
 
 ### Observations
-- `icon-512.png` and `apple-touch-icon.png` are referenced in manifest/index.html but not yet committed — must be added manually as PNG rasters of the app logo. iOS Safari ignores SVG for home screen icons.
-- The SW deliberately does NOT cache Supabase API calls. Auth tokens and data must always come from the network. Caching these would cause stale-login bugs after session expiry.
-- `viewport-fit=cover` is required for the app to extend behind the iPhone notch/dynamic island. The bottom tab bar already has enough `padding-bottom` to stay above the home indicator.
-- Cloudflare Pages setup: build root = `app/`, build command = `npm run build`, output = `dist`. Environment variables `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` must be set in the Cloudflare dashboard.
+- `icon-512.png` and `apple-touch-icon.png` still pending — must be added as PNG rasters manually.
+- SW deliberately bypasses all Supabase calls to prevent stale-auth bugs.
+- Cloudflare Pages: build root = `app/`, build command = `npm run build`, output = `dist`.
 
 ---
 
 ## [2026-06-01] — Dashboard / Home Tab (Phase 4)
 
 ### Added
-
-- `supabase/migrations/008_dashboard_ignores.sql` — new `dashboard_ignores` table.
-  - Columns: `vehicle_id` (FK → vehicles), `year_month` (TEXT, format `YYYY-MM`).
-  - UNIQUE constraint on `(vehicle_id, year_month)` — prevents duplicate ignores.
-  - RLS policy: authenticated users only.
-
-- `app/src/db/dashboardDb.ts` — all dashboard data queries.
-  - `fetchKpis()` — returns `thisMonthRevenue`, `thisFyRevenue`, `activeWoCount`, `expiringWoCount`.
-  - `fetchUnbilledVehicles()` — checks active vehicles against `vehicle_billing_ledger` for current + previous month.
-  - `fetchVehicleRevenue(period)` — aggregates per vehicle for current month or current FY.
-  - `fetchWoFlags()` — `expiring_soon` + `near_limit` flags.
-  - `fetchMonthlyTrend()` — last 6 months, zero-filled.
-  - `ignoreUnbilledMonth` / `unignoreUnbilledMonth` — upsert/delete from `dashboard_ignores`.
-
+- `supabase/migrations/008_dashboard_ignores.sql` — `dashboard_ignores` table.
+- `app/src/db/dashboardDb.ts` — KPI, unbilled, vehicle revenue, WO flags, monthly trend queries.
 - `app/src/ui/dashboard/DashboardPage.tsx` — full dashboard page.
 - `app/src/ui/AppShell.tsx` — 🏠 Home as tab 0.
 
 ### Fixed
 - `DashboardPage.tsx` — `inv.totalInvoiceAmount` → `inv.totalAmount`.
-- `DashboardPage.tsx` — Restore button CSS var `--color-info` → `--color-primary`.
+- `DashboardPage.tsx` — CSS var `--color-info` → `--color-primary`.
 
 ### Changed
 - `dashboardDb.ts` — replaced `fetchRecentInvoices()` with `fetchMonthlyTrend()`.
 
 ### Observations
 - `vehicle_billing_ledger` makes all dashboard queries fast — no joins needed.
-- Chart.js loaded from CDN lazily on first Dashboard render.
+- Chart.js loaded from CDN lazily on first Dashboard render only.
 
 ---
 
@@ -73,13 +69,12 @@
 ### Added
 - `supabase/migrations/008_decrement_billed_qty_rpc.sql` — `decrement_billed_qty` RPC.
 - `cancelInvoice(invoiceId)` in `invoicesDb.ts` — reverses qty + ledger, sets `status = 'cancelled'`.
-- `_reverseBilledQty` + `_reverseVehicleLedger` private helpers in `invoicesDb.ts`.
 
 ### Fixed
 - `InvoiceWizard.tsx` — Next button was hidden when editing a final invoice.
 
 ### Changed
-- `InvoicesPage.tsx` — full redesign: teal header, FY selector, status filter pills, VOID stamp, `InvoiceCard` extracted.
+- `InvoicesPage.tsx` — teal header, FY selector, status filter pills, VOID stamp, `InvoiceCard` extracted.
 
 ---
 
