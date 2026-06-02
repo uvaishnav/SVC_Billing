@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import type { VehicleWithClient } from '../../db/types'
-import { getVehicles, deleteVehicle } from '../../db/vehiclesDb'
+import { getVehicles, deactivateVehicle } from '../../db/vehiclesDb'
 import { sectionTitleStyle } from '../settings/_components'
 import VehicleCard from './VehicleCard'
 import VehicleFormModal from './VehicleFormModal'
@@ -28,9 +28,9 @@ export default function VehiclesPage() {
     (v.client_name ?? '').toLowerCase().includes(search.toLowerCase())
   )
 
-  async function handleDelete(id: number) {
-    if (!confirm('Delete this vehicle?')) return
-    await deleteVehicle(id)
+  async function handleDeactivate(id: number) {
+    if (!confirm('Archive this vehicle? It will no longer appear in active lists.')) return
+    await deactivateVehicle(id)
     load()
   }
 
@@ -96,7 +96,7 @@ export default function VehiclesPage() {
                   key={v.id}
                   vehicle={v}
                   onEdit={handleEdit}
-                  onDelete={handleDelete}
+                  onDelete={handleDeactivate}
                 />
               ))}
             </div>
