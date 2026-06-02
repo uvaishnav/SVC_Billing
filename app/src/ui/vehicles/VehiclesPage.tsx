@@ -1,18 +1,16 @@
 import { useEffect, useState, useCallback } from 'react'
-import type { Vehicle } from '../../db/types'
-import { getVehicles, deactivateVehicle } from '../../db/vehiclesDb'
+import type { VehicleWithClient } from '../../db/types'
+import { getVehicles, deleteVehicle } from '../../db/vehiclesDb'
+import { sectionTitleStyle } from '../settings/_components'
 import VehicleCard from './VehicleCard'
 import VehicleFormModal from './VehicleFormModal'
-import VehicleDetailSheet from './VehicleDetailSheet'
-import { sectionTitleStyle } from '../settings/_components'
 
 export default function VehiclesPage() {
-  const [vehicles,       setVehicles]       = useState<Vehicle[]>([])
+  const [vehicles,       setVehicles]       = useState<VehicleWithClient[]>([])
   const [loading,        setLoading]        = useState(true)
   const [search,         setSearch]         = useState('')
   const [modalOpen,      setModalOpen]      = useState(false)
-  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null)
-  const [detailVehicle,  setDetailVehicle]  = useState<Vehicle | null>(null)
+  const [editingVehicle, setEditingVehicle] = useState<VehicleWithClient | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -24,17 +22,19 @@ export default function VehiclesPage() {
   useEffect(() => { load() }, [load])
 
   const filtered = vehicles.filter(v =>
-    v.reg_number.toLowerCase().includes(search.toLowerCase()) ||
-    (v.vehicle_type ?? '').toLowerCase().includes(search.toLowerCase())
+    (v.registration_number ?? '').toLowerCase().includes(search.toLowerCase()) ||
+    (v.make ?? '').toLowerCase().includes(search.toLowerCase()) ||
+    (v.model ?? '').toLowerCase().includes(search.toLowerCase()) ||
+    (v.client_name ?? '').toLowerCase().includes(search.toLowerCase())
   )
 
-  async function handleDeactivate(id: number) {
-    if (!confirm('Remove this vehicle? This action cannot be undone.')) return
-    await deactivateVehicle(id)
+  async function handleDelete(id: number) {
+    if (!confirm('Delete this vehicle?')) return
+    await deleteVehicle(id)
     load()
   }
 
-  function handleEdit(vehicle: Vehicle) {
+  function handleEdit(vehicle: VehicleWithClient) {
     setEditingVehicle(vehicle)
     setModalOpen(true)
   }
@@ -53,13 +53,12 @@ export default function VehiclesPage() {
   return (
     <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
 
-      {/* Sticky header */}
-      <div style={{ background: 'var(--color-primary)', padding: '20px 20px 16px', position: 'sticky', top: 0, zIndex: 10 }}>
+      <div className="page-header" style={{ background: 'var(--color-primary)', position: 'sticky', top: 0, zIndex: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
           <div>
             <h1 style={{ color: 'var(--color-bg)', fontSize: '22px', fontFamily: 'Playfair Display, serif', marginBottom: '2px' }}>Vehicles</h1>
             <p style={{ color: 'var(--color-accent)', fontSize: '13px', opacity: 0.85 }}>
-              {vehicles.length} active vehicle{vehicles.length !== 1 ? 's' : ''}
+              {vehicles.length} vehicle{vehicles.length !== 1 ? 's' : ''}
             </p>
           </div>
           <button
@@ -70,12 +69,11 @@ export default function VehiclesPage() {
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Search by reg number or type…"
+          placeholder="Search by plate, make, model, or client…"
           style={{ width: '100%', padding: '11px 16px', borderRadius: '10px', border: 'none', background: 'rgba(255,255,255,0.12)', color: 'var(--color-bg)', fontSize: '15px', outline: 'none', fontFamily: 'Work Sans, sans-serif', boxSizing: 'border-box' }}
         />
       </div>
 
-      {/* Content */}
       <div style={{ maxWidth: '640px', margin: '0 auto', padding: '20px 16px 32px' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--color-text-muted)', fontSize: '15px' }}>Loading vehicles…</div>
@@ -97,9 +95,8 @@ export default function VehiclesPage() {
                 <VehicleCard
                   key={v.id}
                   vehicle={v}
-                  onTap={setDetailVehicle}
                   onEdit={handleEdit}
-                  onDeactivate={handleDeactivate}
+                  onDelete={handleDelete}
                 />
               ))}
             </div>
@@ -112,14 +109,6 @@ export default function VehiclesPage() {
           vehicle={editingVehicle}
           onClose={() => { setModalOpen(false); setEditingVehicle(null) }}
           onSaved={handleSaved}
-        />
-      )}
-
-      {detailVehicle && (
-        <VehicleDetailSheet
-          vehicle={detailVehicle}
-          onClose={() => setDetailVehicle(null)}
-          onEdit={(v) => { setDetailVehicle(null); handleEdit(v) }}
         />
       )}
     </div>
