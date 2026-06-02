@@ -43,8 +43,6 @@ function draftToRow(
     line_item_billing_type:  draft.line_item_billing_type,
     total_taxable:           draft.total_taxable,
     gst_rate:                draft.gst_rate,
-    // GST split (cgst/sgst vs igst) is derived at render time in InvoicePdf.tsx
-    // from tax_mode + total_gst. No separate columns needed in the DB.
     total_gst:               draft.total_gst,
     total_amount:            draft.total_amount,
     tds_rate:                draft.tds_rate,
@@ -288,6 +286,22 @@ export async function deleteDraftInvoice(invoiceId: number): Promise<{ ok: boole
     .eq('id', invoiceId)
   if (delErr) { console.error('deleteDraftInvoice:', delErr); return { ok: false, error: delErr.message } }
 
+  return { ok: true }
+}
+
+// ─── Mark Invoice Paid ─────────────────────────────────────────
+
+export async function markInvoicePaid(
+  invoiceId: number,
+): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase
+    .from('invoices')
+    .update({ status: 'paid' })
+    .eq('id', invoiceId)
+  if (error) {
+    console.error('markInvoicePaid:', error)
+    return { ok: false, error: error.message }
+  }
   return { ok: true }
 }
 
