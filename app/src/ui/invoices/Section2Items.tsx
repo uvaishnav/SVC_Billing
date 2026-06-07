@@ -53,7 +53,7 @@ export default function Section2Items({
   )
 }
 
-// ─── QUANTITY MODE (existing logic, unchanged) ──────────────────────
+// ─── QUANTITY MODE ──────────────────────────────────────────────────────────
 function Section2Quantity({
   draft,
   setLineItems,
@@ -66,6 +66,11 @@ function Section2Quantity({
   const [editingRate, setEditingRate] = useState<number | null>(null)
   const [loading, setLoading]         = useState(false)
 
+  // ── Target Billing Amount state ──────────────────────────
+  // This is UI-only. It drives qty back-calculation but never leaves this component.
+  const [targetAmount, setTargetAmount] = useState<string>('')
+  const [targetEditing, setTargetEditing] = useState(false)
+
   useEffect(() => {
     if (!draft.work_order_id) { setWoItems([]); return }
     setLoading(true)
@@ -77,6 +82,36 @@ function Section2Quantity({
         setLoading(false)
       })
   }, [draft.work_order_id])
+
+  // Keep targetAmount in sync when qty is edited directly (Direction B → A)
+  // Only update when user is NOT actively typing in the target field
+  const subtotal = draft.line_items.reduce((s, i) => s + i.taxable_value, 0)
+  useEffect(() => {
+    if (!targetEditing) {
+      setTargetAmount(subtotal > 0 ? subtotal.toFixed(2) : '')
+    }
+  }, [subtotal, targetEditing])
+
+  // ── Back-calculate qty from target amount (Direction A → B) ────────────
+  function applyTargetAmount(raw: string) {
+    const total = parseFloat(raw)
+    const selectedItems = draft.line_items
+    if (!total || total <= 0 || selectedItems.length === 0) return
+
+    // Equal rupee split: each item gets (total / N) rupees
+    const perItemAmount = total / selectedItems.length
+
+    setLineItems(selectedItems.map(li => {
+      const qty = li.rate > 0
+        ? parseFloat((perItemAmount / li.rate).toFixed(6))
+        : 0
+      return {
+        ...li,
+        qty,
+        taxable_value: parseFloat((qty * li.rate).toFixed(2)),
+      }
+    }))
+  }
 
   function isSelected(id: number) {
     return draft.line_items.some(li => li.work_order_item_id === id)
@@ -117,7 +152,8 @@ function Section2Quantity({
     setEditingRate(null)
   }
 
-  const subtotal = draft.line_items.reduce((s, i) => s + i.taxable_value, 0)
+  const selectedCount = draft.line_items.length
+  const filledCount   = draft.line_items.filter(i => i.qty > 0).length
 
   if (!draft.work_order_id) return (
     <EmptyState message="No work order selected. Go back to Section 1 and select a work order." />
@@ -129,6 +165,106 @@ function Section2Quantity({
       <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 16 }}>
         Select items to bill and enter quantities.
       </p>
+
+      {/* ── Target Billing Amount helper ── */}
+      <div style={{
+        ...cardStyle,
+        marginBottom: 20,
+        background: 'var(--color-primary-highlight)',
+        borderColor: targetAmount && parseFloat(targetAmount) > 0
+          ? 'var(--color-primary)'
+          : 'var(--color-border)',
+        transition: 'border-color 0.2s',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <span style={{ fontSize: 16 }}>🎯</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary)' }}>
+            Target Billing Amount
+          </span>
+          <span style={{
+            fontSize: 10, fontWeight: 600, color: 'var(--color-text-faint)',
+            background: 'var(--color-surface-offset)', borderRadius: 4, padding: '2px 6px',
+          }}>
+            OPTIONAL
+          </span>
+        </div>
+        <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
+          Enter the total amount you want to bill. Quantities will be back-calculated
+          {selectedCount > 1
+            ? ` by splitting ₹ equally across ${selectedCount} selected item(s).`
+            : ' from the rate of the selected item.'
+          }
+        </p>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+          <div style={{ flex: 1 }}>
+            <label style={labelStyle}>Total Amount (₹)</label>
+            <input
+              type="number"
+              min="0"
+              step="any"
+              value={targetAmount}
+              placeholder="e.g. 50000"
+              disabled={selectedCount === 0}
+              onFocus={() => setTargetEditing(true)}
+              onBlur={() => {
+                setTargetEditing(false)
+                applyTargetAmount(targetAmount)
+              }}
+              onChange={e => setTargetAmount(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.currentTarget.blur()
+                }
+              }}
+              style={{
+                ...inputStyle,
+                textAlign: 'right',
+                fontSize: 16,
+                fontWeight: 600,
+                opacity: selectedCount === 0 ? 0.4 : 1,
+                cursor: selectedCount === 0 ? 'not-allowed' : 'text',
+              }}
+            />
+          </div>
+          <button
+            type="button"
+            disabled={selectedCount === 0 || !targetAmount || parseFloat(targetAmount) <= 0}
+            onClick={() => applyTargetAmount(targetAmount)}
+            style={{
+              padding: '0 18px',
+              height: 42,
+              borderRadius: 10,
+              border: 'none',
+              background: (selectedCount === 0 || !targetAmount || parseFloat(targetAmount) <= 0)
+                ? 'var(--color-border)'
+                : 'var(--color-primary)',
+              color: (selectedCount === 0 || !targetAmount || parseFloat(targetAmount) <= 0)
+                ? 'var(--color-text-faint)'
+                : '#fff',
+              fontWeight: 700,
+              fontSize: 13,
+              cursor: (selectedCount === 0 || !targetAmount || parseFloat(targetAmount) <= 0)
+                ? 'not-allowed'
+                : 'pointer',
+              transition: 'all 0.15s',
+              flexShrink: 0,
+              marginBottom: 1,
+            }}
+          >
+            Apply
+          </button>
+        </div>
+        {selectedCount === 0 && (
+          <p style={{ fontSize: 11, color: 'var(--color-text-faint)', marginTop: 8 }}>
+            ↑ Select at least one item below to use this field.
+          </p>
+        )}
+        {selectedCount > 1 && targetAmount && parseFloat(targetAmount) > 0 && (
+          <p style={{ fontSize: 11, color: 'var(--color-primary)', marginTop: 8, fontWeight: 500 }}>
+            ≈ ₹{fmt(parseFloat(targetAmount) / selectedCount)} per item (equal split)
+          </p>
+        )}
+      </div>
 
       {woItems.map(woItem => {
         const selected = isSelected(woItem.id)
@@ -211,7 +347,7 @@ function Section2Quantity({
 
       {draft.line_items.length > 0 && (
         <FloatingSubtotal
-          label={`${draft.line_items.filter(i => i.qty > 0).length} item(s) • Subtotal`}
+          label={`${filledCount} item(s) • Subtotal`}
           amount={subtotal}
         />
       )}
