@@ -92,7 +92,7 @@ export async function fetchKpis(): Promise<KpiData> {
       .gte('invoice_date', monthStart)
       .lte('invoice_date', monthEnd),
 
-    // FY Revenue: sum amount from ledger for current financial year (billing_month based — correct)
+    // FY Revenue: sum amount from ledger for current financial year
     supabase
       .from('vehicle_billing_ledger')
       .select('amount')
@@ -115,57 +115,48 @@ export async function fetchKpis(): Promise<KpiData> {
 }
 
 // ─── Unbilled Vehicles ────────────────────────────────────────────────────────
+// Shows active vehicles that have NOT been billed in any final invoice
+// raised this calendar month (invoice_date). Covers both quantity invoices
+// (invoice_vehicles) and rental invoices (invoice_rental_items).
 
 export async function fetchUnbilledVehicles(): Promise<UnbilledVehicle[]> {
   const now        = new Date()
   const currentYM  = toYearMonth(now)
-  const prevYM     = toYearMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1))
   const monthStart = currentMonthStart()
   const monthEnd   = currentMonthEnd()
 
   const [
     vehiclesRes,
     ignoresRes,
-    // quantity invoices: vehicles linked via invoice_vehicles
     qtyVehiclesRes,
-    // rental invoices: vehicles linked via invoice_rental_items
     rentalVehiclesRes,
-    // prev month ledger: covers both billing types (written at finalization for all invoices)
-    prevLedgerRes,
   ] = await Promise.all([
     supabase.from('vehicles').select('id, reg_number').eq('is_active', true),
     supabase.from('dashboard_ignores').select('vehicle_id, year_month'),
+    // quantity invoices: vehicles via invoice_vehicles
     supabase
       .from('invoice_vehicles')
       .select('vehicle_id, invoices!inner(invoice_date, status)')
       .eq('invoices.status', 'final')
       .gte('invoices.invoice_date', monthStart)
       .lte('invoices.invoice_date', monthEnd),
+    // rental invoices: vehicles via invoice_rental_items
     supabase
       .from('invoice_rental_items')
       .select('vehicle_id, invoices!inner(invoice_date, status)')
       .eq('invoices.status', 'final')
       .gte('invoices.invoice_date', monthStart)
       .lte('invoices.invoice_date', monthEnd),
-    supabase
-      .from('vehicle_billing_ledger')
-      .select('vehicle_id')
-      .eq('billing_month', prevYM),
   ])
 
   const vehicles = vehiclesRes.data ?? []
   const ignores  = ignoresRes.data ?? []
 
-  // Union of vehicle_ids billed this calendar month (quantity + rental)
+  // Union: vehicle billed this month via either billing type
   const billedThisMonthSet = new Set<number>([
     ...(qtyVehiclesRes.data    ?? []).map((r: any) => r.vehicle_id),
     ...(rentalVehiclesRes.data ?? []).map((r: any) => r.vehicle_id),
   ])
-
-  // Prev month: ledger covers both billing types — written for all at finalization
-  const billedPrevMonthSet = new Set<number>(
-    (prevLedgerRes.data ?? []).map(r => r.vehicle_id)
-  )
 
   const ignoredSet = new Set<string>(
     ignores.map(i => `${i.vehicle_id}::${i.year_month}`)
@@ -173,14 +164,6 @@ export async function fetchUnbilledVehicles(): Promise<UnbilledVehicle[]> {
 
   const unbilled: UnbilledVehicle[] = []
   for (const v of vehicles) {
-    if (!billedPrevMonthSet.has(v.id)) {
-      unbilled.push({
-        vehicleId: v.id,
-        regNumber: v.reg_number,
-        yearMonth: prevYM,
-        isIgnored: ignoredSet.has(`${v.id}::${prevYM}`),
-      })
-    }
     if (!billedThisMonthSet.has(v.id)) {
       unbilled.push({
         vehicleId: v.id,
