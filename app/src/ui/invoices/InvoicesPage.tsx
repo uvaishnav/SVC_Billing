@@ -270,9 +270,14 @@ export default function InvoicesPage() {
 
   async function load() {
     setLoading(true)
-    const data = await getInvoices()
-    setInvoices(data)
-    setLoading(false)
+    try {
+      const data = await getInvoices()
+      setInvoices(data)
+    } catch (err) {
+      console.error('Failed to load invoices:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { load() }, [])
