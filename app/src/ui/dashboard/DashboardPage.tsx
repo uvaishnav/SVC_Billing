@@ -103,18 +103,25 @@ function VehicleRevenueChart({ data, period, onPeriodChange }: {
   const chartHeight = Math.max(200, Math.min(data.length, 10) * 42 + 32)
 
   return (
-    <div style={{ background: 'var(--color-surface)', borderRadius: 12, padding: '16px 16px 12px', boxShadow: '0 1px 4px rgba(59,42,31,0.07)' }}>
+    <div style={{
+      background: 'var(--color-surface)', borderRadius: 14,
+      padding: '16px 16px 12px',
+      border: '1px solid rgba(217,211,197,0.5)',
+      boxShadow: '0 1px 4px rgba(59,42,31,0.07), 0 2px 10px rgba(59,42,31,0.04)',
+    }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', fontFamily: 'Playfair Display, serif' }}>Vehicle Revenue</span>
         <div style={{ display: 'flex', gap: 4 }}>
           {(['month', 'fy'] as const).map(p => (
             <button key={p} type="button" onClick={() => onPeriodChange(p)} style={{
-              fontSize: 11, padding: '3px 10px', borderRadius: 20,
+              fontSize: 11, padding: '4px 12px', borderRadius: 20,
               border: '1px solid var(--color-border)',
               background: period === p ? 'var(--color-accent)' : 'transparent',
               color: period === p ? 'var(--color-primary)' : 'var(--color-text-muted)',
               fontWeight: period === p ? 600 : 400, cursor: 'pointer',
               fontFamily: 'Work Sans, sans-serif',
+              transition: 'background 180ms, color 180ms',
+              minHeight: 28,
             }}>
               {p === 'month' ? 'Month' : currentFyLabel()}
             </button>
@@ -148,7 +155,6 @@ function MonthlyTrendChart({ data }: { data: MonthlyTrend[] }) {
       const values  = data.map(d => d.total)
       const maxVal  = Math.max(...values, 1)
 
-      // Colour current month accent gold, past months teal-ish
       const bgColors = data.map(d =>
         d.yearMonth === currYM ? 'rgba(200,169,106,0.9)' : 'rgba(1,105,111,0.55)'
       )
@@ -192,7 +198,6 @@ function MonthlyTrendChart({ data }: { data: MonthlyTrend[] }) {
       })
     }
 
-    // Chart.js may already be loaded from VehicleRevenueChart — reuse it
     if (!(window as any).Chart) {
       const existing = document.querySelector('script[src*="chart.js"]')
       if (!existing) {
@@ -210,7 +215,6 @@ function MonthlyTrendChart({ data }: { data: MonthlyTrend[] }) {
     return () => { if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null } }
   }, [data])
 
-  // Summary stats below chart
   const nonZero  = data.filter(d => d.total > 0)
   const avg      = nonZero.length > 0 ? nonZero.reduce((s, d) => s + d.total, 0) / nonZero.length : 0
   const peak     = data.reduce((best, d) => d.total > best.total ? d : best, data[0] ?? { total: 0, yearMonth: '' })
@@ -219,13 +223,17 @@ function MonthlyTrendChart({ data }: { data: MonthlyTrend[] }) {
   const momDiff  = prev && prev.total > 0 ? ((current.total - prev.total) / prev.total) * 100 : null
 
   return (
-    <div style={{ background: 'var(--color-surface)', borderRadius: 12, padding: '16px 16px 14px', boxShadow: '0 1px 4px rgba(59,42,31,0.07)' }}>
-      {/* Header */}
+    <div style={{
+      background: 'var(--color-surface)', borderRadius: 14,
+      padding: '16px 16px 14px',
+      border: '1px solid rgba(217,211,197,0.5)',
+      boxShadow: '0 1px 4px rgba(59,42,31,0.07), 0 2px 10px rgba(59,42,31,0.04)',
+    }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', fontFamily: 'Playfair Display, serif' }}>6-Month Billing Trend</span>
         {momDiff !== null && (
           <span style={{
-            fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20,
+            fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 20,
             background: momDiff >= 0 ? 'rgba(67,122,34,0.12)' : 'rgba(160,92,26,0.12)',
             color: momDiff >= 0 ? 'var(--color-success)' : 'var(--color-warning)',
           }}>
@@ -234,14 +242,12 @@ function MonthlyTrendChart({ data }: { data: MonthlyTrend[] }) {
         )}
       </div>
 
-      {/* Bar chart */}
       {data.length === 0 || data.every(d => d.total === 0) ? (
         <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--color-text-faint)', fontSize: 13 }}>No billing data yet</div>
       ) : (
         <div style={{ height: 160 }}><canvas ref={canvasRef} /></div>
       )}
 
-      {/* Stat pills */}
       {avg > 0 && (
         <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
           <StatPill label="Monthly avg" value={fmt(avg)} />
@@ -281,15 +287,16 @@ function UnbilledAlert({ items, onIgnore, onUnignore }: {
 
   return (
     <div style={{
-      background: active.length > 0 ? 'rgba(160,92,26,0.08)' : 'rgba(90,122,46,0.08)',
-      border: `1px solid ${active.length > 0 ? 'rgba(160,92,26,0.3)' : 'rgba(90,122,46,0.3)'}`,
+      background: active.length > 0 ? 'rgba(160,92,26,0.07)' : 'rgba(90,122,46,0.07)',
+      border: `1px solid ${active.length > 0 ? 'rgba(160,92,26,0.25)' : 'rgba(90,122,46,0.25)'}`,
       borderRadius: 12, overflow: 'hidden',
     }}>
       <button type="button" onClick={() => setExpanded(e => !e)} style={{
         width: '100%', background: 'transparent', border: 'none',
-        padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+        padding: '12px 14px', display: 'flex', alignItems: 'center',
+        gap: 10, cursor: 'pointer', minHeight: 52,
       }}>
-        <span style={{ fontSize: 18 }}>{active.length > 0 ? '⚠️' : '✅'}</span>
+        <span style={{ fontSize: 18, flexShrink: 0 }}>{active.length > 0 ? '⚠️' : '✅'}</span>
         <span style={{ flex: 1, textAlign: 'left', fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>
           {active.length > 0
             ? `${active.length} vehicle-month${active.length > 1 ? 's' : ''} not billed`
@@ -298,7 +305,12 @@ function UnbilledAlert({ items, onIgnore, onUnignore }: {
         {ignored.length > 0 && (
           <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{ignored.length} ignored</span>
         )}
-        <span style={{ fontSize: 12, color: 'var(--color-text-muted)', transform: expanded ? 'rotate(180deg)' : 'none', transition: '200ms' }}>▼</span>
+        <span style={{
+          fontSize: 12, color: 'var(--color-text-muted)',
+          transform: expanded ? 'rotate(180deg)' : 'none',
+          transition: 'transform 200ms var(--ease-spring)',
+          display: 'inline-block',
+        }}>▼</span>
       </button>
 
       {expanded && (
@@ -308,18 +320,20 @@ function UnbilledAlert({ items, onIgnore, onUnignore }: {
               {active.map(item => (
                 <div key={`${item.vehicleId}-${item.yearMonth}`} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '7px 0', borderBottom: '1px solid rgba(0,0,0,0.04)',
+                  padding: '8px 0', borderBottom: '1px solid rgba(0,0,0,0.04)',
+                  minHeight: 48,
                 }}>
                   <div>
                     <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>{item.regNumber}</span>
                     <span style={{ fontSize: 12, color: 'var(--color-text-muted)', marginLeft: 8 }}>{monthLabel(item.yearMonth)}</span>
                   </div>
                   <button type="button" onClick={() => onIgnore(item.vehicleId, item.yearMonth)} style={{
-                    fontSize: 11, padding: '4px 10px', borderRadius: 20,
+                    fontSize: 11, padding: '6px 12px', borderRadius: 20, minHeight: 32,
                     border: '1px solid var(--color-border)',
                     background: 'var(--color-surface-offset)',
                     color: 'var(--color-text-muted)', cursor: 'pointer',
                     fontFamily: 'Work Sans, sans-serif',
+                    transition: 'opacity 150ms',
                   }}>Ignore</button>
                 </div>
               ))}
@@ -331,18 +345,19 @@ function UnbilledAlert({ items, onIgnore, onUnignore }: {
               {ignored.map(item => (
                 <div key={`${item.vehicleId}-${item.yearMonth}`} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '6px 0', opacity: 0.65,
+                  padding: '6px 0', opacity: 0.65, minHeight: 44,
                 }}>
                   <div>
                     <span style={{ fontSize: 13, color: 'var(--color-text-muted)', textDecoration: 'line-through' }}>{item.regNumber}</span>
                     <span style={{ fontSize: 12, color: 'var(--color-text-faint)', marginLeft: 8 }}>{monthLabel(item.yearMonth)}</span>
                   </div>
                   <button type="button" onClick={() => onUnignore(item.vehicleId, item.yearMonth)} style={{
-                    fontSize: 11, padding: '4px 10px', borderRadius: 20,
+                    fontSize: 11, padding: '6px 12px', borderRadius: 20, minHeight: 32,
                     border: '1px solid var(--color-border)',
                     background: 'transparent',
                     color: 'var(--color-primary)', cursor: 'pointer',
                     fontFamily: 'Work Sans, sans-serif',
+                    transition: 'opacity 150ms',
                   }}>Restore</button>
                 </div>
               ))}
@@ -371,16 +386,22 @@ function KpiStrip({ kpis }: { kpis: KpiData | null }) {
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
       {items.map(item => (
         <div key={item.label} style={{
-          background: 'var(--color-surface)', borderRadius: 10, padding: '12px 14px',
+          background: 'var(--color-surface)',
+          borderRadius: 12,
+          padding: '14px 14px 12px',
+          border: '1px solid rgba(217,211,197,0.5)',
           boxShadow: '0 1px 4px rgba(59,42,31,0.07)',
-          borderLeft: item.accent ? `3px solid ${item.accent}` : '3px solid transparent',
+          borderTop: item.accent ? `3px solid ${item.accent}` : '3px solid rgba(200,169,106,0.3)',
         }}>
-          <div style={{ fontSize: 11, color: 'var(--color-text-faint)', marginBottom: 2, letterSpacing: '0.3px' }}>{item.label}</div>
+          <div style={{ fontSize: 10, color: 'var(--color-text-faint)', marginBottom: 3, letterSpacing: '0.3px', lineHeight: 1.3 }}>{item.label}</div>
           <div style={{
-            fontSize: 20, fontWeight: 700, color: item.accent ?? 'var(--color-primary)',
-            fontFamily: 'Work Sans, sans-serif', fontVariantNumeric: 'tabular-nums', lineHeight: 1.2,
+            fontSize: 22, fontWeight: 700,
+            color: item.accent ?? 'var(--color-primary)',
+            fontFamily: 'Work Sans, sans-serif',
+            fontVariantNumeric: 'tabular-nums',
+            lineHeight: 1.15,
           }}>{item.value}</div>
-          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>{item.sub}</div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 3 }}>{item.sub}</div>
         </div>
       ))}
     </div>
@@ -392,22 +413,28 @@ function KpiStrip({ kpis }: { kpis: KpiData | null }) {
 function WoFlags({ flags }: { flags: WoFlag[] }) {
   if (flags.length === 0) return null
   return (
-    <div style={{ background: 'var(--color-surface)', borderRadius: 12, padding: '14px 14px 10px', boxShadow: '0 1px 4px rgba(59,42,31,0.07)' }}>
+    <div style={{
+      background: 'var(--color-surface)', borderRadius: 14,
+      padding: '14px 14px 10px',
+      border: '1px solid rgba(217,211,197,0.5)',
+      boxShadow: '0 1px 4px rgba(59,42,31,0.07)',
+    }}>
       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', fontFamily: 'Playfair Display, serif', marginBottom: 10 }}>Work Order Flags</div>
       {flags.map(f => {
         const isExpiring = f.flagType === 'expiring_soon'
         const accent = isExpiring
           ? (f.daysUntilExpiry! <= 7 ? 'var(--color-error)' : 'var(--color-warning)')
-          : (f.utilizationPct! >= 95 ? 'var(--color-error)' : 'var(--color-warning)')
+          : (f.utilizationPct! >= 95  ? 'var(--color-error)' : 'var(--color-warning)')
         return (
           <div key={`${f.woId}-${f.flagType}`} style={{
             display: 'flex', alignItems: 'flex-start', gap: 10,
-            padding: '8px 0', borderBottom: '1px solid var(--color-surface-offset)',
+            padding: '9px 0', borderBottom: '1px solid var(--color-surface-offset)',
+            minHeight: 48,
           }}>
-            <span style={{ fontSize: 15, marginTop: 1 }}>{isExpiring ? '⏰' : '📊'}</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text)' }}>
-                {f.woReference ? `[${f.woReference}]` : ''} {f.subject.length > 50 ? f.subject.slice(0, 50) + '…' : f.subject}
+            <span style={{ fontSize: 16, marginTop: 1, flexShrink: 0 }}>{isExpiring ? '⏰' : '📊'}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {f.woReference ? `[${f.woReference}] ` : ''}{f.subject.length > 48 ? f.subject.slice(0, 48) + '…' : f.subject}
               </div>
               <div style={{ fontSize: 11, color: accent, marginTop: 2 }}>
                 {isExpiring
@@ -476,56 +503,57 @@ export default function DashboardPage() {
 
   return (
     <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
-      {/* Sticky header */}
-      <div style={{
-        background: 'var(--color-primary)', padding: '20px 20px 16px',
-        position: 'sticky', top: 0, zIndex: 10,
-      }}>
+      {/* ─── Sticky header — safe-area-aware ─── */}
+      <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <h1 style={{ fontSize: 20, color: 'var(--color-accent)', margin: 0, lineHeight: 1.2 }}>Dashboard</h1>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 2 }}>{currentMonthLabel()}</div>
+            <h1 style={{
+              fontSize: 20, color: 'var(--color-accent)', margin: 0, lineHeight: 1.2,
+              fontFamily: 'Playfair Display, serif',
+            }}>Dashboard</h1>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 2, letterSpacing: '0.2px' }}>{currentMonthLabel()}</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             {activeUnbilled > 0 && !loading && (
               <div style={{
                 background: 'var(--color-warning)', color: 'white',
                 borderRadius: 20, fontSize: 11, fontWeight: 700,
-                padding: '3px 9px', letterSpacing: '0.3px',
+                padding: '4px 10px', letterSpacing: '0.3px',
               }}>{activeUnbilled} unbilled</div>
             )}
             <button type="button" onClick={loadAll} style={{
-              background: 'rgba(200,169,106,0.15)', border: '1px solid rgba(200,169,106,0.3)',
-              borderRadius: 8, color: 'var(--color-accent)', fontSize: 18,
-              padding: '4px 8px', cursor: 'pointer',
-            }}>↻</button>
+              background: 'rgba(200,169,106,0.18)',
+              border: '1px solid rgba(200,169,106,0.35)',
+              borderRadius: 8, color: 'var(--color-accent)',
+              fontSize: 18, width: 36, height: 36,
+              cursor: 'pointer', display: 'flex',
+              alignItems: 'center', justifyContent: 'center',
+              transition: 'opacity 150ms',
+            }}>↺</button>
           </div>
         </div>
       </div>
 
-      <div style={{ padding: '14px 14px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {/* Skeleton */}
-        {loading && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {[80, 100, 180, 200].map((h, i) => (
+      {/* ─── Body ─── */}
+      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {loading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[1,2,3,4].map(i => (
               <div key={i} style={{
-                height: h, borderRadius: 12,
-                background: 'linear-gradient(90deg, var(--color-surface-offset) 25%, var(--color-surface) 50%, var(--color-surface-offset) 75%)',
+                height: i <= 2 ? 72 : 120, borderRadius: 12,
+                background: 'linear-gradient(90deg, var(--color-surface-offset) 25%, var(--color-surface-dynamic, #e6e4df) 50%, var(--color-surface-offset) 75%)',
                 backgroundSize: '200% 100%',
                 animation: 'shimmer 1.5s ease-in-out infinite',
               }} />
             ))}
-            <style>{`@keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }`}</style>
           </div>
-        )}
-
-        {!loading && (
+        ) : (
           <>
-            <UnbilledAlert items={unbilled} onIgnore={handleIgnore} onUnignore={handleUnignore} />
             <KpiStrip kpis={kpis} />
+            <UnbilledAlert items={unbilled} onIgnore={handleIgnore} onUnignore={handleUnignore} />
+            <MonthlyTrendChart data={monthlyTrend} />
             <VehicleRevenueChart data={vehicleRevenue} period={revPeriod} onPeriodChange={handleRevPeriodChange} />
             <WoFlags flags={woFlags} />
-            <MonthlyTrendChart data={monthlyTrend} />
           </>
         )}
       </div>

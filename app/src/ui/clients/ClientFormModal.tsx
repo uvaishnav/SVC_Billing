@@ -125,14 +125,17 @@ export default function ClientFormModal({ client, onClose, onSaved }: Props) {
       display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
       zIndex: 200,
     }}>
-      <div style={{
-        background: 'var(--color-bg)',
-        borderRadius: '20px 20px 0 0',
-        width: '100%', maxWidth: '640px',
-        maxHeight: '92svh',
-        display: 'flex', flexDirection: 'column',
-        overflow: 'hidden',
-      }}>
+      <div
+        className="sheet-enter"
+        style={{
+          background: 'var(--color-bg)',
+          borderRadius: '20px 20px 0 0',
+          width: '100%', maxWidth: '640px',
+          maxHeight: '92svh',
+          display: 'flex', flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
 
         {/* Header */}
         <div style={{ background: 'var(--color-primary)', padding: '12px 20px 16px', borderRadius: '20px 20px 0 0', flexShrink: 0 }}>

@@ -1,10 +1,9 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import type { Vehicle } from '../../db/types'
 import { getVehicles, deactivateVehicle } from '../../db/vehiclesDb'
 import VehicleCard from './VehicleCard'
 import VehicleFormModal from './VehicleFormModal'
 import VehicleDetailSheet from './VehicleDetailSheet'
-import { sectionTitleStyle } from '../settings/_components'
 
 export default function VehiclesPage() {
   const [vehicles,       setVehicles]       = useState<Vehicle[]>([])
@@ -39,11 +38,6 @@ export default function VehiclesPage() {
     setModalOpen(true)
   }
 
-  function handleAdd() {
-    setEditingVehicle(null)
-    setModalOpen(true)
-  }
-
   function handleSaved() {
     setModalOpen(false)
     setEditingVehicle(null)
@@ -51,59 +45,65 @@ export default function VehiclesPage() {
   }
 
   return (
-    <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', background: 'var(--color-bg)', overflow: 'hidden' }}>
 
-      {/* Sticky header */}
-      <div style={{ background: 'var(--color-primary)', padding: '20px 20px 16px', position: 'sticky', top: 0, zIndex: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-          <div>
-            <h1 style={{ color: 'var(--color-bg)', fontSize: '22px', fontFamily: 'Playfair Display, serif', marginBottom: '2px' }}>Vehicles</h1>
-            <p style={{ color: 'var(--color-accent)', fontSize: '13px', opacity: 0.85 }}>
-              {vehicles.length} active vehicle{vehicles.length !== 1 ? 's' : ''}
-            </p>
-          </div>
+      {/* Page header */}
+      <div className="page-header" style={{
+        background: 'var(--color-primary)',
+        paddingTop: 'calc(20px + var(--safe-top, 0px))',
+        paddingBottom: '16px',
+        paddingLeft: '20px',
+        paddingRight: '20px',
+        flexShrink: 0,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+          <h1 style={{ color: 'var(--color-bg)', fontSize: '24px', fontFamily: 'Playfair Display, serif' }}>Vehicles</h1>
           <button
-            onClick={handleAdd}
-            style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--color-accent)', color: 'var(--color-primary)', fontSize: '24px', fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.25)', flexShrink: 0 }}
+            type="button"
+            aria-label="Add new vehicle"
+            onClick={() => { setEditingVehicle(null); setModalOpen(true) }}
+            style={{
+              width: '36px', height: '36px', borderRadius: '50%',
+              background: 'rgba(255,255,255,0.18)', border: 'none',
+              color: '#fff', fontSize: '22px', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
           >+</button>
         </div>
         <input
+          type="search"
+          placeholder="Search by registration or type…"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Search by reg number or type…"
-          style={{ width: '100%', padding: '11px 16px', borderRadius: '10px', border: 'none', background: 'rgba(255,255,255,0.12)', color: 'var(--color-bg)', fontSize: '15px', outline: 'none', fontFamily: 'Work Sans, sans-serif', boxSizing: 'border-box' }}
+          style={{
+            width: '100%', padding: '10px 14px', borderRadius: '12px',
+            border: 'none', background: 'rgba(255,255,255,0.14)',
+            color: '#fff', fontSize: '15px', fontFamily: 'Work Sans, sans-serif',
+            outline: 'none', boxSizing: 'border-box',
+          }}
         />
       </div>
 
-      {/* Content */}
-      <div style={{ maxWidth: '640px', margin: '0 auto', padding: '20px 16px 32px' }}>
+      {/* List */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 32px' }}>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--color-text-muted)', fontSize: '15px' }}>Loading vehicles…</div>
+          <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', marginTop: '40px', fontFamily: 'Work Sans, sans-serif' }}>Loading…</p>
         ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 0' }}>
-            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--color-surface-offset)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: '28px' }}>🚛</div>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: '15px' }}>
-              {search ? `No vehicles matching "${search}"` : 'No vehicles yet.'}
-            </p>
-            {!search && <p style={{ color: 'var(--color-text-faint)', fontSize: '13px', marginTop: '6px' }}>Tap + to add your first vehicle.</p>}
-          </div>
+          <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', marginTop: '40px', fontFamily: 'Work Sans, sans-serif' }}>
+            {search ? 'No vehicles match your search.' : 'No vehicles yet. Tap + to add one.'}
+          </p>
         ) : (
-          <>
-            <p style={{ ...sectionTitleStyle, marginBottom: '14px' }}>
-              {search ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''}` : 'All Vehicles'}
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {filtered.map(v => (
-                <VehicleCard
-                  key={v.id}
-                  vehicle={v}
-                  onTap={setDetailVehicle}
-                  onEdit={handleEdit}
-                  onDeactivate={handleDeactivate}
-                />
-              ))}
-            </div>
-          </>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {filtered.map(v => (
+              <VehicleCard
+                key={v.id}
+                vehicle={v}
+                onTap={setDetailVehicle}
+                onEdit={handleEdit}
+                onDeactivate={handleDeactivate}
+              />
+            ))}
+          </div>
         )}
       </div>
 

@@ -68,7 +68,7 @@ export default function WorkOrdersPage() {
   const [workOrders,   setWorkOrders]   = useState<WorkOrderWithClient[]>([])
   const [loading,      setLoading]      = useState(true)
   const [search,       setSearch]       = useState('')
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'expiring_soon' | 'expired' | 'closed'>('active')  // default: active
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'expiring_soon' | 'expired' | 'closed'>('active')
   const [modalOpen,    setModalOpen]    = useState(false)
   const [editingWO,    setEditingWO]    = useState<WorkOrderWithClient | null>(null)
   const [detailWO,     setDetailWO]     = useState<WorkOrderWithClient | null>(null)
@@ -190,22 +190,20 @@ export default function WorkOrdersPage() {
       />
 
       {/* Sticky header */}
-      <div style={{ background: 'var(--color-primary)', padding: '20px 20px 0', position: 'sticky', top: 0, zIndex: 10 }}>
+      <div className="page-header" style={{ background: 'var(--color-primary)', position: 'sticky', top: 0, zIndex: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
           <div>
             <h1 style={{ color: 'var(--color-bg)', fontSize: '22px', fontFamily: 'Playfair Display, serif', marginBottom: '2px' }}>Work Orders</h1>
             <p style={{ color: 'var(--color-accent)', fontSize: '13px', opacity: 0.85 }}>
-              {workOrders.filter(wo => wo.status === 'active' || wo.status === 'expiring_soon').length} active
+              {workOrders.filter(wo => wo.status === 'active').length} active · {workOrders.filter(wo => wo.status === 'expiring_soon').length} expiring
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <button
               type="button"
               onClick={handleUploadClick}
-              title="Upload WO PDF"
-              style={{ height: '44px', padding: '0 14px', borderRadius: '22px', background: 'rgba(255,255,255,0.12)', color: 'var(--color-bg)', fontSize: '13px', fontWeight: 600, border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, fontFamily: 'Work Sans, sans-serif' }}
+              style={{ minWidth: '44px', height: '44px', borderRadius: '999px', background: 'rgba(255,255,255,0.12)', color: 'var(--color-accent)', fontSize: '14px', fontWeight: 600, border: '1px solid rgba(255,255,255,0.18)', cursor: 'pointer', padding: '0 14px', fontFamily: 'Work Sans, sans-serif' }}
             >
-              <span style={{ fontSize: '16px' }}>📎</span>
               Upload PDF
             </button>
             <button
@@ -218,55 +216,54 @@ export default function WorkOrdersPage() {
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Search by WO ref, subject, client…"
+          placeholder="Search by WO ref, subject, client, or project…"
           style={{ width: '100%', padding: '11px 16px', borderRadius: '10px', border: 'none', background: 'rgba(255,255,255,0.12)', color: 'var(--color-bg)', fontSize: '15px', outline: 'none', fontFamily: 'Work Sans, sans-serif', boxSizing: 'border-box', marginBottom: '12px' }}
         />
 
-        {/* Status filter pills */}
-        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '14px', scrollbarWidth: 'none' }}>
-          {statusFilters.map(f => (
-            <button
-              key={f.id}
-              type="button"
-              onClick={() => setFilterStatus(f.id)}
-              style={{
-                padding: '6px 14px',
-                borderRadius: '20px',
-                border: filterStatus === f.id ? 'none' : '1px solid rgba(255,255,255,0.2)',
-                background: filterStatus === f.id ? 'var(--color-accent)' : 'transparent',
-                color: filterStatus === f.id ? 'var(--color-primary)' : 'rgba(255,255,255,0.7)',
-                fontSize: '13px',
-                fontWeight: filterStatus === f.id ? 600 : 400,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                fontFamily: 'Work Sans, sans-serif',
-                flexShrink: 0,
-              }}
-            >{f.label}</button>
-          ))}
+        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '12px' }}>
+          {statusFilters.map(filter => {
+            const active = filterStatus === filter.id
+            return (
+              <button
+                key={filter.id}
+                type="button"
+                onClick={() => setFilterStatus(filter.id)}
+                style={{
+                  whiteSpace: 'nowrap',
+                  padding: '8px 12px',
+                  borderRadius: '999px',
+                  border: '1px solid rgba(255,255,255,0.18)',
+                  background: active ? 'var(--color-accent)' : 'rgba(255,255,255,0.08)',
+                  color: active ? 'var(--color-primary)' : 'var(--color-bg)',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'Work Sans, sans-serif',
+                  flexShrink: 0,
+                }}
+              >
+                {filter.label}
+              </button>
+            )
+          })}
         </div>
       </div>
 
-      {/* Content */}
       <div style={{ maxWidth: '640px', margin: '0 auto', padding: '20px 16px 32px' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--color-text-muted)', fontSize: '15px' }}>Loading work orders…</div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 0' }}>
-            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--color-surface-offset)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: '28px' }}>📋</div>
+            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--color-surface-offset)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: '28px' }}>🧾</div>
             <p style={{ color: 'var(--color-text-muted)', fontSize: '15px' }}>
-              {search || filterStatus !== 'all' ? 'No work orders match your filter.' : 'No work orders yet.'}
+              {search ? `No work orders matching "${search}"` : 'No work orders yet.'}
             </p>
-            {!search && filterStatus === 'all' && (
-              <p style={{ color: 'var(--color-text-faint)', fontSize: '13px', marginTop: '6px' }}>Tap + to add manually, or tap "Upload PDF" to extract from a work order document.</p>
-            )}
+            {!search && <p style={{ color: 'var(--color-text-faint)', fontSize: '13px', marginTop: '6px' }}>Tap + or Upload PDF to add your first work order.</p>}
           </div>
         ) : (
           <>
             <p style={{ ...sectionTitleStyle, marginBottom: '14px' }}>
-              {filterStatus !== 'all'
-                ? `${filtered.length} ${filterStatus.replace('_', ' ')}`
-                : `${filtered.length} work order${filtered.length !== 1 ? 's' : ''}`}
+              {search || filterStatus !== 'all' ? `${filtered.length} result${filtered.length !== 1 ? 's' : ''}` : 'All Work Orders'}
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {filtered.map(wo => (
