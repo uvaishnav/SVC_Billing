@@ -21,7 +21,7 @@ import { getSacCodes } from '../../db/settingsDb'
 // Character limit for the description field
 const CHAR_LIMIT = 350
 
-// ─── Shared iOS-premium style tokens ──────────────────────────
+// ─── Shared iOS-premium style tokens ───────────────────────────────
 const GOLD        = 'rgba(200,169,106,1)'
 const GOLD_LIGHT  = 'rgba(200,169,106,0.18)'
 const SPRING      = 'transform 150ms cubic-bezier(0.25,0,0.3,1), opacity 150ms cubic-bezier(0.25,0,0.3,1), box-shadow 150ms cubic-bezier(0.25,0,0.3,1)'
@@ -45,24 +45,30 @@ export default function Section3Description({
   const [pressedVehicle, setPressedVehicle] = useState<number | null>(null)
   const [addBtnPressed, setAddBtnPressed]   = useState(false)
   const [pickerPressed, setPickerPressed]   = useState<number | null>(null)
+
+  // Reactive focus state — replaces imperative e.target.style mutations
+  const [descFocused, setDescFocused]           = useState(false)
+  const [refinementFocused, setRefinementFocused] = useState(false)
+
   const descRef = useRef<HTMLTextAreaElement>(null)
 
   // Context needed for AI call — client_name intentionally excluded
-  const [woRef, setWoRef]       = useState<string | null>(null)
+  const [woRef, setWoRef]         = useState<string | null>(null)
   const [woSubject, setWoSubject] = useState<string | null>(null)
-  const [sacDesc, setSacDesc]   = useState<string | null>(null)
+  const [sacDesc, setSacDesc]     = useState<string | null>(null)
 
   useEffect(() => {
-    // Only needed in quantity mode — rental mode doesn't use this picker
     if (!isRental) getVehicles().then(vs => setAllVehicles(vs.filter(v => v.is_active)))
   }, [isRental])
 
-  // Load AI context (WO ref, SAC desc — no client name)
+  // Load AI context — stale-request guard via `active` flag
   useEffect(() => {
+    let active = true
     async function loadContext() {
       const [wos, sacs] = await Promise.all([
         getWorkOrders(), getSacCodes(),
       ])
+      if (!active) return
       const wo = wos.find(w => w.id === draft.work_order_id)
       setWoRef(wo?.wo_reference ?? null)
       setWoSubject(wo?.subject ?? null)
@@ -70,9 +76,10 @@ export default function Section3Description({
       setSacDesc(sac ? `${sac.sac_code} - ${sac.nickname}` : null)
     }
     loadContext()
+    return () => { active = false }
   }, [draft.work_order_id, draft.sac_id])
 
-  // ── NO auto-generate useEffect ─────────────────────────────────
+  // ── NO auto-generate useEffect ──────────────────────────────────────────
   // AI is only triggered on explicit user action (button click).
 
   async function handleGenerate() {
@@ -95,7 +102,8 @@ export default function Section3Description({
   }
 
   async function handleRefine() {
-    if (!refinement.trim()) return
+    // Guard mirrors button's disabled condition — blocks keyboard Enter mid-flight
+    if (!refinement.trim() || refining) return
     setRefining(true)
     setGenError(null)
     try {
@@ -114,7 +122,7 @@ export default function Section3Description({
     }
   }
 
-  // ── Quantity mode: vehicle picker helpers ──────────────────────
+  // ── Quantity mode: vehicle picker helpers ───────────────────────────
   const addedIds  = new Set(draft.vehicles.map(v => v.vehicle_id))
   const available = allVehicles.filter(v => !addedIds.has(v.id))
 
@@ -147,6 +155,25 @@ export default function Section3Description({
   const charOverLimit  = charCount > CHAR_LIMIT
   const hasDescription = draft.overall_description.trim().length > 0
   const isAiWorking    = generating || refining
+
+  // ── Derived focus styles (reactive, not imperative) ──────────────────────
+  const descStyle = {
+    ...inputStyle,
+    resize: 'vertical' as const,
+    lineHeight: 1.6,
+    marginBottom: 4,
+    borderColor: descFocused
+      ? 'rgba(200,169,106,0.7)'
+      : charOverLimit ? 'var(--color-warning)' : (inputStyle.borderColor ?? 'var(--color-border)'),
+    boxShadow: descFocused ? '0 0 0 3px rgba(200,169,106,0.15)' : 'none',
+  }
+
+  const refinementInputStyle = {
+    ...inputStyle,
+    flex: 1,
+    borderColor: refinementFocused ? 'rgba(200,169,106,0.7)' : (inputStyle.borderColor ?? 'var(--color-border)'),
+    boxShadow: refinementFocused ? '0 0 0 3px rgba(200,169,106,0.15)' : 'none',
+  }
 
   return (
     <div style={{ padding: '16px', paddingBottom: 24 }}>
@@ -484,22 +511,10 @@ export default function Section3Description({
                 patch({ overall_description: e.target.value })
                 setCharCount(e.target.value.length)
               }}
-              onFocus={e => {
-                e.target.style.borderColor = 'rgba(200,169,106,0.7)'
-                e.target.style.boxShadow   = '0 0 0 3px rgba(200,169,106,0.15)'
-              }}
-              onBlur={e => {
-                e.target.style.borderColor = charOverLimit ? 'var(--color-warning)' : 'var(--color-border)'
-                e.target.style.boxShadow   = 'none'
-              }}
+              onFocus={() => setDescFocused(true)}
+              onBlur={() => setDescFocused(false)}
               placeholder="Write the description yourself, or use one of the AI options below."
-              style={{
-                ...inputStyle,
-                resize: 'vertical',
-                lineHeight: 1.6,
-                marginBottom: 4,
-                borderColor: charOverLimit ? 'var(--color-warning)' : undefined,
-              }}
+              style={descStyle}
             />
             <div style={{
               textAlign: 'right', fontSize: 11, marginBottom: 16,
@@ -580,15 +595,9 @@ export default function Section3Description({
               value={refinement}
               onChange={e => setRefinement(e.target.value)}
               placeholder="e.g. Make it more formal / Remove vehicle names / Shorten it"
-              style={{ ...inputStyle, flex: 1 }}
-              onFocus={e => {
-                e.target.style.borderColor = 'rgba(200,169,106,0.7)'
-                e.target.style.boxShadow   = '0 0 0 3px rgba(200,169,106,0.15)'
-              }}
-              onBlur={e => {
-                e.target.style.borderColor = 'var(--color-border)'
-                e.target.style.boxShadow   = 'none'
-              }}
+              style={refinementInputStyle}
+              onFocus={() => setRefinementFocused(true)}
+              onBlur={() => setRefinementFocused(false)}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleRefine() } }}
             />
             <button
