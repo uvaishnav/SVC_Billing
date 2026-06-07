@@ -57,7 +57,7 @@ export function Field({
   const [focused, setFocused] = React.useState(false)
 
   const dynamicStyle: React.CSSProperties = focused
-    ? { ...inputStyle, borderColor: 'rgba(200,169,106,0.7)', boxShadow: '0 0 0 3px rgba(200,169,106,0.15)' }
+    ? { ...inputStyle, ...inputFocusStyle }
     : { ...inputStyle }
 
   return (

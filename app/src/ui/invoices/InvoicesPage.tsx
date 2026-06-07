@@ -80,6 +80,7 @@ function DeleteDraftButton({ invoiceId, onDeleted }: { invoiceId: number; onDele
           style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: 'var(--color-error)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
         >{deleting ? '…' : 'Yes'}</button>
         <button type="button" onClick={e => { e.stopPropagation(); setConfirming(false) }}
+          aria-label="Cancel delete"
           style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
         >No</button>
       </div>
@@ -87,7 +88,7 @@ function DeleteDraftButton({ invoiceId, onDeleted }: { invoiceId: number; onDele
   }
 
   return (
-    <button type="button" onClick={handleDelete} title="Delete draft"
+    <button type="button" onClick={handleDelete} aria-label="Delete draft invoice"
       style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', borderRadius: 6, color: 'rgba(255,255,255,0.45)', fontSize: 16, lineHeight: 1, transition: 'color 150ms' }}
       onMouseEnter={e => (e.currentTarget.style.color = '#ff6b6b')}
       onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.45)')}
@@ -119,6 +120,7 @@ function CancelInvoiceButton({ invoiceId, onCancelled }: { invoiceId: number; on
             style={{ flex: 1, padding: '7px 0', borderRadius: 6, border: 'none', background: 'var(--color-error)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
           >{cancelling ? 'Cancelling…' : 'Yes, void invoice'}</button>
           <button type="button" onClick={e => { e.stopPropagation(); setConfirming(false) }}
+            aria-label="Keep invoice"
             style={{ flex: 1, padding: '7px 0', borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
           >Keep it</button>
         </div>
@@ -128,6 +130,7 @@ function CancelInvoiceButton({ invoiceId, onCancelled }: { invoiceId: number; on
 
   return (
     <button type="button" onClick={e => { e.stopPropagation(); setConfirming(true) }}
+      aria-label="Cancel invoice"
       style={{ width: '100%', padding: '7px 0', borderRadius: 6, border: '1px solid var(--color-error)', background: 'transparent', color: 'var(--color-error)', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'background 150ms, color 150ms' }}
       onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-error)'; e.currentTarget.style.color = '#fff' }}
       onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-error)' }}
@@ -216,6 +219,9 @@ function InvoiceCard({
       {isDraft && (
         <div
           onClick={() => onOpen(inv)}
+          role="button"
+          tabIndex={0}
+          aria-label={`Edit draft invoice ${inv.invoice_number}`}
           style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, background: 'var(--color-surface-offset)', fontSize: 13, color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
         >
           <span>✏️</span><span>Tap to continue editing</span>
@@ -233,6 +239,7 @@ function InvoiceCard({
               type="button"
               disabled={loadingEdit === inv.id}
               onClick={() => onOpen(inv)}
+              aria-label={`Edit invoice ${inv.invoice_number}`}
               style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--color-primary)', background: 'transparent', color: 'var(--color-primary)', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'background 150ms, color 150ms', opacity: loadingEdit === inv.id ? 0.6 : 1 }}
               onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-primary)'; e.currentTarget.style.color = '#fff' }}
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-primary)' }}
@@ -376,7 +383,7 @@ export default function InvoicesPage() {
         }}>
           <button type="button" onClick={closeWizard}
             style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 8, color: '#fff', width: 44, height: 44, cursor: 'pointer', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-            aria-label="Back"
+            aria-label="Back to invoices"
           >←</button>
           <div>
             <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11 }}>{editStatus === 'final' ? 'Edit Finalised' : editDraft ? 'Edit Draft' : 'New Invoice'}</div>
@@ -418,8 +425,8 @@ export default function InvoicesPage() {
           <button
             type="button"
             onClick={() => { setEditDraft(undefined); setEditStatus(undefined); setEditInvoiceId(null); setShowWizard(true) }}
-            style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--color-accent)', color: 'var(--color-primary)', fontSize: 24, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.25)', flexShrink: 0 }}
             aria-label="Create invoice"
+            style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--color-accent)', color: 'var(--color-primary)', fontSize: 24, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.25)', flexShrink: 0 }}
           >+</button>
         </div>
 
@@ -428,36 +435,43 @@ export default function InvoicesPage() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search invoice no, client, work order…"
+          aria-label="Search invoices"
           style={{ width: '100%', padding: '11px 16px', borderRadius: 10, border: 'none', background: 'rgba(255,255,255,0.12)', color: 'var(--color-bg)', fontSize: 15, outline: 'none', fontFamily: 'Work Sans, sans-serif', boxSizing: 'border-box', marginBottom: 10 }}
         />
 
         {/* FY pills */}
         <div style={{ display: 'flex', gap: 8, overflowX: 'auto', marginBottom: 8, scrollbarWidth: 'none' }}>
           {availableFYs.map(fy => (
-            <button key={fy} type="button" onClick={() => setSelectedFY(fy)} style={{
-              padding: '5px 14px', borderRadius: 20, flexShrink: 0,
-              border: selectedFY === fy ? 'none' : '1px solid rgba(255,255,255,0.25)',
-              background: selectedFY === fy ? 'rgba(255,255,255,0.22)' : 'transparent',
-              color: selectedFY === fy ? '#fff' : 'rgba(255,255,255,0.65)',
-              fontSize: 13, fontWeight: selectedFY === fy ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap',
-            }}>FY {fy}</button>
+            <button key={fy} type="button" onClick={() => setSelectedFY(fy)}
+              aria-pressed={selectedFY === fy}
+              aria-label={`Financial year ${fy}`}
+              style={{
+                padding: '5px 14px', borderRadius: 20, flexShrink: 0,
+                border: selectedFY === fy ? 'none' : '1px solid rgba(255,255,255,0.25)',
+                background: selectedFY === fy ? 'rgba(255,255,255,0.22)' : 'transparent',
+                color: selectedFY === fy ? '#fff' : 'rgba(255,255,255,0.65)',
+                fontSize: 13, fontWeight: selectedFY === fy ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap',
+              }}>FY {fy}</button>
           ))}
         </div>
 
         {/* Status filter pills */}
-        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 14, scrollbarWidth: 'none' }}>
+        <div role="group" aria-label="Filter by status" style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 14, scrollbarWidth: 'none' }}>
           {statusFilters.map(f => {
             const active = statusFilter === f.id
             const count  = counts[f.id]
             return (
-              <button key={f.id} type="button" onClick={() => setStatusFilter(f.id)} style={{
-                padding: '6px 14px', borderRadius: 20, flexShrink: 0,
-                border: active ? 'none' : '1px solid rgba(255,255,255,0.2)',
-                background: active ? 'var(--color-accent)' : 'transparent',
-                color: active ? 'var(--color-primary)' : 'rgba(255,255,255,0.7)',
-                fontSize: 13, fontWeight: active ? 700 : 400, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
-              }}>
+              <button key={f.id} type="button" onClick={() => setStatusFilter(f.id)}
+                aria-pressed={active}
+                aria-label={`${f.label} (${count})`}
+                style={{
+                  padding: '6px 14px', borderRadius: 20, flexShrink: 0,
+                  border: active ? 'none' : '1px solid rgba(255,255,255,0.2)',
+                  background: active ? 'var(--color-accent)' : 'transparent',
+                  color: active ? 'var(--color-primary)' : 'rgba(255,255,255,0.7)',
+                  fontSize: 13, fontWeight: active ? 700 : 400, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
+                }}>
                 {f.label}
                 <span style={{
                   fontSize: 11, fontWeight: 700,

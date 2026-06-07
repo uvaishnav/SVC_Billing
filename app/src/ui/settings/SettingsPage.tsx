@@ -47,39 +47,65 @@ export default function SettingsPage() {
         <h1 style={{ color: 'var(--color-bg)', fontSize: '24px', fontFamily: 'Playfair Display, serif', marginBottom: '16px' }}>Settings</h1>
 
         {/* Pill tabs */}
-        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '14px', scrollbarWidth: 'none' }}>
-          {TABS.map(tab => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                padding: '7px 18px',
-                borderRadius: '999px',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontFamily: 'Work Sans, sans-serif',
-                fontWeight: 600,
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-                background: activeTab === tab.id ? 'rgba(255,255,255,0.22)' : 'transparent',
-                color: activeTab === tab.id ? '#fff' : 'rgba(255,255,255,0.60)',
-                transition: 'background 0.18s, color 0.18s',
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <div
+          role="tablist"
+          aria-label="Settings sections"
+          style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '14px', scrollbarWidth: 'none' }}
+        >
+          {TABS.map(tab => {
+            const isActive = activeTab === tab.id
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                id={`settings-tab-${tab.id}`}
+                aria-selected={isActive}
+                aria-controls={`settings-panel-${tab.id}`}
+                tabIndex={isActive ? 0 : -1}
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  padding: '7px 18px',
+                  borderRadius: '999px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontFamily: 'Work Sans, sans-serif',
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  background: isActive ? 'rgba(255,255,255,0.22)' : 'transparent',
+                  color: isActive ? '#fff' : 'rgba(255,255,255,0.60)',
+                  transition: 'background 0.18s, color 0.18s',
+                }}
+              >
+                {tab.label}
+              </button>
+            )
+          })}
         </div>
       </div>
 
       {/* Tab content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-        {activeTab === 'profile'  && <BusinessProfileForm settings={settings} onSaved={setSettings} />}
-        {activeTab === 'defaults' && <BillingDefaultsForm settings={settings} onSaved={setSettings} />}
-        {activeTab === 'bank'     && <BankAccountsSection settings={settings} onSettingsUpdate={setSettings} />}
-        {activeTab === 'sac'      && <SacCodesSection     settings={settings} onSettingsUpdate={setSettings} />}
+        {TABS.map(tab => (
+          <div
+            key={tab.id}
+            role="tabpanel"
+            id={`settings-panel-${tab.id}`}
+            aria-labelledby={`settings-tab-${tab.id}`}
+            hidden={activeTab !== tab.id}
+          >
+            {activeTab === tab.id && (
+              <>
+                {tab.id === 'profile'  && <BusinessProfileForm settings={settings} onSaved={setSettings} />}
+                {tab.id === 'defaults' && <BillingDefaultsForm settings={settings} onSaved={setSettings} />}
+                {tab.id === 'bank'     && <BankAccountsSection settings={settings} onSettingsUpdate={setSettings} />}
+                {tab.id === 'sac'      && <SacCodesSection     settings={settings} onSettingsUpdate={setSettings} />}
+              </>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   )
