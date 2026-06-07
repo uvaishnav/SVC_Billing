@@ -1,5 +1,5 @@
 // Invoices list page — redesigned for iOS PWA (ui/ios-premium-redesign)
-// Uses real InvoiceWithDetails type from invoicesDb; no markInvoicePaid (not implemented).
+// Uses real InvoiceWithDetails type from invoicesDb.
 import { useEffect, useMemo, useState } from 'react'
 import type { InvoiceWithDetails, InvoiceStatus } from '../../db/types'
 import {
@@ -364,7 +364,6 @@ export default function InvoicesPage() {
     { id: 'all',       label: 'All'       },
   ]
 
-  // ── Wizard view ──────────────────────────────────────────────────────────────
   if (showWizard) {
     return (
       <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
@@ -403,7 +402,6 @@ export default function InvoicesPage() {
     )
   }
 
-  // ── List view ─────────────────────────────────────────────────────────────────
   return (
     <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
 

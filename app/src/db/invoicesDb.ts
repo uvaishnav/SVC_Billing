@@ -294,14 +294,22 @@ export async function deleteDraftInvoice(invoiceId: number): Promise<{ ok: boole
 export async function markInvoicePaid(
   invoiceId: number,
 ): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('invoices')
     .update({ status: 'paid' })
     .eq('id', invoiceId)
+    .eq('status', 'final')
+    .select('id')
+
   if (error) {
     console.error('markInvoicePaid:', error)
     return { ok: false, error: error.message }
   }
+
+  if (!data || data.length === 0) {
+    return { ok: false, error: 'invalid status' }
+  }
+
   return { ok: true }
 }
 

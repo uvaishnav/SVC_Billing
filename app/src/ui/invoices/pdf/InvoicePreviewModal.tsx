@@ -39,19 +39,39 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, safariWindow, on
   const [mobileStage, setMobileStage] = useState<MobileStage>('generating');
 
   const objectUrlRef = useRef<string | null>(null);
+  const closeTimerRef = useRef<number | null>(null);
+  const revokeTimerRef = useRef<number | null>(null);
+  const mountedRef = useRef(true);
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (closeTimerRef.current !== null) window.clearTimeout(closeTimerRef.current);
+      if (revokeTimerRef.current !== null) window.clearTimeout(revokeTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const id = 'invoice-spinner-style';
+    if (typeof document === 'undefined' || document.getElementById(id)) return;
+    const s = document.createElement('style');
+    s.id = id;
+    s.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
+    document.head.appendChild(s);
+  }, []);
 
   // ── Fetch invoice data ────────────────────────────────────────────────────
   useEffect(() => {
     buildInvoicePayload(invoiceId)
       .then(p => setPayload(p))
       .catch(e => {
-        // If we have an open blank tab, close it so user isn't left hanging
         if (safariWindow && !safariWindow.closed) safariWindow.close();
         setErrorMsg(e.message ?? 'Failed to load invoice data.');
         setMobileStage('error');
       });
-  }, [invoiceId]);
+  }, [invoiceId, safariWindow]);
 
   // ── Generate blob once payload is ready ───────────────────────────────────
   useEffect(() => {
@@ -62,32 +82,23 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, safariWindow, on
       .then(blob => {
         setPdfBlob(blob);
 
-        // Background upload (non-blocking)
-        if (!uploaded && !uploading) {
-          setUploading(true);
-          uploadInvoicePdf(invoiceId, invoiceNumber, blob)
-            .then(() => setUploaded(true))
-            .catch(e => console.warn('PDF upload failed:', e.message))
-            .finally(() => setUploading(false));
-        }
-
         if (isMobile) {
           const url = URL.createObjectURL(blob);
           objectUrlRef.current = url;
 
           if (safariWindow && !safariWindow.closed) {
-            // ✅ PHASE 2: redirect the already-trusted blank tab → PDF
             safariWindow.location.href = url;
             setMobileStage('done');
-            // Close modal after brief delay; revoke URL after Safari loads it
-            setTimeout(() => onClose(), 600);
-            setTimeout(() => URL.revokeObjectURL(url), 30_000);
+            closeTimerRef.current = window.setTimeout(() => {
+              if (mountedRef.current) onClose();
+            }, 600);
+            revokeTimerRef.current = window.setTimeout(() => {
+              URL.revokeObjectURL(url);
+            }, 30_000);
           } else {
-            // Fallback: popup was blocked — show one-tap open button
             setMobileStage('blocked');
           }
         }
-        // Desktop: pdfBlob state update triggers re-render with embedded viewer
       })
       .catch(e => {
         console.warn('Blob generation failed:', e);
@@ -95,14 +106,28 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, safariWindow, on
         setErrorMsg('Failed to generate PDF.');
         setMobileStage('error');
       });
-  }, [payload]);
+  }, [payload, safariWindow, onClose, isMobile]);
 
-  // Fallback tap handler (only shown if popup was blocked)
+  useEffect(() => {
+    if (!pdfBlob || uploaded || uploading) return;
+
+    setUploading(true);
+    uploadInvoicePdf(invoiceId, invoiceNumber, pdfBlob)
+      .then(() => setUploaded(true))
+      .catch(e => console.warn('PDF upload failed:', e.message))
+      .finally(() => setUploading(false));
+  }, [pdfBlob, uploaded, uploading, invoiceId, invoiceNumber]);
+
   const handleFallbackOpen = useCallback(() => {
     const url = objectUrlRef.current;
     if (!url) return;
     window.open(url, '_blank');
-    setTimeout(() => { URL.revokeObjectURL(url); objectUrlRef.current = null; onClose(); }, 400);
+    const revokeUrl = url;
+    revokeTimerRef.current = window.setTimeout(() => {
+      URL.revokeObjectURL(revokeUrl);
+      objectUrlRef.current = null;
+      if (mountedRef.current) onClose();
+    }, 400);
   }, [onClose]);
 
   const handleShare = useCallback(async () => {
@@ -123,7 +148,6 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, safariWindow, on
     }
   }, [pdfBlob, invoiceNumber]);
 
-  // ── Desktop: full-screen embedded viewer ─────────────────────────────────
   if (!isMobile) {
     return (
       <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(20,14,8,0.82)', display: 'flex', flexDirection: 'column' }}>
@@ -150,9 +174,6 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, safariWindow, on
     );
   }
 
-  // ── Mobile: minimal status overlay ───────────────────────────────────────
-  // This is barely visible — it mounts, generates the blob, redirects Safari,
-  // and calls onClose() in ~1-2 seconds. The user spends almost no time here.
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 300,
@@ -163,8 +184,6 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, safariWindow, on
       alignItems: 'center', justifyContent: 'center',
       gap: 16, padding: 32,
     }}>
-
-      {/* generating — spinner while blob builds */}
       {mobileStage === 'generating' && (
         <>
           <div style={spinnerStyle} />
@@ -173,7 +192,6 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, safariWindow, on
         </>
       )}
 
-      {/* done — briefly visible before modal closes */}
       {mobileStage === 'done' && (
         <>
           <div style={{ fontSize: 44 }}>✓</div>
@@ -181,7 +199,6 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, safariWindow, on
         </>
       )}
 
-      {/* blocked — popup was blocked, show one-tap fallback */}
       {mobileStage === 'blocked' && (
         <>
           <div style={{ color: '#fff', fontSize: 15, fontWeight: 600, textAlign: 'center' }}>PDF ready</div>
@@ -200,7 +217,6 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, safariWindow, on
         </>
       )}
 
-      {/* error */}
       {mobileStage === 'error' && (
         <>
           <div style={{ fontSize: 40 }}>⚠️</div>
@@ -214,8 +230,6 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, safariWindow, on
     </div>
   );
 }
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const desktopBtnStyle: React.CSSProperties = {
   background: 'rgba(255,255,255,0.1)',
@@ -235,13 +249,3 @@ const spinnerStyle: React.CSSProperties = {
   borderRadius: '50%',
   animation: 'spin 0.8s linear infinite',
 };
-
-if (typeof document !== 'undefined') {
-  const id = 'invoice-spinner-style';
-  if (!document.getElementById(id)) {
-    const s = document.createElement('style');
-    s.id = id;
-    s.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
-    document.head.appendChild(s);
-  }
-}
