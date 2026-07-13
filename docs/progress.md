@@ -61,15 +61,39 @@
   - ⬜ NOT YET: `app/public/icons/icon-512.png` — must be added manually (512×512 PNG)
   - ⬜ NOT YET: `app/public/apple-touch-icon.png` — must be added manually (180×180 PNG, iOS home screen)
 
+- 🟡 **iOS PWA Premium UI Overhaul** — DESIGNED, AWAITING IMPLEMENTATION
+  - Design decisions recorded in `docs/design-decisions.md` (section: iOS PWA Premium UI Overhaul)
+  - Branch to create: `ui/ios-premium-redesign` (from main)
+  - ⬜ `app/src/index.css` — safe area CSS tokens, `100dvh`, spring easing vars, animation keyframes
+  - ⬜ `app/src/ui/AppShell.tsx` — SVG Lucide icons, safe-area-aware height, sliding gold pill indicator, page fade transitions
+  - ⬜ `app/src/ui/settings/_components.tsx` — shadow-based cards, spring button press, gold focus rings, 44px touch targets
+  - ⬜ `app/src/ui/invoices/pdf/InvoicePreviewModal.tsx` — PDF.js canvas renderer on mobile, "Open in Safari" fallback button, safe-area header
+  - ⬜ `app/src/ui/dashboard/DashboardPage.tsx` — safe-area-inset-top on sticky header, replace colored KPI card border with badge
+  - ⬜ All other page sticky headers — `padding-top: calc(20px + env(safe-area-inset-top, 0px))` audit across all modules
+
 ---
 
 ## What's Next
 
-### Immediate: Add missing PWA icons
+### NEXT SESSION: Implement iOS PWA Premium UI Overhaul
+
+**Branch:** `ui/ios-premium-redesign` (create from main)
+
+**Scope — CSS/layout/component only. Zero business logic changes.**
+
+Files to change, in order:
+1. `app/src/index.css` — Add to `:root`: `--safe-top: env(safe-area-inset-top, 0px)`, `--safe-bottom: env(safe-area-inset-bottom, 0px)`, `--safe-left`, `--safe-right`. Change `#root` to `min-height: 100dvh`. Add `--ease-spring: cubic-bezier(0.16, 1, 0.3, 1)` and `--ease-snappy: cubic-bezier(0.25, 0, 0.3, 1)`. Add `@keyframes page-enter` and `@keyframes tab-fade-in`. Improve scrollbar styling.
+2. `app/src/ui/AppShell.tsx` — Replace emoji with inline SVG Lucide icons (house, file-text, user, truck, clipboard, folder, settings). Tab bar height = `calc(56px + var(--safe-bottom))`. Scroll container paddingBottom matches. Add single shared sliding gold pill indicator element using `transform: translateX(tabIndex * 100%)`. Wrap page content in a `<div key={activeTab}>` with CSS animation `page-enter`. `minHeight: '100dvh'`.
+3. `app/src/ui/settings/_components.tsx` — `cardStyle`: remove solid border, add `boxShadow: '0 1px 3px rgba(43,31,21,0.06), 0 4px 16px rgba(43,31,21,0.04)', border: '1px solid rgba(217,211,197,0.5)'`. `PrimaryButton`: add `transition: 'transform 150ms var(--ease-snappy), opacity 150ms'`, `:active` scale `0.97` via CSS class. `inputStyle`: add `transition: 'border-color 200ms'`. `Field` focus ring: `outline: '2px solid rgba(200,169,106,0.5)'`. All interactive elements: `minHeight: 44`.
+4. `app/src/ui/invoices/pdf/InvoicePreviewModal.tsx` — Detect `isIOS` via `navigator.standalone || /iPhone|iPad|iPod/.test(navigator.userAgent)`. On mobile (`window.innerWidth < 1024`): load `pdfjs-dist`, generate blob from `pdf(<InvoicePdf {...payload} />).toBlob()`, render pages as `<canvas>` elements in a scrollable container. Add "↗ Open in Safari" button that does `window.open(URL.createObjectURL(blob), '_blank')`. Add safe-area padding to modal header: `paddingTop: 'calc(14px + var(--safe-top))'`. Modal entrance animation: `transform: translateY(0)` from `translateY(100%)` via `--ease-spring`.
+5. `app/src/ui/dashboard/DashboardPage.tsx` — Sticky header: `paddingTop: 'calc(20px + var(--safe-top))'`. KPI cards: remove `borderLeft: '3px solid ...'`, replace with a small colored pill badge `<span>` in card top-right for flagged items only.
+6. All other module sticky headers (InvoicesPage, ClientsPage, VehiclesPage, WorkOrdersPage, ProjectsPage, SettingsPage) — add `env(safe-area-inset-top)` to their `padding-top`. Read each file first, apply the same `calc(Npx + var(--safe-top))` pattern.
+
+**Design reference:** Linear app × native iOS Settings × Stripe dashboard. Espresso + parchment + gold palette — preserved exactly.
+
+### Also pending: Add missing PWA icons
 1. Add `app/public/icons/icon-512.png` (512×512 PNG of app logo) to main branch
 2. Add `app/public/apple-touch-icon.png` (180×180 PNG of app logo) to main branch
-   - These are needed for a proper "Add to Home Screen" experience on iOS
-   - Without `apple-touch-icon.png`, iOS uses a screenshot as the home screen icon
 
 ### Also pending: Finish PDF Part 3
 1. Run migration `007_invoices_pdf_url.sql` in Supabase SQL Editor
