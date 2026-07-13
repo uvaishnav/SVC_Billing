@@ -373,8 +373,8 @@ function UnbilledAlert({ items, onIgnore, onUnignore }: {
 
 function KpiStrip({ kpis }: { kpis: KpiData | null }) {
   const items = [
-    { label: currentMonthLabel(), value: kpis ? fmt(kpis.thisMonthRevenue) : '…', sub: 'Billed' },
-    { label: currentFyLabel(),    value: kpis ? fmt(kpis.thisFyRevenue)    : '…', sub: 'Total' },
+    { label: currentMonthLabel(), value: kpis ? fmt(kpis.thisMonthRevenue) : '…', sub: 'Net Receivable' },
+    { label: currentFyLabel(),    value: kpis ? fmt(kpis.thisFyRevenue)    : '…', sub: 'Net Receivable' },
     { label: 'Work Orders',       value: kpis ? String(kpis.activeWoCount) : '…', sub: 'Active' },
     {
       label: 'Expiring', value: kpis ? String(kpis.expiringWoCount) : '…', sub: '≤30 days',

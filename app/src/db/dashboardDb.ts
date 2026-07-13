@@ -38,13 +38,6 @@ export interface MonthlyTrend {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-/** Returns current FY start date string 'YYYY-04-01' */
-function fyStart(): string {
-  const now = new Date()
-  const year = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1
-  return `${year}-04-01`
-}
-
 /** Returns 'YY-YY' FY label e.g. '25-26' */
 function fyLabel(): string {
   const now = new Date()
@@ -57,6 +50,19 @@ function toYearMonth(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
+/** Returns first day of current month as 'YYYY-MM-DD' */
+function currentMonthStart(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+}
+
+/** Returns last day of current month as 'YYYY-MM-DD' */
+function currentMonthEnd(): string {
+  const now = new Date()
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+  return lastDay.toISOString().slice(0, 10)
+}
+
 /** Returns array of last N 'YYYY-MM' strings, oldest first */
 function lastNMonths(n: number): string[] {
   const now = new Date()
@@ -67,32 +73,54 @@ function lastNMonths(n: number): string[] {
   return months
 }
 
+/**
+ * Returns the start and end dates (YYYY-MM-DD) of the current financial year.
+ * FY starts April 1 and ends March 31 of the following year.
+ */
+function currentFyDateRange(): { fyStart: string; fyEnd: string } {
+  const now = new Date()
+  const fyStartYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1
+  const fyStart = `${fyStartYear}-04-01`
+  const fyEnd   = `${fyStartYear + 1}-03-31`
+  return { fyStart, fyEnd }
+}
+
 // ─── KPIs ──────────────────────────────────────────────────────────────────────
 
 export async function fetchKpis(): Promise<KpiData> {
-  const now = new Date()
-  const currentYM  = toYearMonth(now)
-  const currentFY  = fyLabel()
+  const now        = new Date()
+  const monthStart = currentMonthStart()
+  const monthEnd   = currentMonthEnd()
+  const { fyStart, fyEnd } = currentFyDateRange()
   const today      = now.toISOString().slice(0, 10)
   const in30Days   = new Date(now.getTime() + 30 * 86400000).toISOString().slice(0, 10)
 
   const [monthRes, fyRes, woRes] = await Promise.all([
+    // This Month Revenue: sum net_receivable of final invoices raised THIS calendar month
     supabase
-      .from('vehicle_billing_ledger')
-      .select('amount')
-      .eq('billing_month', currentYM),
+      .from('invoices')
+      .select('net_receivable')
+      .eq('status', 'final')
+      .gte('invoice_date', monthStart)
+      .lte('invoice_date', monthEnd),
+
+    // FY Revenue: sum net_receivable of final invoices in current financial year
     supabase
-      .from('vehicle_billing_ledger')
-      .select('amount')
-      .eq('financial_year', currentFY),
+      .from('invoices')
+      .select('net_receivable')
+      .eq('status', 'final')
+      .gte('invoice_date', fyStart)
+      .lte('invoice_date', fyEnd),
+
+    // Work Orders
     supabase
       .from('work_orders')
       .select('id, valid_to')
       .neq('status', 'closed'),
   ])
 
-  const thisMonthRevenue = (monthRes.data ?? []).reduce((s, r) => s + (r.amount ?? 0), 0)
-  const thisFyRevenue    = (fyRes.data   ?? []).reduce((s, r) => s + (r.amount ?? 0), 0)
+  const thisMonthRevenue = (monthRes.data ?? []).reduce((s, r) => s + (r.net_receivable ?? 0), 0)
+  const thisFyRevenue    = (fyRes.data   ?? []).reduce((s, r) => s + (r.net_receivable ?? 0), 0)
   const wos              = woRes.data ?? []
   const activeWoCount    = wos.length
   const expiringWoCount  = wos.filter(w => w.valid_to && w.valid_to >= today && w.valid_to <= in30Days).length
@@ -101,45 +129,62 @@ export async function fetchKpis(): Promise<KpiData> {
 }
 
 // ─── Unbilled Vehicles ────────────────────────────────────────────────────────
+// Shows active vehicles that have NOT been billed in any final invoice
+// raised this calendar month (invoice_date). Covers both quantity invoices
+// (invoice_vehicles) and rental invoices (invoice_rental_items).
 
 export async function fetchUnbilledVehicles(): Promise<UnbilledVehicle[]> {
   const now        = new Date()
   const currentYM  = toYearMonth(now)
-  const prevYM     = toYearMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1))
-  const checkMonths = [prevYM, currentYM]
+  const monthStart = currentMonthStart()
+  const monthEnd   = currentMonthEnd()
 
-  const [vehiclesRes, ledgerRes, ignoresRes] = await Promise.all([
+  const [
+    vehiclesRes,
+    ignoresRes,
+    qtyVehiclesRes,
+    rentalVehiclesRes,
+  ] = await Promise.all([
     supabase.from('vehicles').select('id, reg_number').eq('is_active', true),
-    supabase
-      .from('vehicle_billing_ledger')
-      .select('vehicle_id, billing_month')
-      .in('billing_month', checkMonths),
     supabase.from('dashboard_ignores').select('vehicle_id, year_month'),
+    // quantity invoices: vehicles via invoice_vehicles
+    supabase
+      .from('invoice_vehicles')
+      .select('vehicle_id, invoices!inner(invoice_date, status)')
+      .eq('invoices.status', 'final')
+      .gte('invoices.invoice_date', monthStart)
+      .lte('invoices.invoice_date', monthEnd),
+    // rental invoices: vehicles via invoice_rental_items
+    supabase
+      .from('invoice_rental_items')
+      .select('vehicle_id, invoices!inner(invoice_date, status)')
+      .eq('invoices.status', 'final')
+      .gte('invoices.invoice_date', monthStart)
+      .lte('invoices.invoice_date', monthEnd),
   ])
 
   const vehicles = vehiclesRes.data ?? []
-  const ledger   = ledgerRes.data ?? []
   const ignores  = ignoresRes.data ?? []
 
-  const billedSet = new Set<string>(
-    ledger.map(r => `${r.vehicle_id}::${r.billing_month}`)
-  )
+  // Union: vehicle billed this month via either billing type
+  const billedThisMonthSet = new Set<number>([
+    ...(qtyVehiclesRes.data    ?? []).map((r: any) => r.vehicle_id),
+    ...(rentalVehiclesRes.data ?? []).map((r: any) => r.vehicle_id),
+  ])
+
   const ignoredSet = new Set<string>(
     ignores.map(i => `${i.vehicle_id}::${i.year_month}`)
   )
 
   const unbilled: UnbilledVehicle[] = []
   for (const v of vehicles) {
-    for (const ym of checkMonths) {
-      const key = `${v.id}::${ym}`
-      if (!billedSet.has(key)) {
-        unbilled.push({
-          vehicleId: v.id,
-          regNumber: v.reg_number,
-          yearMonth: ym,
-          isIgnored: ignoredSet.has(key),
-        })
-      }
+    if (!billedThisMonthSet.has(v.id)) {
+      unbilled.push({
+        vehicleId: v.id,
+        regNumber: v.reg_number,
+        yearMonth: currentYM,
+        isIgnored: ignoredSet.has(`${v.id}::${currentYM}`),
+      })
     }
   }
 
@@ -147,16 +192,19 @@ export async function fetchUnbilledVehicles(): Promise<UnbilledVehicle[]> {
 }
 
 // ─── Vehicle Revenue ─────────────────────────────────────────────────────────
+// Intentionally kept on vehicle_billing_ledger — this is a per-vehicle
+// analytics breakdown, not a headline financial figure.
 
 export async function fetchVehicleRevenue(period: 'month' | 'fy'): Promise<VehicleRevenue[]> {
   const now = new Date()
+  const prevMonthYM = toYearMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1))
 
   const [ledgerRes, vehiclesRes] = await Promise.all([
     period === 'month'
       ? supabase
           .from('vehicle_billing_ledger')
           .select('vehicle_id, amount')
-          .eq('billing_month', toYearMonth(now))
+          .eq('billing_month', prevMonthYM)
       : supabase
           .from('vehicle_billing_ledger')
           .select('vehicle_id, amount')
@@ -237,21 +285,28 @@ export async function fetchWoFlags(): Promise<WoFlag[]> {
 }
 
 // ─── Monthly Billing Trend (last 6 months) ───────────────────────────────────
+// Uses net_receivable from final invoices, bucketed by invoice_date month.
 
 export async function fetchMonthlyTrend(): Promise<MonthlyTrend[]> {
   const months = lastNMonths(6)
+  const oldest = months[0] + '-01'          // e.g. '2026-02-01'
+  const now    = new Date()
+  const latest = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10)
 
   const { data } = await supabase
-    .from('vehicle_billing_ledger')
-    .select('billing_month, amount')
-    .in('billing_month', months)
+    .from('invoices')
+    .select('invoice_date, net_receivable')
+    .eq('status', 'final')
+    .gte('invoice_date', oldest)
+    .lte('invoice_date', latest)
 
-  // Aggregate client-side
   const totals: Record<string, number> = {}
   for (const ym of months) totals[ym] = 0
+
   for (const row of (data ?? [])) {
-    if (totals[row.billing_month] !== undefined) {
-      totals[row.billing_month] += row.amount ?? 0
+    const ym = row.invoice_date?.slice(0, 7)   // 'YYYY-MM'
+    if (ym && totals[ym] !== undefined) {
+      totals[ym] += row.net_receivable ?? 0
     }
   }
 
