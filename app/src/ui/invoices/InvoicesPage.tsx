@@ -207,11 +207,11 @@ function InvoiceCard({
         )}
       </div>
 
-      {/* Amount row */}
+      {/* Amount row — shows net receivable (after TDS) */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isFinal || isCancelled ? 12 : 0 }}>
-        <span style={{ fontSize: 12, color: 'var(--color-text-faint)' }}>Total</span>
+        <span style={{ fontSize: 12, color: 'var(--color-text-faint)' }}>Net Receivable</span>
         <span style={{ fontSize: 16, fontWeight: 700, color: isCancelled ? 'var(--color-text-faint)' : 'var(--color-text)', fontVariantNumeric: 'tabular-nums' }}>
-          ₹{fmt(inv.total_amount)}
+          ₹{fmt(inv.net_receivable)}
         </span>
       </div>
 
@@ -305,220 +305,152 @@ export default function InvoicesPage() {
       const isDraft  = inv.status === 'draft'
       const fyOk     = isDraft ? selectedFY === currentFY() : getFY(inv.invoice_date) === selectedFY
       const statusOk = statusFilter === 'all' || inv.status === statusFilter
-      const searchOk = !search ||
-        inv.invoice_number.toLowerCase().includes(search.toLowerCase()) ||
-        (inv.client_name ?? '').toLowerCase().includes(search.toLowerCase()) ||
-        (inv.work_order_reference ?? '').toLowerCase().includes(search.toLowerCase())
+      const searchOk = !search.trim() ||
+        (inv.invoice_number ?? '').toLowerCase().includes(search.toLowerCase()) ||
+        (inv.client_name   ?? '').toLowerCase().includes(search.toLowerCase())
       return fyOk && statusOk && searchOk
     })
     return sortByNumberDesc(result)
   }, [invoices, selectedFY, statusFilter, search])
 
-  async function openInvoice(inv: InvoiceWithDetails) {
-    if (inv.status === 'cancelled') return
+  async function handleOpen(inv: InvoiceWithDetails) {
     setLoadingEdit(inv.id)
-    const full = await getInvoiceById(inv.id)
-    setLoadingEdit(null)
-    if (!full) return
-    const draft = await mapInvoiceWithDetailsToDraft(full)
-    setEditDraft(draft)
-    setEditStatus(inv.status)
-    setEditInvoiceId(inv.id)
-    setShowWizard(true)
-  }
-
-  function closeWizard() {
-    setShowWizard(false)
-    setEditDraft(undefined)
-    setEditStatus(undefined)
-    setEditInvoiceId(null)
-    load()
-  }
-
-  function handleDraftDeleted(id: number) {
-    setInvoices(prev => prev.filter(inv => inv.id !== id))
-  }
-
-  function handleInvoiceCancelled(id: number) {
-    setInvoices(prev => prev.map(inv => inv.id === id ? { ...inv, status: 'cancelled' as InvoiceStatus } : inv))
-    setStatusFilter('cancelled')
-  }
-
-  const counts = useMemo(() => {
-    const base = invoices.filter(inv => {
-      const isDraft = inv.status === 'draft'
-      return isDraft ? selectedFY === currentFY() : getFY(inv.invoice_date) === selectedFY
-    })
-    return {
-      final:     base.filter(i => i.status === 'final').length,
-      draft:     base.filter(i => i.status === 'draft').length,
-      cancelled: base.filter(i => i.status === 'cancelled').length,
-      all:       base.length,
+    try {
+      const fresh = await getInvoiceById(inv.id)
+      if (!fresh) { alert('Invoice not found.'); return }
+      setEditDraft(mapInvoiceWithDetailsToDraft(fresh))
+      setEditStatus(fresh.status)
+      setEditInvoiceId(fresh.id)
+      setShowWizard(true)
+    } catch (err) {
+      alert('Failed to load invoice details.')
+    } finally {
+      setLoadingEdit(null)
     }
-  }, [invoices, selectedFY])
+  }
 
-  const statusFilters: { id: FilterStatus; label: string }[] = [
-    { id: 'final',     label: 'Finalised' },
-    { id: 'draft',     label: 'Drafts'    },
-    { id: 'cancelled', label: 'Cancelled' },
-    { id: 'all',       label: 'All'       },
-  ]
+  function handleDeleted(id: number) {
+    setInvoices(prev => prev.filter(i => i.id !== id))
+  }
+
+  function handleCancelled(id: number) {
+    setInvoices(prev => prev.map(i => i.id === id ? { ...i, status: 'cancelled' as InvoiceStatus } : i))
+  }
 
   if (showWizard) {
     return (
-      <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
-        <div style={{
-          background: 'var(--color-primary)',
-          paddingTop: 'calc(20px + var(--safe-top, 0px))',
-          paddingRight: '16px',
-          paddingBottom: '14px',
-          paddingLeft: '16px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          position: 'sticky',
-          top: 0,
-          zIndex: 60,
-        }}>
-          <button type="button" onClick={closeWizard}
-            style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 8, color: '#fff', width: 44, height: 44, cursor: 'pointer', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-            aria-label="Back to invoices"
-          >←</button>
-          <div>
-            <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11 }}>{editStatus === 'final' ? 'Edit Finalised' : editDraft ? 'Edit Draft' : 'New Invoice'}</div>
-            <div style={{ color: '#fff', fontWeight: 700, fontSize: 16, fontFamily: 'Playfair Display, serif' }}>
-              {editStatus === 'final' ? 'Edit Invoice' : editDraft ? 'Draft Invoice' : 'Create Invoice'}
-            </div>
-          </div>
-        </div>
-        <InvoiceWizard
-          initialDraft={editDraft}
-          existingStatus={editStatus}
-          existingInvoiceId={editInvoiceId}
-          onComplete={closeWizard}
-          onSaveDraft={() => load()}
-        />
-      </div>
+      <InvoiceWizard
+        initialDraft={editDraft}
+        initialStatus={editStatus}
+        invoiceId={editInvoiceId ?? undefined}
+        onClose={() => { setShowWizard(false); setEditDraft(undefined); setEditStatus(undefined); setEditInvoiceId(null); load() }}
+      />
     )
   }
 
   return (
     <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
-
-      {/* Sticky header — safe-area aware */}
-      <div style={{
-        background: 'var(--color-primary)',
-        paddingTop: 'calc(20px + var(--safe-top, 0px))',
-        paddingRight: '20px',
-        paddingBottom: 0,
-        paddingLeft: '20px',
-        position: 'sticky', top: 0, zIndex: 10,
-      }}>
-        {/* Title + add */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <div>
-            <h1 style={{ color: 'var(--color-bg)', fontSize: 22, fontFamily: 'Playfair Display, serif', marginBottom: 2 }}>Invoices</h1>
-            <p style={{ color: 'var(--color-accent)', fontSize: 13, opacity: 0.85 }}>FY {selectedFY} &bull; {counts.final} finalised</p>
-          </div>
+      {/* ─── Sticky header ─── */}
+      <div className="page-header">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <h1 style={{ fontSize: 20, color: 'var(--color-accent)', margin: 0, fontFamily: 'Playfair Display, serif' }}>Invoices</h1>
           <button
             type="button"
             onClick={() => { setEditDraft(undefined); setEditStatus(undefined); setEditInvoiceId(null); setShowWizard(true) }}
-            aria-label="Create invoice"
-            style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--color-accent)', color: 'var(--color-primary)', fontSize: 24, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.25)', flexShrink: 0 }}
-          >+</button>
+            style={{
+              background: 'var(--color-accent)', color: 'var(--color-primary)',
+              border: 'none', borderRadius: 10, padding: '9px 16px',
+              fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              fontFamily: 'Work Sans, sans-serif',
+              boxShadow: '0 2px 8px rgba(200,169,106,0.25)',
+              minHeight: 38,
+            }}
+          >+ New Invoice</button>
         </div>
 
         {/* Search */}
         <input
+          type="search"
+          placeholder="Search invoice # or client…"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Search invoice no, client, work order…"
-          aria-label="Search invoices"
-          style={{ width: '100%', padding: '11px 16px', borderRadius: 10, border: 'none', background: 'rgba(255,255,255,0.12)', color: 'var(--color-bg)', fontSize: 15, outline: 'none', fontFamily: 'Work Sans, sans-serif', boxSizing: 'border-box', marginBottom: 10 }}
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            padding: '9px 12px', borderRadius: 10,
+            border: '1px solid var(--color-border)',
+            background: 'var(--color-surface-offset)',
+            color: 'var(--color-text)', fontSize: 14,
+            fontFamily: 'Work Sans, sans-serif',
+            outline: 'none', marginBottom: 10,
+          }}
         />
 
-        {/* FY pills */}
-        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', marginBottom: 8, scrollbarWidth: 'none' }}>
+        {/* FY tabs */}
+        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
           {availableFYs.map(fy => (
-            <button key={fy} type="button" onClick={() => setSelectedFY(fy)}
-              aria-pressed={selectedFY === fy}
-              aria-label={`Financial year ${fy}`}
-              style={{
-                padding: '5px 14px', borderRadius: 20, flexShrink: 0,
-                border: selectedFY === fy ? 'none' : '1px solid rgba(255,255,255,0.25)',
-                background: selectedFY === fy ? 'rgba(255,255,255,0.22)' : 'transparent',
-                color: selectedFY === fy ? '#fff' : 'rgba(255,255,255,0.65)',
-                fontSize: 13, fontWeight: selectedFY === fy ? 700 : 400, cursor: 'pointer', whiteSpace: 'nowrap',
-              }}>FY {fy}</button>
+            <button key={fy} type="button" onClick={() => setSelectedFY(fy)} style={{
+              flexShrink: 0, fontSize: 12, padding: '5px 14px', borderRadius: 20, minHeight: 30,
+              border: '1px solid var(--color-border)',
+              background: selectedFY === fy ? 'var(--color-accent)' : 'transparent',
+              color: selectedFY === fy ? 'var(--color-primary)' : 'var(--color-text-muted)',
+              fontWeight: selectedFY === fy ? 600 : 400, cursor: 'pointer',
+              fontFamily: 'Work Sans, sans-serif',
+              transition: 'background 180ms, color 180ms',
+            }}>FY {fy}</button>
           ))}
         </div>
 
-        {/* Status filter pills */}
-        <div role="group" aria-label="Filter by status" style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 14, scrollbarWidth: 'none' }}>
-          {statusFilters.map(f => {
-            const active = statusFilter === f.id
-            const count  = counts[f.id]
-            return (
-              <button key={f.id} type="button" onClick={() => setStatusFilter(f.id)}
-                aria-pressed={active}
-                aria-label={`${f.label} (${count})`}
-                style={{
-                  padding: '6px 14px', borderRadius: 20, flexShrink: 0,
-                  border: active ? 'none' : '1px solid rgba(255,255,255,0.2)',
-                  background: active ? 'var(--color-accent)' : 'transparent',
-                  color: active ? 'var(--color-primary)' : 'rgba(255,255,255,0.7)',
-                  fontSize: 13, fontWeight: active ? 700 : 400, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
-                }}>
-                {f.label}
-                <span style={{
-                  fontSize: 11, fontWeight: 700,
-                  background: active ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.15)',
-                  color: active ? 'var(--color-primary)' : 'rgba(255,255,255,0.85)',
-                  borderRadius: 20, padding: '1px 6px', minWidth: 18, textAlign: 'center' as const,
-                }}>{count}</span>
-              </button>
-            )
-          })}
+        {/* Status filter */}
+        <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+          {(['final', 'draft', 'cancelled', 'all'] as FilterStatus[]).map(s => (
+            <button key={s} type="button" onClick={() => setStatusFilter(s)} style={{
+              flexShrink: 0, fontSize: 12, padding: '5px 14px', borderRadius: 20, minHeight: 30,
+              border: `1px solid ${
+                statusFilter === s
+                  ? (STATUS_COLOR[s] ?? 'var(--color-accent)')
+                  : 'var(--color-border)'
+              }`,
+              background: statusFilter === s
+                ? (STATUS_BG[s] ?? 'rgba(200,169,106,0.12)')
+                : 'transparent',
+              color: statusFilter === s
+                ? (STATUS_COLOR[s] ?? 'var(--color-primary)')
+                : 'var(--color-text-muted)',
+              fontWeight: statusFilter === s ? 600 : 400, cursor: 'pointer',
+              fontFamily: 'Work Sans, sans-serif',
+              textTransform: 'capitalize',
+              transition: 'all 180ms',
+            }}>{s === 'all' ? 'All' : s}</button>
+          ))}
         </div>
       </div>
 
-      {/* Content */}
-      <div style={{ maxWidth: 640, margin: '0 auto', padding: '16px 16px 32px' }}>
+      {/* ─── List ─── */}
+      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {loading ? (
-          <div style={{ textAlign: 'center' as const, padding: '60px 0', color: 'var(--color-text-muted)', fontSize: 15 }}>Loading invoices…</div>
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} style={{
+              height: 110, borderRadius: 14,
+              background: 'linear-gradient(90deg, var(--color-surface-offset) 25%, var(--color-surface-dynamic, #e6e4df) 50%, var(--color-surface-offset) 75%)',
+              backgroundSize: '200% 100%',
+              animation: 'shimmer 1.5s ease-in-out infinite',
+            }} />
+          ))
         ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center' as const, padding: '60px 0' }}>
-            <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--color-surface-offset)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 28 }}>📄</div>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: 15 }}>
-              {search
-                ? `No invoices matching "${search}"`
-                : statusFilter === 'all'
-                  ? `No invoices for FY ${selectedFY}.`
-                  : `No ${statusFilter} invoices for FY ${selectedFY}.`}
-            </p>
-            {!search && statusFilter === 'final' && (
-              <p style={{ color: 'var(--color-text-faint)', fontSize: 13, marginTop: 6 }}>Tap + to create a new invoice.</p>
-            )}
+          <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--color-text-faint)', fontSize: 14 }}>
+            No invoices found
           </div>
         ) : (
-          <>
-            <p style={{ ...sectionTitleStyle, marginBottom: 14 }}>
-              {filtered.length} invoice{filtered.length !== 1 ? 's' : ''} &bull; FY {selectedFY}
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {filtered.map(inv => (
-                <InvoiceCard
-                  key={inv.id}
-                  inv={inv}
-                  onOpen={openInvoice}
-                  onDeleted={handleDraftDeleted}
-                  onCancelled={handleInvoiceCancelled}
-                  loadingEdit={loadingEdit}
-                />
-              ))}
-            </div>
-          </>
+          filtered.map(inv => (
+            <InvoiceCard
+              key={inv.id}
+              inv={inv}
+              onOpen={handleOpen}
+              onDeleted={handleDeleted}
+              onCancelled={handleCancelled}
+              loadingEdit={loadingEdit}
+            />
+          ))
         )}
       </div>
     </div>

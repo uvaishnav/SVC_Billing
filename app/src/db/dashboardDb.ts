@@ -73,13 +73,25 @@ function lastNMonths(n: number): string[] {
   return months
 }
 
+/**
+ * Returns the start and end dates (YYYY-MM-DD) of the current financial year.
+ * FY starts April 1 and ends March 31 of the following year.
+ */
+function currentFyDateRange(): { fyStart: string; fyEnd: string } {
+  const now = new Date()
+  const fyStartYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1
+  const fyStart = `${fyStartYear}-04-01`
+  const fyEnd   = `${fyStartYear + 1}-03-31`
+  return { fyStart, fyEnd }
+}
+
 // ─── KPIs ──────────────────────────────────────────────────────────────────────
 
 export async function fetchKpis(): Promise<KpiData> {
   const now        = new Date()
   const monthStart = currentMonthStart()
   const monthEnd   = currentMonthEnd()
-  const currentFY  = fyLabel()
+  const { fyStart, fyEnd } = currentFyDateRange()
   const today      = now.toISOString().slice(0, 10)
   const in30Days   = new Date(now.getTime() + 30 * 86400000).toISOString().slice(0, 10)
 
@@ -92,11 +104,13 @@ export async function fetchKpis(): Promise<KpiData> {
       .gte('invoice_date', monthStart)
       .lte('invoice_date', monthEnd),
 
-    // FY Revenue: sum amount from ledger for current financial year
+    // FY Revenue: sum net_receivable of final invoices in current financial year
     supabase
-      .from('vehicle_billing_ledger')
-      .select('amount')
-      .eq('financial_year', currentFY),
+      .from('invoices')
+      .select('net_receivable')
+      .eq('status', 'final')
+      .gte('invoice_date', fyStart)
+      .lte('invoice_date', fyEnd),
 
     // Work Orders
     supabase
@@ -106,7 +120,7 @@ export async function fetchKpis(): Promise<KpiData> {
   ])
 
   const thisMonthRevenue = (monthRes.data ?? []).reduce((s, r) => s + (r.net_receivable ?? 0), 0)
-  const thisFyRevenue    = (fyRes.data   ?? []).reduce((s, r) => s + (r.amount ?? 0), 0)
+  const thisFyRevenue    = (fyRes.data   ?? []).reduce((s, r) => s + (r.net_receivable ?? 0), 0)
   const wos              = woRes.data ?? []
   const activeWoCount    = wos.length
   const expiringWoCount  = wos.filter(w => w.valid_to && w.valid_to >= today && w.valid_to <= in30Days).length
@@ -178,6 +192,8 @@ export async function fetchUnbilledVehicles(): Promise<UnbilledVehicle[]> {
 }
 
 // ─── Vehicle Revenue ─────────────────────────────────────────────────────────
+// Intentionally kept on vehicle_billing_ledger — this is a per-vehicle
+// analytics breakdown, not a headline financial figure.
 
 export async function fetchVehicleRevenue(period: 'month' | 'fy'): Promise<VehicleRevenue[]> {
   const now = new Date()
@@ -269,20 +285,28 @@ export async function fetchWoFlags(): Promise<WoFlag[]> {
 }
 
 // ─── Monthly Billing Trend (last 6 months) ───────────────────────────────────
+// Uses net_receivable from final invoices, bucketed by invoice_date month.
 
 export async function fetchMonthlyTrend(): Promise<MonthlyTrend[]> {
   const months = lastNMonths(6)
+  const oldest = months[0] + '-01'          // e.g. '2026-02-01'
+  const now    = new Date()
+  const latest = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10)
 
   const { data } = await supabase
-    .from('vehicle_billing_ledger')
-    .select('billing_month, amount')
-    .in('billing_month', months)
+    .from('invoices')
+    .select('invoice_date, net_receivable')
+    .eq('status', 'final')
+    .gte('invoice_date', oldest)
+    .lte('invoice_date', latest)
 
   const totals: Record<string, number> = {}
   for (const ym of months) totals[ym] = 0
+
   for (const row of (data ?? [])) {
-    if (totals[row.billing_month] !== undefined) {
-      totals[row.billing_month] += row.amount ?? 0
+    const ym = row.invoice_date?.slice(0, 7)   // 'YYYY-MM'
+    if (ym && totals[ym] !== undefined) {
+      totals[ym] += row.net_receivable ?? 0
     }
   }
 
