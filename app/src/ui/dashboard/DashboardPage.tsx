@@ -378,7 +378,7 @@ function KpiStrip({ kpis }: { kpis: KpiData | null }) {
     { label: 'Work Orders',       value: kpis ? String(kpis.activeWoCount) : '…', sub: 'Active' },
     {
       label: 'Expiring', value: kpis ? String(kpis.expiringWoCount) : '…', sub: '≤30 days',
-      accent: kpis && kpis.expiringWoCount > 0 ? 'var(--color-warning)' : undefined,
+      accentColor: kpis && kpis.expiringWoCount > 0 ? 'var(--color-warning)' : undefined,
     },
   ]
 
@@ -386,17 +386,26 @@ function KpiStrip({ kpis }: { kpis: KpiData | null }) {
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
       {items.map(item => (
         <div key={item.label} style={{
+          position: 'relative',
           background: 'var(--color-surface)',
           borderRadius: 12,
           padding: '14px 14px 12px',
           border: '1px solid rgba(217,211,197,0.5)',
-          boxShadow: '0 1px 4px rgba(59,42,31,0.07)',
-          borderTop: item.accent ? `3px solid ${item.accent}` : '3px solid rgba(200,169,106,0.3)',
+          boxShadow: '0 1px 3px rgba(43,31,21,0.06), 0 4px 16px rgba(43,31,21,0.04)',
         }}>
+          {/* Pill badge — only shown for flagged cards */}
+          {item.accentColor && (
+            <span style={{
+              position: 'absolute', top: 10, right: 10,
+              width: 8, height: 8, borderRadius: '50%',
+              background: item.accentColor,
+              boxShadow: `0 0 0 2px rgba(255,255,255,0.8)`,
+            }} />
+          )}
           <div style={{ fontSize: 10, color: 'var(--color-text-faint)', marginBottom: 3, letterSpacing: '0.3px', lineHeight: 1.3 }}>{item.label}</div>
           <div style={{
             fontSize: 22, fontWeight: 700,
-            color: item.accent ?? 'var(--color-primary)',
+            color: item.accentColor ?? 'var(--color-primary)',
             fontFamily: 'Work Sans, sans-serif',
             fontVariantNumeric: 'tabular-nums',
             lineHeight: 1.15,
@@ -504,7 +513,7 @@ export default function DashboardPage() {
   return (
     <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
       {/* ─── Sticky header — safe-area-aware ─── */}
-      <div className="page-header">
+      <div className="page-header" style={{ paddingTop: 'calc(20px + var(--safe-top, 0px))' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <h1 style={{
