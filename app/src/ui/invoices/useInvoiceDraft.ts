@@ -252,6 +252,7 @@ export function useInvoiceDraft(initialDraft?: InvoiceDraft, initialInvoiceId?: 
       setDraft(d => ({ ...d, invoice_number: result.invoice.invoice_number }))
     }
     setSaving(false)
+    return result
   }, [draft, savedInvoiceId])
 
   return {

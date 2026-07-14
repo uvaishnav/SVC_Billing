@@ -36,14 +36,31 @@ export default function InvoiceWizard({
     patch(recomputed)
   }
 
+  const [toast, setToast] = React.useState<{ message: string; type: 'success' | 'error' } | null>(null)
+
+  React.useEffect(() => {
+    if (!toast) return
+    const timer = setTimeout(() => setToast(null), 3000)
+    return () => clearTimeout(timer)
+  }, [toast])
+
   function handleSetItemDistribution(dist: InvoiceItemDistributionDraft[]) {
     setItemDistribution(dist)
   }
 
-  function handleSaveDraft() {
+  async function handleSaveDraft() {
     const updated = recomputeTotals(draft, draft.gst_rate, draft.tds_rate)
     patch(updated)
-    saveDraft()
+    try {
+      const result = await saveDraft()
+      if (result) {
+        setToast({ message: `Draft saved successfully! (${result.invoice.invoice_number})`, type: 'success' })
+      } else {
+        setToast({ message: 'Failed to save draft.', type: 'error' })
+      }
+    } catch (e) {
+      setToast({ message: 'An unexpected error occurred while saving.', type: 'error' })
+    }
     onSaveDraft?.()
   }
 
@@ -58,6 +75,51 @@ export default function InvoiceWizard({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%', background: 'var(--color-bg)' }}>
+      {toast && (
+        <>
+          <style>{`
+            @keyframes toast-in {
+              from {
+                opacity: 0;
+                transform: translate(-50%, -20px) scale(0.95);
+              }
+              to {
+                opacity: 1;
+                transform: translate(-50%, 0) scale(1);
+              }
+            }
+          `}</style>
+          <div style={{
+            position: 'fixed',
+            top: '24px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 9999,
+            padding: '14px 24px',
+            borderRadius: '16px',
+            background: toast.type === 'success' ? 'rgba(6, 78, 59, 0.85)' : 'rgba(153, 27, 27, 0.85)',
+            color: '#ffffff',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            border: toast.type === 'success' ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            fontFamily: 'Work Sans, sans-serif',
+            fontSize: '14px',
+            fontWeight: 600,
+            animation: 'toast-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+            whiteSpace: 'nowrap',
+            transition: 'all 0.3s ease',
+          }}>
+            <span style={{ fontSize: '18px' }}>
+              {toast.type === 'success' ? '✨' : '⚠️'}
+            </span>
+            <span>{toast.message}</span>
+          </div>
+        </>
+      )}
       <WizardNav
         draft={draft}
         activeSection={activeSection}
