@@ -270,10 +270,12 @@ export type Database = {
         Row: {
           billing_mode: string
           created_at: string | null
+          day_night_shift: boolean
           id: number
           invoice_id: number
           monthly_rent: number
           num_days: number | null
+          shift_multiplier: number | null
           sort_order: number
           subtotal: number
           vehicle_id: number | null
@@ -281,10 +283,12 @@ export type Database = {
         Insert: {
           billing_mode?: string
           created_at?: string | null
+          day_night_shift?: boolean
           id?: number
           invoice_id: number
           monthly_rent: number
           num_days?: number | null
+          shift_multiplier?: number | null
           sort_order?: number
           subtotal: number
           vehicle_id?: number | null
@@ -292,10 +296,12 @@ export type Database = {
         Update: {
           billing_mode?: string
           created_at?: string | null
+          day_night_shift?: boolean
           id?: number
           invoice_id?: number
           monthly_rent?: number
           num_days?: number | null
+          shift_multiplier?: number | null
           sort_order?: number
           subtotal?: number
           vehicle_id?: number | null
@@ -359,11 +365,13 @@ export type Database = {
           bank_account_id: number | null
           billing_from: string
           billing_to: string
+          cgst_amount: number
           client_gstin_id: number | null
           client_id: number | null
           created_at: string
           gst_rate: number
           id: number
+          igst_amount: number
           invoice_date: string
           invoice_number: string
           line_item_billing_type: string
@@ -374,6 +382,7 @@ export type Database = {
           place_of_supply_code: string
           reverse_charge: boolean
           sac_id: number | null
+          sgst_amount: number
           status: Database["public"]["Enums"]["invoice_status"]
           tax_mode: Database["public"]["Enums"]["tax_mode"]
           tds_amount: number
@@ -389,11 +398,13 @@ export type Database = {
           bank_account_id?: number | null
           billing_from: string
           billing_to: string
+          cgst_amount?: number
           client_gstin_id?: number | null
           client_id?: number | null
           created_at?: string
           gst_rate?: number
           id?: number
+          igst_amount?: number
           invoice_date: string
           invoice_number: string
           line_item_billing_type?: string
@@ -404,6 +415,7 @@ export type Database = {
           place_of_supply_code?: string
           reverse_charge?: boolean
           sac_id?: number | null
+          sgst_amount?: number
           status?: Database["public"]["Enums"]["invoice_status"]
           tax_mode?: Database["public"]["Enums"]["tax_mode"]
           tds_amount?: number
@@ -419,11 +431,13 @@ export type Database = {
           bank_account_id?: number | null
           billing_from?: string
           billing_to?: string
+          cgst_amount?: number
           client_gstin_id?: number | null
           client_id?: number | null
           created_at?: string
           gst_rate?: number
           id?: number
+          igst_amount?: number
           invoice_date?: string
           invoice_number?: string
           line_item_billing_type?: string
@@ -434,6 +448,7 @@ export type Database = {
           place_of_supply_code?: string
           reverse_charge?: boolean
           sac_id?: number | null
+          sgst_amount?: number
           status?: Database["public"]["Enums"]["invoice_status"]
           tax_mode?: Database["public"]["Enums"]["tax_mode"]
           tds_amount?: number
@@ -709,6 +724,7 @@ export type Database = {
           capacity: number | null
           capacity_unit: string | null
           created_at: string
+          default_day_night_multiplier: number | null
           default_monthly_rent: number | null
           id: number
           is_active: boolean
@@ -720,6 +736,7 @@ export type Database = {
           capacity?: number | null
           capacity_unit?: string | null
           created_at?: string
+          default_day_night_multiplier?: number | null
           default_monthly_rent?: number | null
           id?: number
           is_active?: boolean
@@ -731,6 +748,7 @@ export type Database = {
           capacity?: number | null
           capacity_unit?: string | null
           created_at?: string
+          default_day_night_multiplier?: number | null
           default_monthly_rent?: number | null
           id?: number
           is_active?: boolean

@@ -2,7 +2,8 @@ import { supabase } from './supabaseClient'
 import type {
   Invoice, InvoiceLineItem, InvoiceVehicle,
   InvoiceRentalItem, InvoiceItemDistribution,
-  InvoiceWithDetails, InvoiceDraft, InvoiceStatus, InvoiceBillingType
+  InvoiceWithDetails, InvoiceDraft, InvoiceStatus, InvoiceBillingType,
+  VehicleBillingLedger
 } from './types'
 import { generateInvoiceNumber } from '../utils/invoiceNumbering'
 
@@ -131,6 +132,8 @@ function mapInvoiceRow(row: any): InvoiceWithDetails {
       ...ri,
       reg_number:   ri.vehicles?.reg_number ?? null,
       vehicle_type: ri.vehicles?.vehicle_type ?? null,
+      day_night_shift: ri.day_night_shift ?? false,
+      shift_multiplier: ri.shift_multiplier ?? null,
       vehicles: undefined,
     })),
     item_distribution: (row.invoice_item_distribution ?? []) as InvoiceItemDistribution[],
@@ -192,14 +195,16 @@ export async function mapInvoiceWithDetailsToDraft(inv: InvoiceWithDetails): Pro
       include_in_description: v.include_in_description,
     })),
     rental_items: inv.rental_items.map(ri => ({
-      vehicle_id:   ri.vehicle_id,
-      reg_number:   ri.reg_number ?? '',
-      vehicle_type: ri.vehicle_type,
-      billing_mode: ri.billing_mode,
-      num_days:     ri.num_days,
-      monthly_rent: ri.monthly_rent,
-      subtotal:     ri.subtotal,
-      sort_order:   ri.sort_order,
+      vehicle_id:       ri.vehicle_id,
+      reg_number:       ri.reg_number ?? '',
+      vehicle_type:     ri.vehicle_type,
+      billing_mode:     ri.billing_mode,
+      num_days:         ri.num_days,
+      monthly_rent:     ri.monthly_rent,
+      day_night_shift:  ri.day_night_shift,
+      shift_multiplier: ri.shift_multiplier,
+      subtotal:         ri.subtotal,
+      sort_order:       ri.sort_order,
     })),
     item_distribution: inv.item_distribution.map(d => {
       const woItem = woItemMap.get(d.work_order_item_id)
@@ -213,6 +218,9 @@ export async function mapInvoiceWithDetailsToDraft(inv: InvoiceWithDetails): Pro
     }),
     total_taxable:   inv.total_taxable,
     gst_rate:        inv.gst_rate,
+    cgst_amount:     inv.tax_mode === 'cgst_sgst' ? parseFloat(((inv.total_gst ?? 0) / 2).toFixed(2)) : 0,
+    sgst_amount:     inv.tax_mode === 'cgst_sgst' ? parseFloat(((inv.total_gst ?? 0) / 2).toFixed(2)) : 0,
+    igst_amount:     inv.tax_mode === 'igst'      ? (inv.total_gst ?? 0) : 0,
     total_gst:       inv.total_gst,
     total_amount:    inv.total_amount,
     tds_rate:        inv.tds_rate,
@@ -246,7 +254,7 @@ export async function saveDraftInvoice(
       .select()
       .single()
     if (error) { console.error('saveDraftInvoice update:', error); return null }
-    inv = data
+    inv = data as Invoice
   } else {
     const { data, error } = await supabase
       .from('invoices')
@@ -254,7 +262,7 @@ export async function saveDraftInvoice(
       .select()
       .single()
     if (error) { console.error('saveDraftInvoice upsert:', error); return null }
-    inv = data
+    inv = data as Invoice
   }
 
   if (!inv) return null
@@ -296,7 +304,7 @@ export async function markInvoicePaid(
 ): Promise<{ ok: boolean; error?: string }> {
   const { data, error } = await supabase
     .from('invoices')
-    .update({ status: 'paid' })
+    .update({ status: 'paid' as any })
     .eq('id', invoiceId)
     .eq('status', 'final')
     .select('id')
@@ -372,7 +380,7 @@ export async function finalizeInvoice(
       .select()
       .single()
     if (error) { console.error('finalizeInvoice update:', error); return null }
-    inv = data
+    inv = data as Invoice
   } else {
     const { data, error } = await supabase
       .from('invoices')
@@ -380,7 +388,7 @@ export async function finalizeInvoice(
       .select()
       .single()
     if (error) { console.error('finalizeInvoice insert:', error); return null }
-    inv = data
+    inv = data as Invoice
   }
 
   if (!inv) return null
@@ -440,13 +448,15 @@ async function _replaceChildren(invoiceId: number, draft: InvoiceDraft): Promise
     if (draft.rental_items.length > 0) {
       const { error } = await supabase.from('invoice_rental_items').insert(
         draft.rental_items.map(ri => ({
-          invoice_id:   invoiceId,
-          vehicle_id:   ri.vehicle_id,
-          sort_order:   ri.sort_order,
-          billing_mode: ri.billing_mode,
-          num_days:     ri.billing_mode === 'partial_days' ? ri.num_days : null,
-          monthly_rent: ri.monthly_rent,
-          subtotal:     ri.subtotal,
+          invoice_id:       invoiceId,
+          vehicle_id:       ri.vehicle_id,
+          sort_order:       ri.sort_order,
+          billing_mode:     ri.billing_mode,
+          num_days:         ri.billing_mode === 'partial_days' ? ri.num_days : null,
+          monthly_rent:     ri.monthly_rent,
+          day_night_shift:  ri.day_night_shift ?? false,
+          shift_multiplier: ri.day_night_shift ? ri.shift_multiplier : null,
+          subtotal:         ri.subtotal,
         }))
       )
       if (error) console.error('_replaceChildren rental_items:', error)
@@ -506,7 +516,7 @@ async function _writeVehicleLedger(
   const work_order_id  = draft.work_order_id
   const billingType: InvoiceBillingType = draft.line_item_billing_type
 
-  const ledgerRows: object[] = []
+  const ledgerRows: Omit<VehicleBillingLedger, 'id' | 'created_at'>[] = []
 
   if (billingType === 'rental') {
     for (const ri of draft.rental_items) {

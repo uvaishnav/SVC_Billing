@@ -406,14 +406,16 @@ function Section2Rental({
       return
     }
     setRentalItems([...draft.rental_items, {
-      vehicle_id:   null,
-      reg_number:   '',
-      vehicle_type: null,
-      billing_mode: 'full_month',
-      num_days:     null,
-      monthly_rent: 0,
-      subtotal:     0,
-      sort_order:   draft.rental_items.length,
+      vehicle_id:       null,
+      reg_number:       '',
+      vehicle_type:     null,
+      billing_mode:     'full_month',
+      num_days:         null,
+      monthly_rent:     0,
+      day_night_shift:  false,
+      shift_multiplier: null,
+      subtotal:         0,
+      sort_order:       draft.rental_items.length,
     }])
   }
 
@@ -435,6 +437,8 @@ function Section2Rental({
         merged.monthly_rent,
         merged.billing_mode,
         merged.num_days,
+        merged.day_night_shift,
+        merged.shift_multiplier,
       )
       return merged
     })
@@ -445,10 +449,12 @@ function Section2Rental({
     const v = vehicles.find(v => v.id === vehicleId)
     if (!v) return
     updateVehicleRow(idx, {
-      vehicle_id:   v.id,
-      reg_number:   v.reg_number,
-      vehicle_type: v.vehicle_type,
-      monthly_rent: v.default_monthly_rent ?? 0,
+      vehicle_id:       v.id,
+      reg_number:       v.reg_number,
+      vehicle_type:     v.vehicle_type,
+      monthly_rent:     v.default_monthly_rent ?? 0,
+      day_night_shift:  false,
+      shift_multiplier: null,
     })
   }
 
@@ -767,6 +773,49 @@ function RentalVehicleRow({
         )}
       </div>
 
+      {/* Day/Night shift row */}
+      {ri.vehicle_id && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12, marginBottom: 12 }}>
+          <div
+            style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+            onClick={() => {
+              const nextVal = !ri.day_night_shift
+              const defaultMult = vehicles.find(v => v.id === ri.vehicle_id)?.default_day_night_multiplier ?? 1.5
+              onUpdate({
+                day_night_shift: nextVal,
+                shift_multiplier: nextVal ? (ri.shift_multiplier ?? defaultMult) : null
+              })
+            }}
+          >
+            <Checkbox checked={ri.day_night_shift ?? false} />
+            <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text)' }}>
+              Vehicle worked Day & Night?
+            </span>
+          </div>
+
+          {ri.day_night_shift && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'center' }}>
+              <div>
+                <label style={labelStyle}>Shift Multiplier</label>
+                <input
+                  type="number" min="1.001" step="0.01"
+                  value={ri.shift_multiplier || ''}
+                  placeholder="e.g. 1.5"
+                  onChange={e => {
+                    const val = parseFloat(e.target.value)
+                    onUpdate({ shift_multiplier: isNaN(val) ? null : val })
+                  }}
+                  style={{ ...inputStyle, textAlign: 'right' }}
+                />
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--color-text-faint)', paddingTop: 14 }}>
+                Adjust multiplier as needed (must be &gt; 1)
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Subtotal */}
       {ri.subtotal > 0 && (
         <div style={{
@@ -775,11 +824,16 @@ function RentalVehicleRow({
           background: 'var(--color-surface-offset)',
           border: '1px solid var(--color-border)',
         }}>
-          <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
-            {ri.billing_mode === 'full_month'
-              ? 'Full month rental'
-              : `₹${fmt(ri.monthly_rent)} ÷ 30 × ${ri.num_days} days`
-            }
+          <div style={{ fontSize: 13, color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
+            {ri.day_night_shift && ri.shift_multiplier ? (
+              ri.billing_mode === 'full_month'
+                ? `Full month rental (with ${ri.shift_multiplier}x Day/Night multiplier)`
+                : `(₹${fmt(ri.monthly_rent)} × ${ri.shift_multiplier}x multiplier) ÷ 30 × ${ri.num_days} days`
+            ) : (
+              ri.billing_mode === 'full_month'
+                ? 'Full month rental'
+                : `₹${fmt(ri.monthly_rent)} ÷ 30 × ${ri.num_days} days`
+            )}
           </div>
           <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--color-text)' }}>
             <span className="tabular">₹{fmt(ri.subtotal)}</span>

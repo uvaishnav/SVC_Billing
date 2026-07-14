@@ -79,6 +79,7 @@ export interface Vehicle {
   capacity: number | null
   capacity_unit: string | null
   default_monthly_rent: number | null
+  default_day_night_multiplier: number | null
   is_active: boolean
   notes: string | null
   created_at: string
@@ -174,10 +175,6 @@ export interface Invoice {
 
   total_taxable: number
   gst_rate: number
-  // Split GST amounts — persisted so PDF can read them back without re-deriving
-  cgst_amount: number
-  sgst_amount: number
-  igst_amount: number
   total_gst: number
   total_amount: number
   tds_rate: number
@@ -231,6 +228,8 @@ export interface InvoiceRentalItem {
   billing_mode: RentalBillingMode
   num_days: number | null           // only set when billing_mode = 'partial_days'
   monthly_rent: number              // snapshot at invoice time
+  day_night_shift: boolean
+  shift_multiplier: number | null
   subtotal: number                  // computed: full = monthly_rent; partial = (monthly_rent/30)*num_days
   created_at: string
 }
@@ -243,6 +242,8 @@ export interface InvoiceRentalItemDraft {
   billing_mode: RentalBillingMode
   num_days: number | null
   monthly_rent: number
+  day_night_shift: boolean
+  shift_multiplier: number | null
   subtotal: number                  // auto-computed, read-only in UI
   sort_order: number
 }

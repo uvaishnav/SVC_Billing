@@ -11,6 +11,7 @@ interface Props {
 export default function VehicleDetailSheet({ vehicle, onClose, onEdit }: Props) {
   const hasCapacity = vehicle.capacity != null
   const hasRent     = vehicle.default_monthly_rent != null
+  const hasMultiplier = vehicle.default_day_night_multiplier != null
 
   return (
     <div
@@ -57,6 +58,11 @@ export default function VehicleDetailSheet({ vehicle, onClose, onEdit }: Props) 
                 ₹{vehicle.default_monthly_rent?.toLocaleString('en-IN')}/month
               </span>
             )}
+            {hasMultiplier && (
+              <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-success)', background: 'rgba(46,139,87,0.08)', padding: '4px 12px', borderRadius: '20px' }}>
+                Day/Night: {vehicle.default_day_night_multiplier}x
+              </span>
+            )}
           </div>
 
           {/* Details section */}
@@ -79,6 +85,12 @@ export default function VehicleDetailSheet({ vehicle, onClose, onEdit }: Props) 
                   <p style={{ fontSize: '12px', color: 'var(--color-text-faint)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Default Monthly Rent</p>
                   <p style={{ fontSize: '15px', color: 'var(--color-primary)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                     {hasRent ? `₹${vehicle.default_monthly_rent?.toLocaleString('en-IN')}` : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p style={{ fontSize: '12px', color: 'var(--color-text-faint)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Day/Night Multiplier</p>
+                  <p style={{ fontSize: '15px', color: 'var(--color-primary)', fontWeight: 600 }}>
+                    {hasMultiplier ? `${vehicle.default_day_night_multiplier}x` : '—'}
                   </p>
                 </div>
                 <div>

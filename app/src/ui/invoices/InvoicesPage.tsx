@@ -318,7 +318,8 @@ export default function InvoicesPage() {
     try {
       const fresh = await getInvoiceById(inv.id)
       if (!fresh) { alert('Invoice not found.'); return }
-      setEditDraft(mapInvoiceWithDetailsToDraft(fresh))
+      const mappedDraft = await mapInvoiceWithDetailsToDraft(fresh)
+      setEditDraft(mappedDraft)
       setEditStatus(fresh.status)
       setEditInvoiceId(fresh.id)
       setShowWizard(true)
@@ -341,9 +342,9 @@ export default function InvoicesPage() {
     return (
       <InvoiceWizard
         initialDraft={editDraft}
-        initialStatus={editStatus}
-        invoiceId={editInvoiceId ?? undefined}
-        onClose={() => { setShowWizard(false); setEditDraft(undefined); setEditStatus(undefined); setEditInvoiceId(null); load() }}
+        existingStatus={editStatus}
+        existingInvoiceId={editInvoiceId ?? undefined}
+        onComplete={() => { setShowWizard(false); setEditDraft(undefined); setEditStatus(undefined); setEditInvoiceId(null); load() }}
       />
     )
   }
