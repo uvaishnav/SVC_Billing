@@ -68,6 +68,7 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
       num_days:     r.num_days ?? 0,
       monthly_rent: r.monthly_rent ?? 0,
       amount:       r.subtotal ?? 0,
+      day_night_shift: r.day_night_shift ?? false,
     }));
 
     const { data: di, error: diErr } = await supabase

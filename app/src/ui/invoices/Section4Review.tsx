@@ -148,10 +148,15 @@ function RentalItemsSummary({ draft }: { draft: InvoiceDraft }) {
               )}
             </div>
             <div style={{ color: 'var(--color-text-muted)' }}>
-              {ri.billing_mode === 'full_month'
-                ? 'Full month rental'
-                : `${ri.num_days} day${(ri.num_days ?? 0) !== 1 ? 's' : ''} (₹${fmt(ri.monthly_rent)} ÷ 30 × ${ri.num_days})`
-              }
+              {ri.day_night_shift && ri.shift_multiplier ? (
+                ri.billing_mode === 'full_month'
+                  ? `Full month rental (Day & Night Shift, multiplier: ${ri.shift_multiplier}x)`
+                  : `${ri.num_days} day${(ri.num_days ?? 0) !== 1 ? 's' : ''} (Day & Night Shift, multiplier: ${ri.shift_multiplier}x) (₹${fmt(ri.monthly_rent)} × ${ri.shift_multiplier} ÷ 30 × ${ri.num_days})`
+              ) : (
+                ri.billing_mode === 'full_month'
+                  ? 'Full month rental'
+                  : `${ri.num_days} day${(ri.num_days ?? 0) !== 1 ? 's' : ''} (₹${fmt(ri.monthly_rent)} ÷ 30 × ${ri.num_days})`
+              )}
             </div>
           </div>
           <span className="tabular" style={{ fontWeight: 600, whiteSpace: 'nowrap', color: 'var(--color-text)' }}>

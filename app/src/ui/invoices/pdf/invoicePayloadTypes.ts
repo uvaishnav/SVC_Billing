@@ -52,6 +52,7 @@ export interface PdfRentalItem {
   num_days: number;
   monthly_rent: number;
   amount: number;
+  day_night_shift?: boolean;
 }
 
 export interface PdfDistributionItem {

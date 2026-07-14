@@ -17,6 +17,7 @@ export default function VehicleFormModal({ vehicle, onClose, onSaved }: Props) {
   const [capacity,     setCapacity]     = useState(vehicle?.capacity?.toString() ?? '')
   const [capacityUnit, setCapacityUnit] = useState(vehicle?.capacity_unit ?? '')
   const [monthlyRent,  setMonthlyRent]  = useState(vehicle?.default_monthly_rent?.toString() ?? '')
+  const [defaultDayNightMultiplier, setDefaultDayNightMultiplier] = useState(vehicle?.default_day_night_multiplier?.toString() ?? '')
   const [notes,        setNotes]        = useState(vehicle?.notes ?? '')
   const [saving,       setSaving]       = useState(false)
   const [error,        setError]        = useState<string | null>(null)
@@ -25,17 +26,24 @@ export default function VehicleFormModal({ vehicle, onClose, onSaved }: Props) {
     const reg = regNumber.trim().toUpperCase()
     if (!reg) { setError('Registration number is required'); return }
 
+    const mult = defaultDayNightMultiplier.trim() ? parseFloat(defaultDayNightMultiplier) : null
+    if (mult !== null && (isNaN(mult) || mult <= 1)) {
+      setError('Day/Night Multiplier must be greater than 1.')
+      return
+    }
+
     setSaving(true); setError(null)
 
     const payload: Partial<Vehicle> & { reg_number: string } = {
-      id:                   vehicle?.id,
-      reg_number:           reg,
-      vehicle_type:         vehicleType.trim() || null,
-      capacity:             capacity.trim() ? parseFloat(capacity) : null,
-      capacity_unit:        capacityUnit.trim() || null,
-      default_monthly_rent: monthlyRent.trim() ? parseFloat(monthlyRent) : null,
-      notes:                notes.trim() || null,
-      is_active:            true,
+      id:                           vehicle?.id,
+      reg_number:                   reg,
+      vehicle_type:                 vehicleType.trim() || null,
+      capacity:                     capacity.trim() ? parseFloat(capacity) : null,
+      capacity_unit:                capacityUnit.trim() || null,
+      default_monthly_rent:         monthlyRent.trim() ? parseFloat(monthlyRent) : null,
+      default_day_night_multiplier: mult,
+      notes:                        notes.trim() || null,
+      is_active:                    true,
     }
 
     const saved = await upsertVehicle(payload)
@@ -110,9 +118,12 @@ export default function VehicleFormModal({ vehicle, onClose, onSaved }: Props) {
 
           <p style={{ ...sectionTitleStyle, marginTop: '8px' }}>Rental Info (optional)</p>
           <p style={{ fontSize: '13px', color: 'var(--color-text-faint)', marginBottom: '14px', lineHeight: 1.5 }}>
-            Default monthly rent — used as a pre-fill hint in rental invoices. Can be overridden per invoice.
+            Configure default monthly rental and day/night shift multiplier (pre-fills when day/night is checked).
           </p>
-          <Field label="Default Monthly Rent (₹)" value={monthlyRent} onChange={setMonthlyRent} placeholder="e.g. 85000" type="number" />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <Field label="Default Monthly Rent (₹)" value={monthlyRent} onChange={setMonthlyRent} placeholder="e.g. 85000" type="number" />
+            <Field label="Day/Night Multiplier" value={defaultDayNightMultiplier} onChange={setDefaultDayNightMultiplier} placeholder="e.g. 1.5" type="number" />
+          </div>
 
           <p style={{ ...sectionTitleStyle, marginTop: '8px' }}>Notes</p>
           <div>

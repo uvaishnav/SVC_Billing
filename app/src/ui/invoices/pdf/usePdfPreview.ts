@@ -128,13 +128,14 @@ function buildProps(
   const rentalItems: PdfRentalItem[] = draft.rental_items.map((ri, idx) => ({
     sl_no:        idx + 1,
     reg_number:   ri.reg_number,
-    vehicle_type: ri.vehicle_type,
+    vehicle_type: ri.vehicle_type ?? '',
     billing_from: draft.billing_from,
     billing_to:   draft.billing_to,
     billing_mode: ri.billing_mode,
-    num_days:     ri.num_days,
+    num_days:     ri.num_days ?? 0,
     monthly_rent: ri.monthly_rent,
     amount:       ri.subtotal,
+    day_night_shift: ri.day_night_shift,
   }))
 
   const distribution: PdfDistributionItem[] = draft.item_distribution.map(d => ({
@@ -196,7 +197,7 @@ export function usePdfPreview(draft: InvoiceDraft) {
       ])
 
       const props = buildProps(draft, settings, clientGstin, bank, sacCode, woRef)
-      const blob  = await pdf(React.createElement(InvoicePdf, props)).toBlob()
+      const blob  = await pdf(React.createElement(InvoicePdf, props) as React.ReactElement<any>).toBlob()
       const url   = URL.createObjectURL(blob)
       setPdfUrl(url)
     } catch (e: any) {

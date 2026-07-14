@@ -121,10 +121,15 @@ export function computeRentalSubtotal(
   monthlyRent: number,
   billingMode: 'full_month' | 'partial_days',
   numDays: number | null,
+  dayNightShift?: boolean,
+  shiftMultiplier?: number | null,
 ): number {
-  if (billingMode === 'full_month') return parseFloat(monthlyRent.toFixed(2))
+  const baseRent = dayNightShift && shiftMultiplier && shiftMultiplier > 1
+    ? monthlyRent * shiftMultiplier
+    : monthlyRent
+  if (billingMode === 'full_month') return parseFloat(baseRent.toFixed(2))
   if (!numDays || numDays <= 0)    return 0
-  return parseFloat(((monthlyRent / 30) * numDays).toFixed(2))
+  return parseFloat(((baseRent / 30) * numDays).toFixed(2))
 }
 
 /** Re-distribute total_taxable equally across all distribution rows,
