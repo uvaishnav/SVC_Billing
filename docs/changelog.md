@@ -4,21 +4,20 @@
 
 ---
 
-## [2026-06-02] — iOS PWA Premium UI Overhaul — Design Session
+## [2026-07-14] — iOS PWA Premium UI Overhaul — Implementation
 
-### Planned (not yet implemented — branch `ui/ios-premium-redesign` to be created)
-- `app/src/index.css` — safe area CSS tokens (`--safe-top`, `--safe-bottom`), `100dvh`, spring easing vars (`--ease-spring`, `--ease-snappy`), page-enter keyframe animation
-- `app/src/ui/AppShell.tsx` — replace emoji with inline SVG Lucide icons, safe-area-aware tab bar height, sliding gold pill indicator (spring animated), page fade-in on tab change
-- `app/src/ui/settings/_components.tsx` — shadow-based card elevation (remove solid border), gold focus rings, spring button press, 44px minimum touch targets
-- `app/src/ui/invoices/pdf/InvoicePreviewModal.tsx` — PDF.js canvas renderer for mobile/iOS PWA (fixes WKWebView blob iframe bug), "Open in Safari" fallback, safe-area modal header, slide-up entrance animation
-- `app/src/ui/dashboard/DashboardPage.tsx` — safe-area-inset-top on sticky header, replace colored left border on KPI cards with pill badge
-- All module sticky headers — `padding-top: calc(Npx + env(safe-area-inset-top, 0px))` applied to InvoicesPage, ClientsPage, VehiclesPage, WorkOrdersPage, ProjectsPage, SettingsPage
+### Changed
+- `app/src/index.css` — added safe-area CSS tokens (`--safe-top`, `--safe-bottom`, `--safe-left`, `--safe-right`) to `:root`; changed `#root` to `min-height: 100dvh`; added `--ease-spring` and `--ease-snappy` easing curves; added `@keyframes page-enter` and `@keyframes shimmer`; added `.page-header`, `.scroll-area`, `.tab-bar`, `.tab-btn`, `.tab-label`, `.tab-icon`, `.btn-primary` CSS classes
+- `app/src/ui/AppShell.tsx` — replaced emoji with inline SVG icons (7 tabs); safe-area-aware tab bar via `tab-bar` CSS class; `page-enter` fade animation on tab change keyed by `animKey`; `100dvh` root; gold active pip per tab via `position:absolute` span
+- `app/src/ui/settings/_components.tsx` — `cardStyle` uses layered `box-shadow` + quiet alpha-blended border (removed solid `1.5px` border); `PrimaryButton` delegates to `btn-primary` CSS class for spring press; `inputStyle` adds `transition` for focus ring animation; all interactive elements meet 44px touch target
+- `app/src/ui/invoices/pdf/InvoicePreviewModal.tsx` — iOS mobile approach rewritten: synchronous `window.open()` inside onClick gives Safari a user-gesture token; blob URL is redirected to that window once ready; stages: `generating → done / blocked / error`; "Open PDF ↗" fallback button when popup blocked; Web Share API (`navigator.share`) for save/share; desktop `PDFViewer` iframe unchanged
+- `app/src/ui/invoices/InvoicesPage.tsx` — sticky header uses `className="page-header"` so CSS handles `calc(20px + env(safe-area-inset-top, 0px))` automatically
+- All other module sticky headers — confirmed use `className="page-header"` or equivalent safe-area padding
 
 ### Observations
-- Root cause of PDF failure on iOS PWA: `PDFViewer` uses `<iframe src="blob:...">` — WKWebView in standalone mode silently blocks blob URI iframes. PDF.js canvas approach is the correct fix.
-- Root cause of status bar overlap: zero `env(safe-area-inset-top)` usage anywhere in codebase. All sticky headers use hardcoded `padding: '20px ...'`.
-- Emoji inconsistency confirmed: iOS 16 and iOS 17 render 🚛 and 📋 at different visual sizes in fixed UI contexts.
-- All 8 design decisions documented in `docs/design-decisions.md` under "iOS PWA Premium UI Overhaul" section.
+- The `InvoicePreviewModal` approach changed from the originally planned PDF.js canvas renderer: the Safari window reference technique (`window.open()` synchronously in onClick, then redirect when blob is ready) is simpler, requires no `pdfjs-dist` rendering code, and gives the user native Safari PDF rendering (pinch-zoom, markup, AirPrint). PDF.js canvas was over-engineered for this use case.
+- All 6 planned file changes landed directly on `main` rather than on a separate `ui/ios-premium-redesign` branch. This was already the state found at session start — the overhaul was implemented in a prior session without the branch being tracked in `progress.md`.
+- The sliding gold pill tab indicator from the design plan was simplified to a static `position:absolute` gold top-pip per tab. The shared translating pill would require JS measurement of tab widths, which adds complexity without meaningful UX improvement given 7 evenly-spaced tabs.
 
 ---
 
