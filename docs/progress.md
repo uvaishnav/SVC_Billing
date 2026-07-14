@@ -69,6 +69,14 @@
   - ✅ `app/src/ui/invoices/InvoicesPage.tsx` — sticky header uses `className="page-header"` (CSS handles safe-area padding)
   - ✅ All module sticky headers audited — use `className="page-header"` or equivalent safe-area padding
 
+- ✅ **Invoice Schema Type Alignment** — COMPLETE, live on `main`
+  - ✅ `app/src/db/types.ts` — removed obsolete `cgst_amount`, `sgst_amount`, and `igst_amount` columns from frontend `Invoice` type to align with physical DB schema.
+  - ✅ `app/src/db/invoicesDb.ts` — reverted database type mapping checks, casting query outputs to `Invoice` and deriving split GST values dynamically for the wizard in `mapInvoiceWithDetailsToDraft`.
+
+- ✅ **Save Draft UI Toast Notification** — COMPLETE, live on `main`
+  - ✅ `app/src/ui/invoices/useInvoiceDraft.ts` — updated `saveDraft` helper to propagate Supabase insert/update outcomes back to the caller.
+  - ✅ `app/src/ui/invoices/InvoiceWizard.tsx` — added toast notification banners with auto-dismiss timers and glassmorphic styling.
+
 ---
 
 ## What's Next

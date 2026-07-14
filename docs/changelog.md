@@ -4,6 +4,18 @@
 
 ---
 
+## [2026-07-14] — Invoice Schema Type Alignment & Draft Save Toast UI
+
+### Added
+- `app/src/ui/invoices/InvoiceWizard.tsx` — added `toast` state and auto-dismiss timer; added standard keyframe animation `@keyframes toast-in` and rendered a custom glassmorphic floating banner overlay to acknowledge draft saving.
+
+### Fixed
+- `app/src/db/types.ts` — removed obsolete `cgst_amount`, `sgst_amount`, and `igst_amount` fields from the `Invoice` interface, aligning it with the actual database columns.
+- `app/src/db/invoicesDb.ts` — removed mapping of `cgst_amount`/`sgst_amount`/`igst_amount` in `draftToRow`; added dynamic derivation of these fields in `mapInvoiceWithDetailsToDraft` so that they are correctly computed on the fly for the wizard draft state; cast database responses to `Invoice` to fix stricter enum type matching; typed `ledgerRows` array to resolve postgrest upsert insert payload type warnings.
+- `app/src/ui/invoices/useInvoiceDraft.ts` — modified `saveDraft` to return the database save response to propagate the draft details to the wizard container for toast acknowledgement.
+
+---
+
 ## [2026-07-14] — iOS PWA Premium UI Overhaul — Implementation
 
 ### Changed
