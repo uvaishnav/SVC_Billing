@@ -345,11 +345,17 @@ const s = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: '#34A853',
     alignSelf: 'flex-start',
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   dayNightBadgeText: {
     fontSize: 5,
     fontWeight: 700,
     color: '#137333',
+    lineHeight: 1.0,
+    textAlign: 'center',
   },
   tableCellRight: {
     fontSize: 7.5,
@@ -859,21 +865,19 @@ function RentalTable({
       {rentalItems.map((item, idx) => (
         <View key={item.sl_no} style={[s.tableRow, idx % 2 === 1 ? s.tableRowAlt : {}]}>
           <Text style={[s.tableCell, s.rColSl]}>{item.sl_no}</Text>
-          <View style={[s.rColVeh, { flexDirection: 'column', alignItems: 'flex-start' }]}>
-            <Text style={s.tableCell}>{item.reg_number}</Text>
+          <Text style={[s.tableCell, s.rColVeh]}>{item.reg_number}</Text>
+          <Text style={[s.tableCell, s.rColType]}>{item.vehicle_type}</Text>
+          <Text style={[s.tableCell, s.rColPeriod]}>
+            {formatDate(item.billing_from)} – {formatDate(item.billing_to)}
+          </Text>
+          <View style={[s.rColMode, { flexDirection: 'column', alignItems: 'flex-start' }]}>
+            <Text style={s.tableCell}>{formatBillingMode(item.billing_mode)}</Text>
             {item.day_night_shift && (
               <View style={s.dayNightBadge}>
                 <Text style={s.dayNightBadgeText}>DAY + NIGHT</Text>
               </View>
             )}
           </View>
-          <Text style={[s.tableCell, s.rColType]}>{item.vehicle_type}</Text>
-          <Text style={[s.tableCell, s.rColPeriod]}>
-            {formatDate(item.billing_from)} – {formatDate(item.billing_to)}
-          </Text>
-          <Text style={[s.tableCell, s.rColMode]}>
-            {formatBillingMode(item.billing_mode)}
-          </Text>
           <Text style={[s.tableCellRight, s.rColDays]}>
             {item.billing_mode === 'full_month' ? '–' : (item.num_days ?? '–')}
           </Text>
