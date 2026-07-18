@@ -29,6 +29,7 @@ export default function WizardNav({
       background: 'var(--color-surface)',
       borderBottom: '1.5px solid var(--color-border)',
       position: 'sticky', top: 0, zIndex: 50,
+      paddingTop: 'var(--safe-top)',
     }}>
       {SECTIONS.map(sec => {
         const isActive   = activeSection === sec.id
