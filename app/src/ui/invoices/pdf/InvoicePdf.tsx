@@ -72,7 +72,7 @@ const LOGO_SIZE        = 100;
 const LOGO_MARGIN      = 0;
 
 // Thin warm separator between CREAM header and ESPRESSO GSTIN strip
-const GSTIN_STRIP_BORDER = '#C8B89A';
+const GSTIN_STRIP_BORDER = '#9E865A';
 
 // Standard GST invoice declaration (Rule 46, CGST Rules 2017)
 const GST_DECLARATION =
@@ -219,7 +219,7 @@ const s = StyleSheet.create({
     color: MUTED,
     letterSpacing: 0.8,
     marginBottom: 6,
-    borderBottomWidth: 0.5,
+    borderBottomWidth: 0.75,
     borderBottomColor: DIVIDER,
     paddingBottom: 3,
   },
@@ -265,9 +265,9 @@ const s = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingVertical: 4,
     paddingHorizontal: 10,
-    borderTopWidth: 0.75,
-    borderLeftWidth: 0.75,
-    borderRightWidth: 0.75,
+    borderTopWidth: 1.0,
+    borderLeftWidth: 1.0,
+    borderRightWidth: 1.0,
     borderBottomWidth: 0,
     borderTopLeftRadius: 4,
     borderTopRightRadius: 4,
@@ -316,6 +316,9 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     paddingVertical: 5,
     paddingHorizontal: 4,
+    borderTopWidth: 1.0,
+    borderBottomWidth: 1.0,
+    borderColor: DIVIDER,
   },
   tableHeaderCell: {
     fontSize: 7,
@@ -326,7 +329,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     paddingVertical: 4,
     paddingHorizontal: 4,
-    borderBottomWidth: 0.5,
+    borderBottomWidth: 0.75,
     borderBottomColor: DIVIDER,
   },
   tableRowAlt: {
@@ -343,8 +346,8 @@ const s = StyleSheet.create({
     paddingTop: 2,
     paddingBottom: 0.8,
     borderRadius: 2.5,
-    borderWidth: 0.5,
-    borderColor: '#A2E0B8',
+    borderWidth: 0.75,
+    borderColor: '#86CBA0',
     alignSelf: 'flex-start',
   },
   dayNightBadgeText: {
@@ -368,8 +371,8 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     paddingVertical: 5,
     paddingHorizontal: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: '#C8B89A',
+    borderBottomWidth: 1.0,
+    borderBottomColor: '#9E865A',
   },
   tableTaxableLabel: {
     fontSize: 7.5,
@@ -404,7 +407,7 @@ const s = StyleSheet.create({
   // ── Work items block ──────────────────────────────────────────────────────
   workItemsBlock: {
     backgroundColor: '#F7F5F0',
-    borderWidth: 0.75,
+    borderWidth: 1.0,
     borderColor: DIVIDER,
     borderRadius: 3,
     padding: 8,
@@ -442,7 +445,7 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 3,
     paddingHorizontal: 8,
-    borderBottomWidth: 0.5,
+    borderBottomWidth: 0.75,
     borderBottomColor: DIVIDER,
   },
   totalsLabel: {
@@ -492,7 +495,7 @@ const s = StyleSheet.create({
     paddingVertical: 7,
     paddingHorizontal: 10,
     backgroundColor: '#F4F1EC',
-    borderWidth: 0.75,
+    borderWidth: 1.0,
     borderColor: DIVIDER,
     borderRadius: 3,
     marginBottom: 10,
@@ -521,7 +524,7 @@ const s = StyleSheet.create({
   footerLeft: {
     flex: 1,
     paddingRight: 12,
-    borderRightWidth: 0.75,
+    borderRightWidth: 1.0,
     borderRightColor: DIVIDER,
   },
   footerRight: {
@@ -536,7 +539,7 @@ const s = StyleSheet.create({
     color: MUTED,
     letterSpacing: 0.8,
     marginBottom: 6,
-    borderBottomWidth: 0.5,
+    borderBottomWidth: 0.75,
     borderBottomColor: DIVIDER,
     paddingBottom: 3,
   },
@@ -567,7 +570,7 @@ const s = StyleSheet.create({
     alignSelf: 'flex-end',
   },
   footerSignatureLine: {
-    borderTopWidth: 0.75,
+    borderTopWidth: 1.0,
     borderTopColor: DIVIDER,
     width: 100,
     marginBottom: 3,
@@ -953,7 +956,7 @@ function TotalsSection({ props }: { props: InvoicePdfProps }) {
             <Text style={s.totalsValue}>Rs. {formatCurrency(total_gst)}</Text>
           </View>
         )}
-        <View style={[s.totalsRow, { borderTopWidth: 0.75, borderTopColor: DIVIDER }]}>
+        <View style={[s.totalsRow, { borderTopWidth: 1.0, borderTopColor: DIVIDER }]}>
           <Text style={s.totalsLabelStrong}>Total Amount</Text>
           <Text style={s.totalsValueStrong}>Rs. {formatCurrency(total_amount)}</Text>
         </View>

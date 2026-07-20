@@ -11,13 +11,13 @@ export const BODY_TEXT = '#2A1F15';
 export const MUTED     = '#6B5C4E';
 export const FAINT     = '#9A8E84';
 export const CREAM     = '#FAF8F3';
-export const DIVIDER   = '#DDD5CC';
+export const DIVIDER   = '#BCAFA0';
 export const WHITE     = '#FFFFFF';
 
 // Axis 1 — Tax mode accent
-export const GOLD_ACCENT    = '#C8A96A';
+export const GOLD_ACCENT    = '#8F713A';
 export const GOLD_CHIP_BG   = '#FFF8ED';
-export const STEEL_ACCENT   = '#4A7FA5';
+export const STEEL_ACCENT   = '#366282';
 export const STEEL_CHIP_BG  = '#EEF4FA';
 
 // Axis 2 — Billing type table header
