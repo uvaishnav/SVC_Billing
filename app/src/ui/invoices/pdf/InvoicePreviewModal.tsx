@@ -167,7 +167,7 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, safariWindow, on
           )}
         </div>
         {payload
-          ? <PDFViewer width="100%" height="100%" style={{ border: 'none', display: 'block', flex: 1 }}><InvoicePdf {...payload} /></PDFViewer>
+          ? <PDFViewer width="100%" height="100%" style={{ border: 'none', display: 'flex', flex: 1 }}><InvoicePdf {...payload} /></PDFViewer>
           : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, color: 'rgba(255,255,255,0.6)', fontSize: 14 }}>⏳ Loading invoice data…</div>
         }
       </div>

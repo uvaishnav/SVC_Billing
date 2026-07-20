@@ -179,7 +179,7 @@ export async function generatePdf(draft: InvoiceDraft): Promise<Blob> {
   doc.text(settings.address, M + 3, y + 18)
 
   // GSTIN / PAN row
-  const gstinPan = `GSTIN: ${settings.gstin}${settings.pan ? `   |   PAN: ${settings.pan}` : ''}${settings.state_name ? `   |   State: ${settings.state_name} (${settings.state_code ?? ''})` : ''}`
+  const gstinPan = `GSTIN: ${settings.gstin}${settings.pan ? `   |   PAN: ${settings.pan}` : ''}${settings.state ? `   |   State: ${settings.state} (${settings.state_code ?? ''})` : ''}`
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   doc.setTextColor(80, 76, 70)

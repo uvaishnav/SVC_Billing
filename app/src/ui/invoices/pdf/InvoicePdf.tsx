@@ -63,22 +63,22 @@ Font.register({
 });
 
 // ── Page constants ────────────────────────────────────────────────────────────
-const PAGE_MARGIN  = 32;
-const BODY_FONT    = 'Inter';
-const HEAD_FONT    = 'Lora';
+const PAGE_MARGIN = 32;
+const BODY_FONT = 'Inter';
+const HEAD_FONT = 'Lora';
 
 const HEADER_PADDING_V = 0;
-const LOGO_SIZE        = 100;
-const LOGO_MARGIN      = 0;
+const LOGO_SIZE = 100;
+const LOGO_MARGIN = 0;
 
 // Thin warm separator between CREAM header and ESPRESSO GSTIN strip
 const GSTIN_STRIP_BORDER = '#9E865A';
 
 // Standard GST invoice declaration (Rule 46, CGST Rules 2017)
 const GST_DECLARATION =
-  'We hereby certify that the goods/services mentioned in this invoice are true ' +
-  'and correct and the amount indicated represents the price actually charged and ' +
-  'that there is no additional consideration flowing from the buyer.';
+  'Certified that the particulars above are true and correct ' +
+  'and the amount indicated represents the price actually charged, ' +
+  'with no additional consideration directly or indirectly from the buyer.';
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
@@ -327,6 +327,7 @@ const s = StyleSheet.create({
   },
   tableRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 4,
     paddingHorizontal: 4,
     borderBottomWidth: 0.75,
@@ -340,23 +341,21 @@ const s = StyleSheet.create({
     color: BODY_TEXT,
   },
   dayNightBadge: {
-    marginTop: 3,
+    marginTop: 2.5,
     backgroundColor: '#EBF8F2',
-    paddingHorizontal: 4,
-    paddingTop: 2,
-    paddingBottom: 0.8,
-    borderRadius: 2.5,
-    borderWidth: 0.75,
-    borderColor: '#86CBA0',
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    borderRadius: 2,
+    borderWidth: 0.5,
+    borderColor: '#A2DCBA',
     alignSelf: 'flex-start',
   },
   dayNightBadgeText: {
     fontFamily: BODY_FONT,
-    fontSize: 4.8,
+    fontSize: 5,
     fontWeight: 700,
     color: '#0F5132',
-    lineHeight: 1.0,
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
   },
   tableCellRight: {
     fontSize: 7.5,
@@ -387,22 +386,22 @@ const s = StyleSheet.create({
   },
 
   // ── Quantity table column widths ──────────────────────────────────────────
-  qColSl:   { width: '6%' },
+  qColSl: { width: '6%' },
   qColDesc: { width: '40%' },
   qColUnit: { width: '12%', textAlign: 'center' },
-  qColQty:  { width: '12%', textAlign: 'right' },
+  qColQty: { width: '12%', textAlign: 'right' },
   qColRate: { width: '15%', textAlign: 'right' },
-  qColAmt:  { width: '15%', textAlign: 'right' },
+  qColAmt: { width: '15%', textAlign: 'right' },
 
   // ── Rental table column widths ────────────────────────────────────────────
-  rColSl:     { width: '5%' },
-  rColVeh:    { width: '14%' },
-  rColType:   { width: '10%' },
+  rColSl: { width: '5%' },
+  rColVeh: { width: '14%' },
+  rColType: { width: '10%' },
   rColPeriod: { width: '20%' },
-  rColMode:   { width: '13%' },
-  rColDays:   { width: '7%',  textAlign: 'right' },
-  rColRent:   { width: '16%', textAlign: 'right' },
-  rColAmt:    { width: '15%', textAlign: 'right' },
+  rColMode: { width: '13%' },
+  rColDays: { width: '7%', textAlign: 'right' },
+  rColRent: { width: '16%', textAlign: 'right' },
+  rColAmt: { width: '15%', textAlign: 'right' },
 
   // ── Work items block ──────────────────────────────────────────────────────
   workItemsBlock: {
@@ -603,7 +602,7 @@ function formatBillingPeriod(from: string, to: string): string {
 
 function formatBillingMode(mode: string): string {
   switch (mode) {
-    case 'full_month':   return 'Full Month';
+    case 'full_month': return 'Full Month';
     case 'partial_days': return 'Partial Days';
     default:
       return mode
