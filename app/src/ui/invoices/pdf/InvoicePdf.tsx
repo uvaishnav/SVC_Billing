@@ -341,14 +341,15 @@ const s = StyleSheet.create({
     color: BODY_TEXT,
   },
   dayNightBadge: {
-    marginTop: 1,
+    marginLeft: 3,
     backgroundColor: '#EBF8F2',
-    paddingHorizontal: 3.5,
-    paddingVertical: 0.5,
+    paddingHorizontal: 3,
+    paddingTop: 1,
+    paddingBottom: 0,
     borderRadius: 2,
     borderWidth: 0.5,
     borderColor: '#A2DCBA',
-    alignSelf: 'flex-start',
+    alignSelf: 'center',
   },
   dayNightBadgeText: {
     fontFamily: BODY_FONT,
@@ -356,6 +357,7 @@ const s = StyleSheet.create({
     fontWeight: 700,
     color: '#0F5132',
     letterSpacing: 0.2,
+    lineHeight: 1.0,
   },
   tableCellRight: {
     fontSize: 7.5,
@@ -395,10 +397,10 @@ const s = StyleSheet.create({
 
   // ── Rental table column widths ────────────────────────────────────────────
   rColSl: { width: '5%' },
-  rColVeh: { width: '14%' },
+  rColVeh: { width: '13%' },
   rColType: { width: '10%' },
-  rColPeriod: { width: '20%' },
-  rColMode: { width: '13%' },
+  rColPeriod: { width: '19%' },
+  rColMode: { width: '15%' },
   rColDays: { width: '7%', textAlign: 'right' },
   rColRent: { width: '16%', textAlign: 'right' },
   rColAmt: { width: '15%', textAlign: 'right' },
@@ -872,7 +874,7 @@ function RentalTable({
           <Text style={[s.tableCell, s.rColPeriod]}>
             {formatDate(item.billing_from)} – {formatDate(item.billing_to)}
           </Text>
-          <View style={[s.rColMode, { flexDirection: 'column', alignItems: 'flex-start' }]}>
+          <View style={[s.rColMode, { flexDirection: 'row', alignItems: 'center' }]}>
             <Text style={s.tableCell}>{formatBillingMode(item.billing_mode)}</Text>
             {item.day_night_shift && (
               <View style={s.dayNightBadge}>
