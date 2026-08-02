@@ -352,10 +352,11 @@ const s = StyleSheet.create({
     borderWidth: 0.75,
     borderColor: '#82C09E',
     alignSelf: 'center',
+    flexShrink: 0,
   },
   dayNightBadgeText: {
     fontFamily: BODY_FONT,
-    fontSize: 6.0,
+    fontSize: 5.5,
     fontWeight: 800,
     color: '#0D442A',
     letterSpacing: 0.2,
@@ -399,14 +400,14 @@ const s = StyleSheet.create({
   qColAmt: { width: '15%', textAlign: 'right' },
 
   // ── Rental table column widths ────────────────────────────────────────────
-  rColSl: { width: '5%' },
-  rColVeh: { width: '13%' },
-  rColType: { width: '10%' },
-  rColPeriod: { width: '19%' },
-  rColMode: { width: '15%' },
-  rColDays: { width: '7%', textAlign: 'right' },
-  rColRent: { width: '16%', textAlign: 'right' },
-  rColAmt: { width: '15%', textAlign: 'right' },
+  rColSl: { width: '4%' },
+  rColVeh: { width: '12%' },
+  rColType: { width: '8%' },
+  rColPeriod: { width: '23%' },
+  rColMode: { width: '20%' },
+  rColDays: { width: '4%', textAlign: 'right' },
+  rColRent: { width: '15%', textAlign: 'right' },
+  rColAmt: { width: '14%', textAlign: 'right' },
 
   // ── Work items block ──────────────────────────────────────────────────────
   workItemsBlock: {
@@ -881,7 +882,7 @@ function RentalTable({
           <Text style={[s.tableCell, s.rColPeriod]}>
             {formatDate(item.billing_from)} – {formatDate(item.billing_to)}
           </Text>
-          <View style={[s.rColMode, { flexDirection: 'row', alignItems: 'center' }]}>
+          <View style={[s.rColMode, { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }]}>
             <Text style={s.tableCell}>{formatBillingMode(item.billing_mode)}</Text>
             {item.day_night_shift && (
               <View style={s.dayNightBadge}>
