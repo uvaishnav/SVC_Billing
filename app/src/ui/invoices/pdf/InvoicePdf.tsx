@@ -345,7 +345,7 @@ const s = StyleSheet.create({
     backgroundColor: '#EBF8F2',
     paddingHorizontal: 3,
     paddingTop: 1,
-    paddingBottom: 1,
+    paddingBottom: 2,
     borderRadius: 2,
     borderWidth: 0.5,
     borderColor: '#A2DCBA',
