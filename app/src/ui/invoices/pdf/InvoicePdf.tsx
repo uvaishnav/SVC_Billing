@@ -37,7 +37,7 @@ import {
   ESPRESSO, BODY_TEXT, MUTED,
   CREAM, DIVIDER, WHITE,
   GOLD_ACCENT, GOLD_CHIP_BG,
-  STEEL_ACCENT, STEEL_CHIP_BG,
+  CLAY_ACCENT, CLAY_CHIP_BG,
   QTY_TABLE_HEADER_BG, RENTAL_TABLE_HEADER_BG,
   formatCurrency, formatDate,
 } from './pdfUtils';
@@ -603,10 +603,10 @@ const s = StyleSheet.create({
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function accentColor(taxMode: 'cgst_sgst' | 'igst') {
-  return taxMode === 'igst' ? STEEL_ACCENT : GOLD_ACCENT;
+  return taxMode === 'igst' ? CLAY_ACCENT : GOLD_ACCENT;
 }
 function chipBg(taxMode: 'cgst_sgst' | 'igst') {
-  return taxMode === 'igst' ? STEEL_CHIP_BG : GOLD_CHIP_BG;
+  return taxMode === 'igst' ? CLAY_CHIP_BG : GOLD_CHIP_BG;
 }
 function formatBillingPeriod(from: string, to: string): string {
   return `${formatDate(from)} – ${formatDate(to)}`;

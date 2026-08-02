@@ -14,11 +14,11 @@ export const CREAM     = '#FAF8F3';
 export const DIVIDER   = '#8C7C6B'; // Darkened from #BCAFA0 so thin border lines don't wash out when scanned
 export const WHITE     = '#FFFFFF';
 
-// Axis 1 — Tax mode accent
+// Axis 1 — Tax mode accent (Intra-State CGST+SGST: Warm Gold, Inter-State IGST: Terracotta Clay)
 export const GOLD_ACCENT    = '#8F713A';
 export const GOLD_CHIP_BG   = '#FFF8ED';
-export const STEEL_ACCENT   = '#2D526E';
-export const STEEL_CHIP_BG  = '#EAF0F6';
+export const CLAY_ACCENT    = '#8C4A32';
+export const CLAY_CHIP_BG   = '#FDF4F0';
 
 // Axis 2 — Billing type table header
 export const QTY_TABLE_HEADER_BG    = '#EDE9DE'; // Warm Sand / Beige

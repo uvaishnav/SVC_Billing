@@ -424,7 +424,7 @@ export default function Section1Header({
                 <span style={{
                   padding: '4px 12px', borderRadius: 20,
                   fontSize: 12, fontWeight: 700,
-                  background: draft.tax_mode === 'igst' ? 'var(--color-info)' : 'var(--color-success)',
+                  background: draft.tax_mode === 'igst' ? 'var(--color-terracotta)' : 'var(--color-success)',
                   color: '#fff',
                 }}>
                   {draft.tax_mode === 'igst' ? 'IGST' : 'CGST + SGST'}

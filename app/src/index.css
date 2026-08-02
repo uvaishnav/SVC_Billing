@@ -27,6 +27,8 @@
   --color-error-highlight: rgba(139,46,46,0.1);
   --color-info:           #2A5F8A;
   --color-info-highlight: rgba(42,95,138,0.1);
+  --color-terracotta:     #8C4A32;
+  --color-terracotta-highlight: rgba(140,74,50,0.1);
 
   /* ─── iOS Safe Area ──────────────────────────────────────────── */
   --safe-top:    env(safe-area-inset-top,    0px);
