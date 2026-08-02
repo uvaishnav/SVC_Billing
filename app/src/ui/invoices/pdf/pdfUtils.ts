@@ -8,21 +8,21 @@
 // ── Brand color tokens ───────────────────────────────────────────────────────────────
 export const ESPRESSO  = '#3B2A1F';
 export const BODY_TEXT = '#2A1F15';
-export const MUTED     = '#6B5C4E';
-export const FAINT     = '#9A8E84';
+export const MUTED     = '#48392C'; // Darkened from #6B5C4E for high 300dpi scanner legibility
+export const FAINT     = '#756658'; // Darkened from #9A8E84
 export const CREAM     = '#FAF8F3';
-export const DIVIDER   = '#BCAFA0';
+export const DIVIDER   = '#8C7C6B'; // Darkened from #BCAFA0 so thin border lines don't wash out when scanned
 export const WHITE     = '#FFFFFF';
 
 // Axis 1 — Tax mode accent
 export const GOLD_ACCENT    = '#8F713A';
 export const GOLD_CHIP_BG   = '#FFF8ED';
-export const STEEL_ACCENT   = '#366282';
-export const STEEL_CHIP_BG  = '#EEF4FA';
+export const STEEL_ACCENT   = '#2D526E';
+export const STEEL_CHIP_BG  = '#EAF0F6';
 
 // Axis 2 — Billing type table header
-export const QTY_TABLE_HEADER_BG    = '#EDE9DE';
-export const RENTAL_TABLE_HEADER_BG = '#E8EEF2';
+export const QTY_TABLE_HEADER_BG    = '#EDE9DE'; // Warm Sand / Beige
+export const RENTAL_TABLE_HEADER_BG = '#E2E7DF'; // Warm Sage Olive (replaces out-of-place blue)
 
 // ── Currency formatter ────────────────────────────────────────────────────────────
 const inrFormatter = new Intl.NumberFormat('en-IN', {
