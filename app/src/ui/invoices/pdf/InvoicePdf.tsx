@@ -967,7 +967,7 @@ function TotalsSection({ props }: { props: InvoicePdfProps }) {
             <Text style={s.totalsValue}>Rs. {formatCurrency(total_gst)}</Text>
           </View>
         )}
-        <View style={[s.totalsRow, { borderTopWidth: 1.0, borderTopColor: DIVIDER }]}>
+        <View style={[s.totalsRow, { borderTopWidth: 0.50, borderTopColor: GOLD_ACCENT }]}>
           <Text style={s.totalsLabelStrong}>Total Amount</Text>
           <Text style={s.totalsValueStrong}>Rs. {formatCurrency(total_amount)}</Text>
         </View>
