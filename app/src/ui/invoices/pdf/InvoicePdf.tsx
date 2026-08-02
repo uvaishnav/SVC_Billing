@@ -63,12 +63,12 @@ Font.register({
 });
 
 // ── Page constants ────────────────────────────────────────────────────────────
-const PAGE_MARGIN = 24;
+const PAGE_MARGIN = 32;
 const BODY_FONT = 'Inter';
 const HEAD_FONT = 'Lora';
 
 const HEADER_PADDING_V = 0;
-const LOGO_SIZE = 52;
+const LOGO_SIZE = 100;
 const LOGO_MARGIN = 0;
 
 // Thin warm separator between CREAM header and ESPRESSO GSTIN strip
@@ -88,22 +88,22 @@ const s = StyleSheet.create({
     color: BODY_TEXT,
     backgroundColor: WHITE,
     paddingTop: PAGE_MARGIN,
-    paddingBottom: PAGE_MARGIN + 4,
-    paddingHorizontal: PAGE_MARGIN + 2,
-    lineHeight: 1.35,
+    paddingBottom: PAGE_MARGIN + 12,
+    paddingHorizontal: PAGE_MARGIN,
+    lineHeight: 1.4,
   },
 
   // ── Header ────────────────────────────────────────────────────────────────
   header: {
     backgroundColor: CREAM,
     paddingVertical: HEADER_PADDING_V,
-    paddingHorizontal: 4,
+    paddingHorizontal: 5,
     flexDirection: 'row',
     alignItems: 'center',
   },
   headerLogoWrap: {
     margin: LOGO_MARGIN,
-    marginRight: 6,
+    marginRight: 0,
     marginLeft: 0,
     width: LOGO_SIZE,
     height: LOGO_SIZE,
@@ -128,17 +128,17 @@ const s = StyleSheet.create({
   },
   headerBusinessName: {
     fontFamily: HEAD_FONT,
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: 700,
     color: ESPRESSO,
     lineHeight: 1.0,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   headerAddress: {
-    fontSize: 7.0,
+    fontSize: 7.5,
     color: BODY_TEXT,
-    lineHeight: 1.15,
-    marginBottom: 3,
+    lineHeight: 1.2,
+    marginBottom: 5,
   },
   headerMetaLine: {
     flexDirection: 'row',
@@ -146,20 +146,20 @@ const s = StyleSheet.create({
     flexWrap: 'nowrap',
   },
   headerMetaItem: {
-    fontSize: 6.5,
+    fontSize: 6.8,
     color: MUTED,
   },
   headerMetaDivider: {
-    fontSize: 6.5,
+    fontSize: 6.8,
     color: DIVIDER,
-    marginHorizontal: 3,
+    marginHorizontal: 4,
   },
 
   // ── GSTIN Strip ───────────────────────────────────────────────────────────
   gstinStrip: {
     backgroundColor: ESPRESSO,
-    marginTop: -4,
-    paddingVertical: 3,
+    marginTop: -14,
+    paddingVertical: 4,
     paddingHorizontal: 8,
     flexDirection: 'row',
     alignItems: 'center',
@@ -183,13 +183,13 @@ const s = StyleSheet.create({
   // ── TAX INVOICE stamp ──────────────────────────────────────────────────────
   taxInvoiceStamp: {
     alignItems: 'center',
-    paddingVertical: 3.5,
+    paddingVertical: 5,
     borderBottomWidth: 1,
     borderBottomColor: DIVIDER,
   },
   taxInvoiceStampText: {
     fontFamily: HEAD_FONT,
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: 700,
     color: ESPRESSO,
     letterSpacing: 2,
@@ -203,34 +203,34 @@ const s = StyleSheet.create({
   },
   twoColLeft: {
     flex: 1,
-    paddingVertical: 5,
-    paddingRight: 8,
+    paddingVertical: 10,
+    paddingRight: 10,
     borderRightWidth: 1,
     borderRightColor: DIVIDER,
   },
   twoColRight: {
     flex: 1,
-    paddingVertical: 5,
-    paddingLeft: 8,
+    paddingVertical: 10,
+    paddingLeft: 10,
   },
   colSectionLabel: {
     fontSize: 6.5,
     fontWeight: 700,
     color: MUTED,
     letterSpacing: 0.8,
-    marginBottom: 3,
+    marginBottom: 6,
     borderBottomWidth: 0.75,
     borderBottomColor: DIVIDER,
-    paddingBottom: 2,
+    paddingBottom: 3,
   },
   metaRow: {
     flexDirection: 'row',
-    marginBottom: 1.5,
+    marginBottom: 3,
   },
   metaLabel: {
     fontSize: 7,
     color: MUTED,
-    width: 85,
+    width: 90,
     flexShrink: 0,
   },
   metaValue: {
@@ -245,7 +245,7 @@ const s = StyleSheet.create({
     flex: 1,
   },
   invoiceNumberValue: {
-    fontSize: 8,
+    fontSize: 8.5,
     fontWeight: 700,
     color: ESPRESSO,
     flex: 1,
@@ -256,24 +256,24 @@ const s = StyleSheet.create({
   sacTabWrap: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginTop: 3,
+    marginTop: 4,
     marginBottom: 0,
   },
   sacTab: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    paddingVertical: 2.5,
-    paddingHorizontal: 7,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
     borderTopWidth: 1.0,
     borderLeftWidth: 1.0,
     borderRightWidth: 1.0,
     borderBottomWidth: 0,
-    borderTopLeftRadius: 3,
-    borderTopRightRadius: 3,
+    borderTopLeftRadius: 4,
+    borderTopRightRadius: 4,
   },
   sacTabLabel: {
-    fontSize: 7,
+    fontSize: 7.5,
     fontWeight: 600,
     color: MUTED,
     letterSpacing: 0.5,
@@ -281,7 +281,7 @@ const s = StyleSheet.create({
     textTransform: 'uppercase',
   },
   sacTabValue: {
-    fontSize: 7,
+    fontSize: 7.5,
     fontWeight: 700,
     color: ESPRESSO,
     letterSpacing: 0.5,
@@ -289,32 +289,32 @@ const s = StyleSheet.create({
 
   // ── Description block ─────────────────────────────────────────────────────
   descBlock: {
-    paddingVertical: 4,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: DIVIDER,
-    marginBottom: 3,
+    marginBottom: 4,
   },
   descLabel: {
     fontSize: 6.5,
     fontWeight: 700,
     color: MUTED,
     letterSpacing: 0.8,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   descText: {
     fontSize: 7.5,
     color: BODY_TEXT,
-    lineHeight: 1.3,
+    lineHeight: 1.5,
   },
 
   // ── Table shared ──────────────────────────────────────────────────────────
   table: {
     width: '100%',
-    marginBottom: 5,
+    marginBottom: 8,
   },
   tableHeaderRow: {
     flexDirection: 'row',
-    paddingVertical: 3.5,
+    paddingVertical: 5,
     paddingHorizontal: 4,
     borderTopWidth: 1.0,
     borderBottomWidth: 1.0,
@@ -328,7 +328,7 @@ const s = StyleSheet.create({
   tableRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 2.5,
+    paddingVertical: 4,
     paddingHorizontal: 4,
     borderBottomWidth: 0.75,
     borderBottomColor: DIVIDER,
@@ -341,10 +341,10 @@ const s = StyleSheet.create({
     color: BODY_TEXT,
   },
   dayNightBadge: {
-    marginTop: 1,
+    marginTop: 2.5,
     backgroundColor: '#EBF8F2',
-    paddingHorizontal: 3.5,
-    paddingVertical: 0.5,
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
     borderRadius: 2,
     borderWidth: 0.5,
     borderColor: '#A2DCBA',
@@ -352,10 +352,10 @@ const s = StyleSheet.create({
   },
   dayNightBadgeText: {
     fontFamily: BODY_FONT,
-    fontSize: 4.5,
+    fontSize: 5,
     fontWeight: 700,
     color: '#0F5132',
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
   },
   tableCellRight: {
     fontSize: 7.5,
@@ -368,7 +368,7 @@ const s = StyleSheet.create({
   },
   tableTaxableRow: {
     flexDirection: 'row',
-    paddingVertical: 3.5,
+    paddingVertical: 5,
     paddingHorizontal: 4,
     borderBottomWidth: 1.0,
     borderBottomColor: '#9E865A',
@@ -406,44 +406,43 @@ const s = StyleSheet.create({
   // ── Work items block ──────────────────────────────────────────────────────
   workItemsBlock: {
     backgroundColor: '#F7F5F0',
-    borderWidth: 0.75,
+    borderWidth: 1.0,
     borderColor: DIVIDER,
     borderRadius: 3,
-    paddingVertical: 4.5,
-    paddingHorizontal: 6,
-    marginBottom: 5,
+    padding: 8,
+    marginBottom: 8,
   },
   workItemsLabel: {
-    fontSize: 6,
+    fontSize: 6.5,
     fontWeight: 700,
     color: MUTED,
     letterSpacing: 0.8,
-    marginBottom: 2,
+    marginBottom: 5,
   },
   workItemRow: {
     flexDirection: 'row',
-    marginBottom: 1,
+    marginBottom: 2,
   },
   workItemBullet: {
-    fontSize: 7,
+    fontSize: 7.5,
     color: MUTED,
-    marginRight: 4,
+    marginRight: 5,
   },
   workItemText: {
-    fontSize: 7,
+    fontSize: 7.5,
     color: BODY_TEXT,
     flex: 1,
   },
 
   // ── Totals section ────────────────────────────────────────────────────────
   totalsSection: {
-    marginBottom: 4,
-    marginLeft: '52%',
+    marginBottom: 8,
+    marginLeft: '50%',
   },
   totalsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 2,
+    paddingVertical: 3,
     paddingHorizontal: 8,
     borderBottomWidth: 0.75,
     borderBottomColor: DIVIDER,
@@ -471,11 +470,11 @@ const s = StyleSheet.create({
   netReceivableRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 3.5,
+    paddingVertical: 5,
     paddingHorizontal: 8,
     backgroundColor: ESPRESSO,
     borderRadius: 3,
-    marginTop: 1.5,
+    marginTop: 2,
   },
   netReceivableLabel: {
     fontSize: 8,
@@ -492,25 +491,23 @@ const s = StyleSheet.create({
   // ── Amount in words ───────────────────────────────────────────────────────
   amountInWords: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 3.5,
-    paddingHorizontal: 7,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
     backgroundColor: '#F4F1EC',
-    borderWidth: 0.75,
+    borderWidth: 1.0,
     borderColor: DIVIDER,
     borderRadius: 3,
-    marginBottom: 4,
+    marginBottom: 10,
   },
   amountInWordsLabel: {
-    fontSize: 6.5,
+    fontSize: 7,
     fontWeight: 700,
     color: MUTED,
     marginRight: 4,
     letterSpacing: 0.5,
   },
   amountInWordsValue: {
-    fontSize: 7,
-    fontWeight: 500,
+    fontSize: 7.5,
     color: ESPRESSO,
     flex: 1,
   },
@@ -520,8 +517,8 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     borderTopWidth: 1,
     borderTopColor: DIVIDER,
-    paddingTop: 5,
-    marginTop: 2,
+    paddingTop: 10,
+    marginTop: 4,
   },
   footerLeft: {
     flex: 1,
@@ -540,14 +537,14 @@ const s = StyleSheet.create({
     fontWeight: 700,
     color: MUTED,
     letterSpacing: 0.8,
-    marginBottom: 3,
+    marginBottom: 6,
     borderBottomWidth: 0.75,
     borderBottomColor: DIVIDER,
-    paddingBottom: 2,
+    paddingBottom: 3,
   },
   footerBankRow: {
     flexDirection: 'row',
-    marginBottom: 1.5,
+    marginBottom: 3,
   },
   footerBankLabel: {
     fontSize: 7,
@@ -564,7 +561,7 @@ const s = StyleSheet.create({
   footerDeclaration: {
     fontSize: 6.5,
     color: MUTED,
-    lineHeight: 1.35,
+    lineHeight: 1.5,
     textAlign: 'left',
   },
   footerSignatureBlock: {
@@ -574,8 +571,8 @@ const s = StyleSheet.create({
   footerSignatureLine: {
     borderTopWidth: 1.0,
     borderTopColor: DIVIDER,
-    width: 90,
-    marginBottom: 2,
+    width: 100,
+    marginBottom: 3,
   },
   footerSignatoryLabel: {
     fontSize: 7,
