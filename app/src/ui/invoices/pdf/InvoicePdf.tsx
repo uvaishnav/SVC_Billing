@@ -329,7 +329,7 @@ const s = StyleSheet.create({
   },
   tableRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingVertical: 4,
     paddingHorizontal: 4,
     borderBottomWidth: 1.0,
@@ -882,10 +882,10 @@ function RentalTable({
           <Text style={[s.tableCell, s.rColPeriod]}>
             {formatDate(item.billing_from)} – {formatDate(item.billing_to)}
           </Text>
-          <View style={[s.rColMode, { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }]}>
-            <Text style={s.tableCell}>{formatBillingMode(item.billing_mode)}</Text>
+          <View style={[s.rColMode, { flexDirection: 'row', alignItems: 'center' }]}>
+            <Text style={[s.tableCell, { flexShrink: 1 }]}>{formatBillingMode(item.billing_mode)}</Text>
             {item.day_night_shift && (
-              <View style={s.dayNightBadge}>
+              <View style={[s.dayNightBadge, { flexShrink: 0 }]}>
                 <Text style={s.dayNightBadgeText}>DAY + NIGHT</Text>
               </View>
             )}
