@@ -536,10 +536,10 @@ export function OutstandingStatementPdf({
           <View style={styles.metaCard}>
             <Text style={styles.cardTitle}>Summary Snapshot</Text>
             <Text style={styles.cardText}>Pending Invoices: {items.length}</Text>
-            <Text style={styles.cardText}>Total Outstanding: ₹{formatCurrency(totalDue)}</Text>
+            <Text style={styles.cardText}>Total Outstanding: Rs. {formatCurrency(totalDue)}</Text>
             {unallocatedAdvance > 0.01 && (
               <Text style={{ ...styles.cardText, color: GOLD_ACCENT, fontWeight: 700 }}>
-                Advance Balance: ₹{formatCurrency(unallocatedAdvance)}
+                Advance Balance: Rs. {formatCurrency(unallocatedAdvance)}
               </Text>
             )}
           </View>
@@ -553,9 +553,9 @@ export function OutstandingStatementPdf({
             <Text style={[styles.th, styles.colDate]}>Date</Text>
             <Text style={[styles.th, styles.colWo]}>W.O. Ref</Text>
             <Text style={[styles.th, styles.colPeriod]}>Period</Text>
-            <Text style={[styles.th, styles.colNet]}>Net (₹)</Text>
-            <Text style={[styles.th, styles.colRec]}>Recd (₹)</Text>
-            <Text style={[styles.th, styles.colDue]}>Due (₹)</Text>
+            <Text style={[styles.th, styles.colNet]}>Net (Rs.)</Text>
+            <Text style={[styles.th, styles.colRec]}>Recd (Rs.)</Text>
+            <Text style={[styles.th, styles.colDue]}>Due (Rs.)</Text>
           </View>
 
           {items.map((item, idx) => (
@@ -568,14 +568,7 @@ export function OutstandingStatementPdf({
               ]}
             >
               <Text style={[styles.td, styles.colSl]}>{idx + 1}</Text>
-              <View style={styles.colInv}>
-                <Text style={[styles.td, { fontWeight: 600 }]}>{item.invoiceNumber}</Text>
-                {(item.bankNickname || item.bankName) && (
-                  <Text style={styles.bankSubTag}>
-                    {item.bankNickname ? `[${item.bankNickname}]` : `[${item.bankName}]`}
-                  </Text>
-                )}
-              </View>
+              <Text style={[styles.td, styles.colInv, { fontWeight: 600 }]}>{item.invoiceNumber}</Text>
               <Text style={[styles.td, styles.colDate]}>{item.invoiceDate}</Text>
               <Text style={[styles.td, styles.colWo]}>{item.workOrderRef ?? '—'}</Text>
               <Text style={[styles.td, styles.colPeriod]}>{item.billingPeriod}</Text>
@@ -602,10 +595,10 @@ export function OutstandingStatementPdf({
               >
                 <View style={styles.bankItemHeader}>
                   <Text style={styles.bankItemName}>
-                    {b.bankName} {b.nickname ? `(${b.nickname})` : ''}
+                    {b.bankName}
                   </Text>
                   <Text style={styles.bankItemDue}>
-                    Due: ₹{formatCurrency(b.totalDue)}
+                    Due: Rs. {formatCurrency(b.totalDue)}
                   </Text>
                 </View>
                 {b.invoiceNumbers.length > 0 && (
@@ -625,25 +618,25 @@ export function OutstandingStatementPdf({
           <View style={styles.totalsBlock}>
             <View style={styles.totalsLine}>
               <Text style={styles.totalsLabel}>Total Invoiced (Net):</Text>
-              <Text style={styles.totalsVal}>₹{formatCurrency(totalNet)}</Text>
+              <Text style={styles.totalsVal}>Rs. {formatCurrency(totalNet)}</Text>
             </View>
             <View style={styles.totalsLine}>
               <Text style={styles.totalsLabel}>Total Amount Received:</Text>
-              <Text style={styles.totalsVal}>₹{formatCurrency(totalRec)}</Text>
+              <Text style={styles.totalsVal}>Rs. {formatCurrency(totalRec)}</Text>
             </View>
             <View style={styles.totalsLine}>
               <Text style={styles.totalsLabel}>Total Pending Balance:</Text>
-              <Text style={styles.totalsVal}>₹{formatCurrency(totalDue)}</Text>
+              <Text style={styles.totalsVal}>Rs. {formatCurrency(totalDue)}</Text>
             </View>
             {unallocatedAdvance > 0.01 && (
               <View style={styles.totalsLine}>
                 <Text style={{ ...styles.totalsLabel, color: GOLD_ACCENT }}>Less Client Advance:</Text>
-                <Text style={{ ...styles.totalsVal, color: GOLD_ACCENT }}>- ₹{formatCurrency(unallocatedAdvance)}</Text>
+                <Text style={{ ...styles.totalsVal, color: GOLD_ACCENT }}>- Rs. {formatCurrency(unallocatedAdvance)}</Text>
               </View>
             )}
             <View style={styles.grandTotalLine}>
               <Text style={styles.grandTotalLabel}>Net Amount Payable:</Text>
-              <Text style={styles.grandTotalVal}>₹{formatCurrency(netPayable)}</Text>
+              <Text style={styles.grandTotalVal}>Rs. {formatCurrency(netPayable)}</Text>
             </View>
           </View>
         </View>

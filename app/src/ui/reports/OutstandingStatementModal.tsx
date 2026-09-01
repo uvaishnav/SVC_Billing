@@ -253,8 +253,7 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
     ]
 
     statementItems.forEach((item, idx) => {
-      const bankTag = item.bankNickname ? ` [${item.bankNickname}]` : (item.bankName ? ` [${item.bankName}]` : '')
-      lines.push(`${idx + 1}. *${item.invoiceNumber}*${bankTag} (${item.invoiceDate})`)
+      lines.push(`${idx + 1}. *${item.invoiceNumber}* (${item.invoiceDate})`)
       lines.push(`   Bill Net: ₹${fmt(item.netReceivable)} | Recd: ₹${fmt(item.alreadyReceived)} | *Due: ₹${fmt(item.balanceDue)}*`)
     })
 
@@ -268,7 +267,7 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
     lines.push(`*Bank Remittance Details:*`)
     bankSummaries.forEach(b => {
       if (bankSummaries.length > 1) {
-        lines.push(`\n*Account: ${b.bankName}${b.nickname ? ` (${b.nickname})` : ''}* — *Due: ₹${fmt(b.totalDue)}*`)
+        lines.push(`\n*Account: ${b.bankName}* — *Due: ₹${fmt(b.totalDue)}*`)
         if (b.invoiceNumbers.length > 0) lines.push(`Bills: ${b.invoiceNumbers.join(', ')}`)
       } else {
         lines.push(`Bank: ${b.bankName}`)
@@ -432,24 +431,7 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
                   {statementItems.map(item => (
                     <tr key={item.invoiceNumber} style={{ borderBottom: '1px solid var(--color-border)' }}>
                       <td style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--color-text)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                          <span>{item.invoiceNumber}</span>
-                          {(item.bankNickname || item.bankName) && (
-                            <span
-                              style={{
-                                fontSize: 10,
-                                padding: '1px 5px',
-                                borderRadius: 4,
-                                background: 'var(--color-surface-offset)',
-                                border: '1px solid var(--color-border)',
-                                color: 'var(--color-text-muted)',
-                                fontWeight: 500,
-                              }}
-                            >
-                              {item.bankNickname || item.bankName}
-                            </span>
-                          )}
-                        </div>
+                        {item.invoiceNumber}
                       </td>
                       <td style={{ padding: '8px 10px', color: 'var(--color-text-muted)' }}>
                         {item.invoiceDate}
@@ -489,7 +471,7 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
                   <div key={b.accountNumber + idx} style={{ background: '#fff', borderRadius: 8, border: '1px solid var(--color-border)', padding: '10px 12px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)' }}>
-                        {b.bankName} {b.nickname ? `(${b.nickname})` : ''}
+                        {b.bankName}
                       </div>
                       <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-warning)' }}>
                         ₹{fmt(b.totalDue)}
