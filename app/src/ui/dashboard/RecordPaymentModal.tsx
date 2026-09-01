@@ -44,6 +44,7 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
 
   const [bills, setBills] = useState<Awaited<ReturnType<typeof getClientOutstandingBills>>>([])
   const [loadingBills, setLoadingBills] = useState<boolean>(false)
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<number[]>([])
   const [submitting, setSubmitting] = useState<boolean>(false)
   const [errorMsg, setErrorMsg] = useState<string>('')
 
@@ -60,6 +61,7 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
 
   // Load client's outstanding bills when client selection changes
   useEffect(() => {
+    setSelectedInvoiceIds([])
     if (!selectedClientId) {
       setBills([])
       return
@@ -83,11 +85,43 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
 
   const parsedAmount = parseFloat(amount) || 0
 
+  const hasCustomSelection = selectedInvoiceIds.length > 0
+
+  const selectedBills = useMemo(() => {
+    if (!hasCustomSelection) return bills
+    return bills.filter(b => selectedInvoiceIds.includes(b.id))
+  }, [bills, hasCustomSelection, selectedInvoiceIds])
+
+  const selectedBillsTotalDue = useMemo(() => {
+    return selectedBills.reduce((sum, b) => sum + b.balanceDue, 0)
+  }, [selectedBills])
+
+  const isSelectionInsufficient = hasCustomSelection && parsedAmount > 0 && selectedBillsTotalDue < parsedAmount - 0.01
+  const selectionShortfall = isSelectionInsufficient ? Math.max(0, Math.round((parsedAmount - selectedBillsTotalDue) * 100) / 100) : 0
+
   const preview: FifoAllocationPreview = useMemo(() => {
-    return calculateFifoAllocation(bills, parsedAmount)
-  }, [bills, parsedAmount])
+    return calculateFifoAllocation(bills, parsedAmount, hasCustomSelection ? selectedInvoiceIds : undefined)
+  }, [bills, parsedAmount, hasCustomSelection, selectedInvoiceIds])
 
   const selectedClient = clients.find(c => c.id === selectedClientId)
+
+  function toggleInvoiceSelection(invoiceId: number) {
+    setSelectedInvoiceIds(prev => {
+      if (prev.includes(invoiceId)) {
+        return prev.filter(id => id !== invoiceId)
+      } else {
+        return [...prev, invoiceId]
+      }
+    })
+  }
+
+  function handleSelectAll() {
+    setSelectedInvoiceIds(bills.map(b => b.id))
+  }
+
+  function handleClearSelection() {
+    setSelectedInvoiceIds([])
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -97,6 +131,10 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
     }
     if (parsedAmount <= 0) {
       setErrorMsg('Please enter a valid amount greater than 0.')
+      return
+    }
+    if (isSelectionInsufficient) {
+      setErrorMsg(`Selected invoices total ₹${fmt(selectedBillsTotalDue)}, which is ₹${fmt(selectionShortfall)} less than ₹${fmt(parsedAmount)}. Please choose additional invoices to cover the payment.`)
       return
     }
     if (!acknowledged) {
@@ -115,6 +153,7 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
         paymentMode: paymentMode || null,
         referenceNumber: referenceNumber.trim() || null,
         notes: notes.trim() || null,
+        selectedInvoiceIds: hasCustomSelection ? selectedInvoiceIds : undefined,
       })
 
       if (!res.ok) {
@@ -276,28 +315,48 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
           {/* Amount and Date Fields (Responsive 1 or 2 Columns) */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 12 }}>
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap', gap: 4 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text)' }}>
                   Amount Received (₹) <span style={{ color: 'var(--color-error)' }}>*</span>
                 </label>
-                {totalClientPending > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setAmount(String(totalClientPending))}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--color-primary)',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      textDecoration: 'underline',
-                      padding: 0,
-                    }}
-                  >
-                    Clear All (₹{fmt(totalClientPending)})
-                  </button>
-                )}
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  {hasCustomSelection && selectedBillsTotalDue > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setAmount(String(selectedBillsTotalDue))}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--color-primary)',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        textDecoration: 'underline',
+                        padding: 0,
+                      }}
+                    >
+                      Selected (₹{fmt(selectedBillsTotalDue)})
+                    </button>
+                  )}
+                  {totalClientPending > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setAmount(String(totalClientPending))}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: hasCustomSelection ? 'var(--color-text-muted)' : 'var(--color-primary)',
+                        fontSize: 11,
+                        fontWeight: hasCustomSelection ? 500 : 700,
+                        cursor: 'pointer',
+                        textDecoration: 'underline',
+                        padding: 0,
+                      }}
+                    >
+                      All Dues (₹{fmt(totalClientPending)})
+                    </button>
+                  )}
+                </div>
               </div>
               <input
                 type="number"
@@ -312,7 +371,7 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
                   boxSizing: 'border-box',
                   padding: '10px 12px',
                   borderRadius: 10,
-                  border: '1.5px solid var(--color-border)',
+                  border: isSelectionInsufficient ? '1.5px solid var(--color-warning, #A05C1A)' : '1.5px solid var(--color-border)',
                   background: '#fff',
                   fontSize: 16,
                   fontWeight: 700,
@@ -409,7 +468,7 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
             </label>
             <input
               type="text"
-              placeholder="e.g. Cleared 2 bills + partial on 3rd"
+              placeholder="e.g. Cleared specific bills"
               value={notes}
               onChange={e => setNotes(e.target.value)}
               style={{
@@ -427,8 +486,69 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
             />
           </div>
 
-          {/* Excess Advance Banner */}
-          {preview.unallocatedAdvance > 0.01 && (
+          {/* Selection Under-funded Warning Banner */}
+          {isSelectionInsufficient && (
+            <div
+              style={{
+                background: 'rgba(160, 92, 26, 0.12)',
+                border: '1.5px solid var(--color-warning, #A05C1A)',
+                borderRadius: 10,
+                padding: '12px 14px',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 10,
+              }}
+            >
+              <span style={{ fontSize: 20 }}>⚠️</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-warning, #A05C1A)' }}>
+                  Please Select Additional Invoices (Shortfall: ₹{fmt(selectionShortfall)})
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--color-text)', marginTop: 3, lineHeight: 1.45 }}>
+                  The <b>{selectedInvoiceIds.length}</b> selected invoice{selectedInvoiceIds.length === 1 ? '' : 's'} sum to <b>₹{fmt(selectedBillsTotalDue)}</b>, which is less than the entered payment of <b>₹{fmt(parsedAmount)}</b>.
+                  Please select more invoices below so their total covers this amount, or{' '}
+                  <button
+                    type="button"
+                    onClick={handleClearSelection}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      color: 'var(--color-primary)',
+                      fontWeight: 700,
+                      textDecoration: 'underline',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    clear selection to use default FIFO across all bills
+                  </button>.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Selection Sufficient Success Banner */}
+          {hasCustomSelection && !isSelectionInsufficient && parsedAmount > 0 && (
+            <div
+              style={{
+                background: 'rgba(90, 122, 46, 0.1)',
+                border: '1px solid var(--color-success, #5A7A2E)',
+                borderRadius: 10,
+                padding: '10px 12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <span style={{ fontSize: 16 }}>✓</span>
+              <div style={{ fontSize: 12, color: 'var(--color-success, #5A7A2E)', fontWeight: 600 }}>
+                {selectedInvoiceIds.length} invoice{selectedInvoiceIds.length === 1 ? '' : 's'} selected (Total: ₹{fmt(selectedBillsTotalDue)}). Funds will be applied first to the earliest created bill among your selection.
+              </div>
+            </div>
+          )}
+
+          {/* Excess Advance Banner (Only in Auto FIFO mode when payment exceeds all bills) */}
+          {!hasCustomSelection && preview.unallocatedAdvance > 0.01 && (
             <div
               style={{
                 background: 'rgba(200, 169, 106, 0.16)',
@@ -452,52 +572,122 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
             </div>
           )}
 
-          {/* FIFO Bill Clearance Allocation Preview */}
+          {/* Invoice Clearance Allocation Preview */}
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
               <div>
-                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary)', fontFamily: 'Playfair Display, serif' }}>
-                  Bill Clearance Breakdown (FIFO)
-                </span>
-                <span style={{ fontSize: 11, color: 'var(--color-text-faint)', marginLeft: 6 }}>
-                  (Oldest first)
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary)', fontFamily: 'Playfair Display, serif' }}>
+                    Bill Clearance Allocation
+                  </span>
+                  {hasCustomSelection ? (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: 10,
+                        background: isSelectionInsufficient ? 'rgba(160,92,26,0.15)' : 'rgba(59,42,31,0.1)',
+                        color: isSelectionInsufficient ? 'var(--color-warning)' : 'var(--color-primary)',
+                      }}
+                    >
+                      🎯 {selectedInvoiceIds.length} Selected (₹{fmt(selectedBillsTotalDue)})
+                    </span>
+                  ) : (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 600,
+                        padding: '2px 8px',
+                        borderRadius: 10,
+                        background: 'var(--color-surface-offset)',
+                        color: 'var(--color-text-muted)',
+                        border: '1px solid var(--color-border)',
+                      }}
+                    >
+                      ⚡ Auto FIFO (Oldest First)
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--color-text-faint)', marginTop: 2 }}>
+                  {hasCustomSelection
+                    ? 'Targeting selected invoices (earliest date first). Click an invoice to toggle selection.'
+                    : 'Check any invoice to selectively allocate money, or leave unselected for auto FIFO.'}
+                </div>
               </div>
 
               {preview.items.length > 0 && !loadingBills && (
-                <div style={{ display: 'flex', background: 'var(--color-surface-offset)', padding: 2, borderRadius: 8, border: '1px solid var(--color-border)' }}>
-                  <button
-                    type="button"
-                    onClick={() => setBreakdownView('cards')}
-                    style={{
-                      padding: '3px 8px',
-                      borderRadius: 6,
-                      border: 'none',
-                      background: breakdownView === 'cards' ? '#fff' : 'transparent',
-                      color: breakdownView === 'cards' ? 'var(--color-primary)' : 'var(--color-text-muted)',
-                      fontWeight: breakdownView === 'cards' ? 700 : 500,
-                      fontSize: 11,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Cards
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBreakdownView('table')}
-                    style={{
-                      padding: '3px 8px',
-                      borderRadius: 6,
-                      border: 'none',
-                      background: breakdownView === 'table' ? '#fff' : 'transparent',
-                      color: breakdownView === 'table' ? 'var(--color-primary)' : 'var(--color-text-muted)',
-                      fontWeight: breakdownView === 'table' ? 700 : 500,
-                      fontSize: 11,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Table
-                  </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {hasCustomSelection ? (
+                    <button
+                      type="button"
+                      onClick={handleClearSelection}
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: '4px 8px',
+                        borderRadius: 6,
+                        border: '1px solid var(--color-border)',
+                        background: 'transparent',
+                        color: 'var(--color-primary)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Clear Selection
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleSelectAll}
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: '4px 8px',
+                        borderRadius: 6,
+                        border: '1px solid var(--color-border)',
+                        background: 'transparent',
+                        color: 'var(--color-text-muted)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Select All
+                    </button>
+                  )}
+
+                  <div style={{ display: 'flex', background: 'var(--color-surface-offset)', padding: 2, borderRadius: 8, border: '1px solid var(--color-border)' }}>
+                    <button
+                      type="button"
+                      onClick={() => setBreakdownView('cards')}
+                      style={{
+                        padding: '3px 8px',
+                        borderRadius: 6,
+                        border: 'none',
+                        background: breakdownView === 'cards' ? '#fff' : 'transparent',
+                        color: breakdownView === 'cards' ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                        fontWeight: breakdownView === 'cards' ? 700 : 500,
+                        fontSize: 11,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Cards
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBreakdownView('table')}
+                      style={{
+                        padding: '3px 8px',
+                        borderRadius: 6,
+                        border: 'none',
+                        background: breakdownView === 'table' ? '#fff' : 'transparent',
+                        color: breakdownView === 'table' ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                        fontWeight: breakdownView === 'table' ? 700 : 500,
+                        fontSize: 11,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Table
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -511,106 +701,87 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
                 🎉 No pending bills found for {selectedClient?.name}. The entire payment will be saved as an Advance Balance.
               </div>
             ) : breakdownView === 'cards' ? (
-              /* Mobile-optimized FIFO card list */
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 240, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                {preview.items.map(item => (
-                  <div
-                    key={item.invoiceId}
-                    style={{
-                      background: item.allocatedNow > 0 ? (item.newStatus === 'cleared' ? 'rgba(90,122,46,0.06)' : 'rgba(160,92,26,0.06)') : '#fff',
-                      border: `1px solid ${item.allocatedNow > 0 ? (item.newStatus === 'cleared' ? 'rgba(90,122,46,0.3)' : 'rgba(160,92,26,0.3)') : 'var(--color-border)'}`,
-                      borderRadius: 10,
-                      padding: '10px 12px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 6,
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--color-text)' }}>
-                        {item.invoiceNumber}
-                      </div>
-                      <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-                        {item.invoiceDate}
-                      </span>
-                    </div>
+              /* Mobile-optimized card list with checkboxes */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 250, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                {preview.items.map(item => {
+                  const isChecked = selectedInvoiceIds.includes(item.invoiceId)
+                  const isExcluded = hasCustomSelection && !isChecked
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, flexWrap: 'wrap', gap: 4 }}>
-                      <div>
-                        <span style={{ color: 'var(--color-text-faint)', fontSize: 11 }}>Due: </span>
-                        <span style={{ fontWeight: 600, color: 'var(--color-text-muted)' }}>₹{fmt(item.balanceDue)}</span>
+                  return (
+                    <div
+                      key={item.invoiceId}
+                      onClick={() => toggleInvoiceSelection(item.invoiceId)}
+                      style={{
+                        background: isExcluded
+                          ? 'rgba(237, 233, 222, 0.4)'
+                          : item.allocatedNow > 0
+                            ? item.newStatus === 'cleared'
+                              ? 'rgba(90,122,46,0.06)'
+                              : 'rgba(160,92,26,0.06)'
+                            : '#fff',
+                        border: `1.5px solid ${
+                          isChecked
+                            ? 'var(--color-primary, #3B2A1F)'
+                            : item.allocatedNow > 0
+                              ? item.newStatus === 'cleared'
+                                ? 'rgba(90,122,46,0.35)'
+                                : 'rgba(160,92,26,0.35)'
+                              : 'var(--color-border)'
+                        }`,
+                        borderRadius: 10,
+                        padding: '10px 12px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 6,
+                        cursor: 'pointer',
+                        opacity: isExcluded ? 0.6 : 1,
+                        transition: 'all 120ms ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {}} // handled by parent onClick
+                            style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--color-primary)' }}
+                          />
+                          <div style={{ fontWeight: 600, fontSize: 13, color: isExcluded ? 'var(--color-text-muted)' : 'var(--color-text)' }}>
+                            {item.invoiceNumber}
+                          </div>
+                          {isChecked && (
+                            <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6, background: 'var(--color-primary)', color: '#fff' }}>
+                              Selected
+                            </span>
+                          )}
+                        </div>
+                        <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                          {item.invoiceDate}
+                        </span>
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, flexWrap: 'wrap', gap: 4 }}>
                         <div>
-                          <span style={{ color: 'var(--color-text-faint)', fontSize: 11 }}>Clearing: </span>
-                          <span style={{ fontWeight: 700, color: item.allocatedNow > 0 ? 'var(--color-primary)' : 'var(--color-text-faint)' }}>
-                            ₹{fmt(item.allocatedNow)}
-                          </span>
+                          <span style={{ color: 'var(--color-text-faint)', fontSize: 11 }}>Due: </span>
+                          <span style={{ fontWeight: 600, color: 'var(--color-text-muted)' }}>₹{fmt(item.balanceDue)}</span>
                         </div>
 
-                        {item.allocatedNow <= 0 ? (
-                          <span style={{ fontSize: 10, color: 'var(--color-text-faint)', padding: '2px 6px', background: 'var(--color-surface-offset)', borderRadius: 6 }}>Unchanged</span>
-                        ) : item.newStatus === 'cleared' ? (
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 12, background: 'rgba(90,122,46,0.15)', color: 'var(--color-success)' }}>
-                            🟢 Cleared
-                          </span>
-                        ) : (
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 12, background: 'rgba(160,92,26,0.15)', color: 'var(--color-warning)' }}>
-                            🟠 Partial
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              /* Horizontally scrollable table */
-              <div
-                style={{
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 10,
-                  overflowX: 'auto',
-                  WebkitOverflowScrolling: 'touch',
-                  maxHeight: 220,
-                  overflowY: 'auto',
-                }}
-              >
-                <table style={{ width: '100%', minWidth: 480, borderCollapse: 'collapse', fontSize: 12, textAlign: 'left' }}>
-                  <thead>
-                    <tr style={{ background: 'var(--color-surface-offset)', color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)' }}>
-                      <th style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>Invoice</th>
-                      <th style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>Date</th>
-                      <th style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Balance Due</th>
-                      <th style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Clearing Now</th>
-                      <th style={{ padding: '8px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>Result</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {preview.items.map(item => (
-                      <tr
-                        key={item.invoiceId}
-                        style={{
-                          borderBottom: '1px solid var(--color-border)',
-                          background: item.allocatedNow > 0 ? (item.newStatus === 'cleared' ? 'rgba(90,122,46,0.06)' : 'rgba(160,92,26,0.06)') : 'transparent',
-                        }}
-                      >
-                        <td style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--color-text)', whiteSpace: 'nowrap' }}>
-                          {item.invoiceNumber}
-                        </td>
-                        <td style={{ padding: '8px 10px', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
-                          {item.invoiceDate}
-                        </td>
-                        <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
-                          ₹{fmt(item.balanceDue)}
-                        </td>
-                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: item.allocatedNow > 0 ? 'var(--color-primary)' : 'var(--color-text-faint)', whiteSpace: 'nowrap' }}>
-                          ₹{fmt(item.allocatedNow)}
-                        </td>
-                        <td style={{ padding: '8px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                          {item.allocatedNow <= 0 ? (
-                            <span style={{ fontSize: 10, color: 'var(--color-text-faint)' }}>Unchanged</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div>
+                            <span style={{ color: 'var(--color-text-faint)', fontSize: 11 }}>Clearing: </span>
+                            <span style={{ fontWeight: 700, color: item.allocatedNow > 0 ? 'var(--color-primary)' : 'var(--color-text-faint)' }}>
+                              ₹{fmt(item.allocatedNow)}
+                            </span>
+                          </div>
+
+                          {isExcluded ? (
+                            <span style={{ fontSize: 10, color: 'var(--color-text-faint)', padding: '2px 6px', background: 'var(--color-surface-offset)', borderRadius: 6 }}>
+                              Excluded
+                            </span>
+                          ) : item.allocatedNow <= 0 ? (
+                            <span style={{ fontSize: 10, color: 'var(--color-text-faint)', padding: '2px 6px', background: 'var(--color-surface-offset)', borderRadius: 6 }}>
+                              Unchanged
+                            </span>
                           ) : item.newStatus === 'cleared' ? (
                             <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 12, background: 'rgba(90,122,46,0.15)', color: 'var(--color-success)' }}>
                               🟢 Cleared
@@ -620,9 +791,108 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
                               🟠 Partial
                             </span>
                           )}
-                        </td>
-                      </tr>
-                    ))}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              /* Horizontally scrollable table with checkboxes */
+              <div
+                style={{
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 10,
+                  overflowX: 'auto',
+                  WebkitOverflowScrolling: 'touch',
+                  maxHeight: 230,
+                  overflowY: 'auto',
+                }}
+              >
+                <table style={{ width: '100%', minWidth: 500, borderCollapse: 'collapse', fontSize: 12, textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--color-surface-offset)', color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)' }}>
+                      <th style={{ padding: '8px 10px', width: 34, textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedInvoiceIds.length === bills.length && bills.length > 0}
+                          onChange={e => {
+                            if (e.target.checked) handleSelectAll()
+                            else handleClearSelection()
+                          }}
+                          style={{ cursor: 'pointer', width: 15, height: 15, accentColor: 'var(--color-primary)' }}
+                          title="Toggle select all"
+                        />
+                      </th>
+                      <th style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>Invoice</th>
+                      <th style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>Date</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Balance Due</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Clearing Now</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>Result</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.items.map(item => {
+                      const isChecked = selectedInvoiceIds.includes(item.invoiceId)
+                      const isExcluded = hasCustomSelection && !isChecked
+
+                      return (
+                        <tr
+                          key={item.invoiceId}
+                          onClick={() => toggleInvoiceSelection(item.invoiceId)}
+                          style={{
+                            cursor: 'pointer',
+                            borderBottom: '1px solid var(--color-border)',
+                            background: isExcluded
+                              ? 'rgba(237, 233, 222, 0.3)'
+                              : isChecked
+                                ? 'rgba(200, 169, 106, 0.08)'
+                                : item.allocatedNow > 0
+                                  ? item.newStatus === 'cleared'
+                                    ? 'rgba(90,122,46,0.06)'
+                                    : 'rgba(160,92,26,0.06)'
+                                  : 'transparent',
+                            opacity: isExcluded ? 0.6 : 1,
+                          }}
+                        >
+                          <td style={{ padding: '8px 10px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleInvoiceSelection(item.invoiceId)}
+                              style={{ cursor: 'pointer', width: 15, height: 15, accentColor: 'var(--color-primary)' }}
+                            />
+                          </td>
+                          <td style={{ padding: '8px 10px', fontWeight: 600, color: isExcluded ? 'var(--color-text-muted)' : 'var(--color-text)', whiteSpace: 'nowrap' }}>
+                            {item.invoiceNumber}
+                          </td>
+                          <td style={{ padding: '8px 10px', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+                            {item.invoiceDate}
+                          </td>
+                          <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+                            ₹{fmt(item.balanceDue)}
+                          </td>
+                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: item.allocatedNow > 0 ? 'var(--color-primary)' : 'var(--color-text-faint)', whiteSpace: 'nowrap' }}>
+                            ₹{fmt(item.allocatedNow)}
+                          </td>
+                          <td style={{ padding: '8px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                            {isExcluded ? (
+                              <span style={{ fontSize: 10, color: 'var(--color-text-faint)' }}>Excluded</span>
+                            ) : item.allocatedNow <= 0 ? (
+                              <span style={{ fontSize: 10, color: 'var(--color-text-faint)' }}>Unchanged</span>
+                            ) : item.newStatus === 'cleared' ? (
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 12, background: 'rgba(90,122,46,0.15)', color: 'var(--color-success)' }}>
+                                🟢 Cleared
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 12, background: 'rgba(160,92,26,0.15)', color: 'var(--color-warning)' }}>
+                                🟠 Partial
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -649,7 +919,10 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
               style={{ marginTop: 3, cursor: 'pointer', width: 16, height: 16 }}
             />
             <label htmlFor="ack-fifo-check" style={{ fontSize: 12, color: 'var(--color-text)', cursor: 'pointer', lineHeight: 1.4 }}>
-              I confirm receipt of <b>₹{fmt(parsedAmount)}</b> from <b>{selectedClient?.name ?? 'client'}</b> on <b>{paymentDate}</b> to clear bills in ascending order.
+              I confirm receipt of <b>₹{fmt(parsedAmount)}</b> from <b>{selectedClient?.name ?? 'client'}</b> on <b>{paymentDate}</b>
+              {hasCustomSelection
+                ? ` to clear ${selectedInvoiceIds.length} selected invoice${selectedInvoiceIds.length === 1 ? '' : 's'} (earliest date first).`
+                : ' to clear bills in ascending order (FIFO).'}
             </label>
           </div>
 
@@ -682,7 +955,7 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
             </button>
             <button
               type="submit"
-              disabled={submitting || parsedAmount <= 0 || !acknowledged || !selectedClientId}
+              disabled={submitting || parsedAmount <= 0 || !acknowledged || !selectedClientId || isSelectionInsufficient}
               style={{
                 flex: '2 1 200px',
                 minHeight: 46,
@@ -693,12 +966,18 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
                 color: '#fff',
                 fontSize: 14,
                 fontWeight: 700,
-                cursor: submitting || parsedAmount <= 0 || !acknowledged || !selectedClientId ? 'not-allowed' : 'pointer',
-                opacity: submitting || parsedAmount <= 0 || !acknowledged || !selectedClientId ? 0.6 : 1,
+                cursor: submitting || parsedAmount <= 0 || !acknowledged || !selectedClientId || isSelectionInsufficient ? 'not-allowed' : 'pointer',
+                opacity: submitting || parsedAmount <= 0 || !acknowledged || !selectedClientId || isSelectionInsufficient ? 0.6 : 1,
                 boxShadow: '0 2px 8px rgba(59,42,31,0.25)',
               }}
             >
-              {submitting ? 'Applying Payments…' : `Confirm & Clear (₹${fmt(parsedAmount)})`}
+              {submitting
+                ? 'Applying Payments…'
+                : isSelectionInsufficient
+                  ? `Select More Invoices (Need ₹${fmt(selectionShortfall)} more)`
+                  : hasCustomSelection
+                    ? `Confirm & Clear Selected (₹${fmt(parsedAmount)})`
+                    : `Confirm & Clear (₹${fmt(parsedAmount)})`}
             </button>
           </div>
         </form>

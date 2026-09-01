@@ -13,6 +13,7 @@ export interface PaymentAllocationPlanItem {
   allocatedNow: number
   newBalanceDue: number
   newStatus: InvoicePaymentStatus
+  isSelected?: boolean
 }
 
 export interface FifoAllocationPreview {
@@ -111,15 +112,40 @@ export async function getClientOutstandingBills(clientId: number) {
 /**
  * Computes how a given payment amount will be distributed across the client's
  * outstanding bills in ascending order (FIFO), without touching the database.
+ * If selectedInvoiceIds is provided and non-empty, only those bills are allocated to,
+ * in chronological FIFO order.
  */
 export function calculateFifoAllocation(
   bills: Awaited<ReturnType<typeof getClientOutstandingBills>>,
   paymentAmount: number,
+  selectedInvoiceIds?: number[],
 ): FifoAllocationPreview {
   let remaining = Math.max(0, Math.round(paymentAmount * 100) / 100)
   const items: PaymentAllocationPlanItem[] = []
+  const hasCustomSelection = Boolean(selectedInvoiceIds && selectedInvoiceIds.length > 0)
+  const selectedSet = hasCustomSelection ? new Set(selectedInvoiceIds) : null
 
   for (const bill of bills) {
+    const isSelected = !hasCustomSelection || (selectedSet?.has(bill.id) ?? false)
+
+    if (!isSelected) {
+      items.push({
+        invoiceId: bill.id,
+        invoiceNumber: bill.invoiceNumber,
+        invoiceDate: bill.invoiceDate,
+        workOrderRef: bill.workOrderRef,
+        billingPeriod: bill.billingPeriod,
+        netReceivable: bill.netReceivable,
+        alreadyReceived: bill.alreadyReceived,
+        balanceDue: bill.balanceDue,
+        allocatedNow: 0,
+        newBalanceDue: bill.balanceDue,
+        newStatus: bill.alreadyReceived > 0.01 ? 'partially_cleared' : 'uncleared',
+        isSelected: false,
+      })
+      continue
+    }
+
     if (remaining <= 0) {
       items.push({
         invoiceId: bill.id,
@@ -133,6 +159,7 @@ export function calculateFifoAllocation(
         allocatedNow: 0,
         newBalanceDue: bill.balanceDue,
         newStatus: bill.alreadyReceived > 0.01 ? 'partially_cleared' : 'uncleared',
+        isSelected: true,
       })
       continue
     }
@@ -155,6 +182,7 @@ export function calculateFifoAllocation(
       allocatedNow: roundedAllocate,
       newBalanceDue,
       newStatus,
+      isSelected: true,
     })
 
     remaining = Math.max(0, Math.round((remaining - roundedAllocate) * 100) / 100)
@@ -240,6 +268,7 @@ export interface RecordLumpSumPaymentParams {
   paymentMode?: string | null
   referenceNumber?: string | null
   notes?: string | null
+  selectedInvoiceIds?: number[]
 }
 
 export async function recordLumpSumPayment(params: RecordLumpSumPaymentParams): Promise<{
@@ -250,7 +279,7 @@ export async function recordLumpSumPayment(params: RecordLumpSumPaymentParams): 
   allocationsCount?: number
   error?: string
 }> {
-  const { clientId, amount, paymentDate, paymentMode, referenceNumber, notes } = params
+  const { clientId, amount, paymentDate, paymentMode, referenceNumber, notes, selectedInvoiceIds } = params
 
   if (amount <= 0) {
     return { ok: false, error: 'Amount must be greater than 0.' }
@@ -258,7 +287,7 @@ export async function recordLumpSumPayment(params: RecordLumpSumPaymentParams): 
 
   // 1. Fetch outstanding bills
   const bills = await getClientOutstandingBills(clientId)
-  const preview = calculateFifoAllocation(bills, amount)
+  const preview = calculateFifoAllocation(bills, amount, selectedInvoiceIds)
 
   // 2. Create payment record
   const { data: payment, error: payErr } = await (supabase
