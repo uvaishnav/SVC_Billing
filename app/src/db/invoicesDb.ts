@@ -221,6 +221,7 @@ function mapInvoiceRow(row: any, extraAllocations?: any[]): InvoiceWithDetails {
       vehicle_type: ri.vehicles?.vehicle_type ?? null,
       day_night_shift: ri.day_night_shift ?? false,
       shift_multiplier: ri.shift_multiplier ?? null,
+      shift: ri.shift ?? (ri.day_night_shift ? 'day_night' : 'day'),
       vehicles: undefined,
     })),
     item_distribution: (row.invoice_item_distribution ?? []) as InvoiceItemDistribution[],
@@ -295,6 +296,7 @@ export async function mapInvoiceWithDetailsToDraft(inv: InvoiceWithDetails): Pro
       monthly_rent:     ri.monthly_rent,
       day_night_shift:  ri.day_night_shift,
       shift_multiplier: ri.shift_multiplier,
+      shift:            ri.shift ?? (ri.day_night_shift ? 'day_night' : 'day'),
       subtotal:         ri.subtotal,
       sort_order:       ri.sort_order,
     })),
@@ -539,17 +541,22 @@ async function _replaceChildren(invoiceId: number, draft: InvoiceDraft): Promise
     await supabase.from('invoice_rental_items').delete().eq('invoice_id', invoiceId)
     if (draft.rental_items.length > 0) {
       const { error } = await supabase.from('invoice_rental_items').insert(
-        draft.rental_items.map(ri => ({
-          invoice_id:       invoiceId,
-          vehicle_id:       ri.vehicle_id,
-          sort_order:       ri.sort_order,
-          billing_mode:     ri.billing_mode,
-          num_days:         ri.billing_mode === 'partial_days' ? ri.num_days : null,
-          monthly_rent:     ri.monthly_rent,
-          day_night_shift:  ri.day_night_shift ?? false,
-          shift_multiplier: ri.day_night_shift ? ri.shift_multiplier : null,
-          subtotal:         ri.subtotal,
-        }))
+        draft.rental_items.map(ri => {
+          const shift = ri.shift ?? (ri.day_night_shift ? 'day_night' : 'day')
+          const isDayNight = shift === 'day_night'
+          return {
+            invoice_id:       invoiceId,
+            vehicle_id:       ri.vehicle_id,
+            sort_order:       ri.sort_order,
+            billing_mode:     ri.billing_mode,
+            num_days:         ri.billing_mode === 'partial_days' ? ri.num_days : null,
+            monthly_rent:     ri.monthly_rent,
+            shift,
+            day_night_shift:  isDayNight,
+            shift_multiplier: isDayNight ? ri.shift_multiplier : null,
+            subtotal:         ri.subtotal,
+          }
+        })
       )
       if (error) console.error('_replaceChildren rental_items:', error)
     }
@@ -611,16 +618,21 @@ async function _writeVehicleLedger(
   const ledgerRows: Omit<VehicleBillingLedger, 'id' | 'created_at'>[] = []
 
   if (billingType === 'rental') {
+    const vehicleTotals = new Map<number, number>()
     for (const ri of draft.rental_items) {
       if (!ri.vehicle_id) continue
+      const current = vehicleTotals.get(ri.vehicle_id) ?? 0
+      vehicleTotals.set(ri.vehicle_id, parseFloat((current + ri.subtotal).toFixed(2)))
+    }
+    for (const [vehicleId, amount] of vehicleTotals.entries()) {
       ledgerRows.push({
-        vehicle_id:     ri.vehicle_id,
+        vehicle_id:     vehicleId,
         invoice_id:     invoiceId,
         work_order_id,
         financial_year,
         billing_month,
         billing_type:   'rental',
-        amount:         ri.subtotal,
+        amount,
       })
     }
   } else {

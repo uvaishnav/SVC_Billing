@@ -219,6 +219,7 @@ export interface InvoiceVehicle {
 // One row per vehicle per rental invoice.
 // SUM(subtotal) across all rows for one invoice = invoices.total_taxable
 export type RentalBillingMode = 'full_month' | 'partial_days'
+export type RentalShiftType = 'day' | 'night' | 'day_night'
 
 export interface InvoiceRentalItem {
   id: number
@@ -230,6 +231,7 @@ export interface InvoiceRentalItem {
   monthly_rent: number              // snapshot at invoice time
   day_night_shift: boolean
   shift_multiplier: number | null
+  shift?: RentalShiftType
   subtotal: number                  // computed: full = monthly_rent; partial = (monthly_rent/30)*num_days
   created_at: string
 }
@@ -244,6 +246,7 @@ export interface InvoiceRentalItemDraft {
   monthly_rent: number
   day_night_shift: boolean
   shift_multiplier: number | null
+  shift?: RentalShiftType
   subtotal: number                  // auto-computed, read-only in UI
   sort_order: number
 }

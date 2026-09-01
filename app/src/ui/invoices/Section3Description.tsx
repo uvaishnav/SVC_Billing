@@ -469,6 +469,11 @@ export default function Section3Description({
                   )}
                   <span style={{ color: 'var(--color-text-faint)', marginLeft: 8, fontSize: 12 }}>
                     {ri.billing_mode === 'full_month' ? 'Full month' : `${ri.num_days} days`}
+                    {ri.shift === 'day_night' || (!ri.shift && ri.day_night_shift)
+                      ? ' • Day+Night'
+                      : ri.shift === 'night'
+                        ? ' • Night'
+                        : ' • Day'}
                   </span>
                 </div>
               ))
