@@ -19,7 +19,7 @@ import { getWorkOrders } from '../../db/workOrdersDb'
 import { getSacCodes } from '../../db/settingsDb'
 
 // Character limit for the description field
-const CHAR_LIMIT = 350
+const CHAR_LIMIT = 500
 
 // ─── Shared iOS-premium style tokens ───────────────────────────────
 const GOLD        = 'rgba(200,169,106,1)'
@@ -469,6 +469,11 @@ export default function Section3Description({
                   )}
                   <span style={{ color: 'var(--color-text-faint)', marginLeft: 8, fontSize: 12 }}>
                     {ri.billing_mode === 'full_month' ? 'Full month' : `${ri.num_days} days`}
+                    {ri.shift === 'day_night' || (!ri.shift && ri.day_night_shift)
+                      ? ' • Day+Night'
+                      : ri.shift === 'night'
+                        ? ' • Night'
+                        : ' • Day'}
                   </span>
                 </div>
               ))

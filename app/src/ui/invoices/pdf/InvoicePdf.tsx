@@ -342,6 +342,46 @@ const s = StyleSheet.create({
     fontSize: 7.5,
     color: BODY_TEXT,
   },
+  dayBadge: {
+    marginLeft: 3,
+    backgroundColor: '#FEF8E7',
+    paddingHorizontal: 3,
+    paddingTop: 1,
+    paddingBottom: 2,
+    borderRadius: 2,
+    borderWidth: 0.75,
+    borderColor: '#D4A133',
+    alignSelf: 'center',
+    flexShrink: 0,
+  },
+  dayBadgeText: {
+    fontFamily: BODY_FONT,
+    fontSize: 5.5,
+    fontWeight: 800,
+    color: '#7C5300',
+    letterSpacing: 0.2,
+    lineHeight: 1.0,
+  },
+  nightBadge: {
+    marginLeft: 3,
+    backgroundColor: '#EFF2FB',
+    paddingHorizontal: 3,
+    paddingTop: 1,
+    paddingBottom: 2,
+    borderRadius: 2,
+    borderWidth: 0.75,
+    borderColor: '#7785C0',
+    alignSelf: 'center',
+    flexShrink: 0,
+  },
+  nightBadgeText: {
+    fontFamily: BODY_FONT,
+    fontSize: 5.5,
+    fontWeight: 800,
+    color: '#1F2C6D',
+    letterSpacing: 0.2,
+    lineHeight: 1.0,
+  },
   dayNightBadge: {
     marginLeft: 3,
     backgroundColor: '#EBF8F2',
@@ -884,9 +924,17 @@ function RentalTable({
           </Text>
           <View style={[s.rColMode, { flexDirection: 'row', alignItems: 'center' }]}>
             <Text style={[s.tableCell, { flexShrink: 1 }]}>{formatBillingMode(item.billing_mode)}</Text>
-            {item.day_night_shift && (
+            {item.shift === 'day_night' || (!item.shift && item.day_night_shift) ? (
               <View style={[s.dayNightBadge, { flexShrink: 0 }]}>
                 <Text style={s.dayNightBadgeText}>DAY + NIGHT</Text>
+              </View>
+            ) : item.shift === 'night' ? (
+              <View style={[s.nightBadge, { flexShrink: 0 }]}>
+                <Text style={s.nightBadgeText}>NIGHT</Text>
+              </View>
+            ) : (
+              <View style={[s.dayBadge, { flexShrink: 0 }]}>
+                <Text style={s.dayBadgeText}>DAY</Text>
               </View>
             )}
           </View>

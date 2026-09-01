@@ -136,6 +136,7 @@ function buildProps(
     monthly_rent: ri.monthly_rent,
     amount:       ri.subtotal,
     day_night_shift: ri.day_night_shift,
+    shift:        ri.shift ?? (ri.day_night_shift ? 'day_night' : 'day'),
   }))
 
   const distribution: PdfDistributionItem[] = draft.item_distribution.map(d => ({

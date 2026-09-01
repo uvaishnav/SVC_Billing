@@ -50,6 +50,8 @@ interface RentalItemContext {
   vehicle_type: string | null
   billing_mode: 'full_month' | 'partial_days'
   num_days:     number | null
+  shift?:       'day' | 'night' | 'day_night'
+  day_night_shift?: boolean
   // NOTE: monthly_rent and subtotal intentionally excluded — already in the bill
 }
 
@@ -79,27 +81,31 @@ Your task is to write the "Description of Services" field for a GST tax invoice.
 
 Rules — follow every one without exception:
 1. Output a single grammatically correct, professional English paragraph.
-2. The paragraph must be STRICTLY UNDER 350 characters including spaces. This is a hard limit.
-3. Summarise what work was performed and in which billing period.
-4. Always mention the vehicles/equipment if they are provided — do not omit them.
-5. Do NOT mention: the client name, rates, quantities, amounts, SAC codes, or SAC nicknames.
-6. Do NOT include labels, headers, bullet points, quotes, or markdown — plain paragraph only.
-7. Do NOT invent any detail not present in the invoice data provided.
-8. The service category is given as internal context only — use it to understand the nature of work but never quote it directly.`
+2. Length: Aim for 200–400 characters (max 500 characters).
+3. COMPLETION IS CRITICAL: You MUST ALWAYS complete the full sentence and end with a proper period (.). NEVER cut off mid-sentence or leave trailing words.
+4. Summarise what work was performed and in which billing period.
+5. Always mention the vehicles/equipment if they are provided — do not omit them.
+6. Do NOT mention: the client name, rates, quantities, amounts, SAC codes, or SAC nicknames.
+7. Do NOT include labels, headers, bullet points, quotes, or markdown — plain paragraph only.
+8. Do NOT invent any detail not present in the invoice data provided.
+9. The service category is given as internal context only — use it to understand the nature of work but never quote it directly.`
 
 const SYSTEM_INSTRUCTION_RENTAL = `You are a billing assistant for an Indian infrastructure and civil engineering services company.
 Your task is to write the "Description of Services" field for a GST tax invoice.
 
 Rules — follow every one without exception:
 1. Output a single grammatically correct, professional English paragraph.
-2. The paragraph must be STRICTLY UNDER 350 characters including spaces. This is a hard limit.
-3. Write as a flowing professional sentence — NOT a list. Mention the vehicles by type and registration number, weave in what work they were supporting (from the work order subject and any work descriptions provided), and close with the billing period.
-4. For partial-day deployments, say "deployed for X days during the period" naturally within the sentence. For full-month deployments, say "deployed throughout the period" or "deployed for the full month".
-5. If no work item descriptions are available, derive the nature of work from the Work Order Subject — do NOT produce a generic vehicle-listing output. Always make the description specific to the actual work context.
-6. Do NOT mention: the client name, rental rates, amounts, SAC codes, or SAC nicknames.
-7. Do NOT include labels, headers, bullet points, quotes, or markdown — plain paragraph only.
-8. Do NOT invent any detail not present in the invoice data provided.
-9. The service category is given as internal context only — use it to understand the nature of work but never quote it directly.`
+2. Length: Aim for 200–400 characters (max 500 characters).
+3. COMPLETION IS CRITICAL: You MUST ALWAYS complete the full sentence and end with a proper period (.). NEVER cut off mid-sentence or leave trailing thoughts.
+4. Write as a flowing professional narrative — NOT a bulleted list.
+5. Mention the vehicles by type and registration number, weave in what work they were supporting (from the work order subject and any work descriptions provided), and close with the billing period.
+6. If multiple vehicles or split shifts are present, group them concisely without repeating verbose phrases (e.g. "Deployment of Excavator (KA01AB1234, 10 days Day+Night & 20 days Daytime) and Tipper (KA01CD5678, full month)").
+7. For partial-day deployments, say "deployed for X days during the period". For full-month deployments, say "deployed throughout the period" or "deployed for the full month".
+8. If no work item descriptions are available, derive the nature of work from the Work Order Subject — do NOT produce a generic vehicle-listing output. Always make the description specific to the actual work context.
+9. Do NOT mention: the client name, rental rates, amounts, SAC codes, or SAC nicknames.
+10. Do NOT include labels, headers, bullet points, quotes, or markdown — plain paragraph only.
+11. Do NOT invent any detail not present in the invoice data provided.
+12. The service category is given as internal context only — use it to understand the nature of work but never quote it directly.`
 
 const SYSTEM_INSTRUCTION_REFINE = `You are a billing assistant for an Indian infrastructure and civil engineering services company.
 Your task is to edit an existing "Description of Services" paragraph from a GST tax invoice based on a user instruction.
@@ -107,7 +113,7 @@ Your task is to edit an existing "Description of Services" paragraph from a GST 
 Rules — follow every one without exception:
 1. Apply the user's instruction faithfully (e.g. remove vehicles, shorten, change tense).
 2. Output a single grammatically correct, professional English paragraph.
-3. The paragraph must be STRICTLY UNDER 350 characters including spaces. This is a hard limit.
+3. Length: Aim for 200–400 characters (max 500 characters). Always finish the sentence with a period (.).
 4. Do NOT mention: the client name, rates, quantities, amounts, SAC codes, or SAC nicknames.
 5. Do NOT include labels, headers, bullet points, quotes, or markdown — plain paragraph only.
 6. Do NOT invent any detail not already present in the existing description or the invoice data.`
@@ -146,7 +152,12 @@ function buildGeneratePrompt(req: DescriptionRequest): string {
       const period = ri.billing_mode === 'full_month'
         ? `full month`
         : `${ri.num_days} days`
-      lines.push(`  • ${label} — ${period}`)
+      const shiftTag = ri.shift === 'day_night' || (!ri.shift && ri.day_night_shift)
+        ? ' (Day + Night shift)'
+        : ri.shift === 'night'
+          ? ' (Night shift)'
+          : ''
+      lines.push(`  • ${label} — ${period}${shiftTag}`)
     }
 
     // Work item descriptions give the AI context about what work the vehicles were supporting.
@@ -183,7 +194,7 @@ function buildGeneratePrompt(req: DescriptionRequest): string {
 
   lines.push(
     ``,
-    `Write the description paragraph now. Remember: strictly under 350 characters, no client name, no amounts, no SAC codes.`,
+    `Write the description paragraph now. Remember: aim for 200–400 characters (max 500 characters), ALWAYS complete the full sentence and end with a period. No client name, no amounts, no SAC codes.`,
   )
 
   return lines.join('\n')
@@ -211,7 +222,12 @@ function buildRefinementPrompt(req: DescriptionRequest): string {
     for (const ri of req.rental_items) {
       const label  = ri.vehicle_type ? `${ri.vehicle_type} (${ri.reg_number})` : ri.reg_number
       const period = ri.billing_mode === 'full_month' ? `full month` : `${ri.num_days} days`
-      lines.push(`  • ${label} — ${period}`)
+      const shiftTag = ri.shift === 'day_night' || (!ri.shift && ri.day_night_shift)
+        ? ' (Day + Night shift)'
+        : ri.shift === 'night'
+          ? ' (Night shift)'
+          : ''
+      lines.push(`  • ${label} — ${period}${shiftTag}`)
     }
   }
 
@@ -232,79 +248,114 @@ function buildRefinementPrompt(req: DescriptionRequest): string {
 
   lines.push(
     ``,
-    `Rewrite the description applying the user's instruction. Strictly under 350 characters, no client name, no amounts, no SAC codes.`,
+    `Rewrite the description applying the user's instruction. Aim for 200–400 characters (max 500 characters). Complete the sentence and end with a period. No client name, no amounts, no SAC codes.`,
   )
 
   return lines.join('\n')
 }
 
+function cleanUpDescription(text: string): string {
+  let cleaned = text.trim()
+  if ((cleaned.startsWith('"') && cleaned.endsWith('"')) || (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+    cleaned = cleaned.slice(1, -1).trim()
+  }
+  if (!/[.!?]$/.test(cleaned)) {
+    cleaned += '.'
+  }
+  return cleaned
+}
+
 // ─── Gemini call ──────────────────────────────────────────────────────────────
 async function callGemini(systemInstruction: string, contentPrompt: string): Promise<string | null> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`
+  // Support both 2.0-flash and 1.5-flash
+  const geminiModels = ['gemini-2.0-flash', 'gemini-1.5-flash']
 
-  const body = {
-    system_instruction: { parts: [{ text: systemInstruction }] },
-    contents: [{ parts: [{ text: contentPrompt }] }],
-    generationConfig: {
-      temperature: 0.3,
-      maxOutputTokens: 800,
-    },
+  for (const model of geminiModels) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`
+
+    const body = {
+      system_instruction: { parts: [{ text: systemInstruction }] },
+      contents: [{ parts: [{ text: contentPrompt }] }],
+      generationConfig: {
+        temperature: 0.3,
+        maxOutputTokens: 1000,
+      },
+    }
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
+        if (text) return text.trim()
+      } else if (res.status === 429 || res.status === 503) {
+        console.log(`Gemini (${model}) returned ${res.status} — trying next model or Groq fallback`)
+        continue
+      } else {
+        const err = await res.text()
+        console.warn(`Gemini (${model}) error ${res.status}: ${err}`)
+      }
+    } catch (e) {
+      console.warn(`Gemini (${model}) fetch failed:`, e)
+    }
   }
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-
-  if (res.status === 429 || res.status === 503) {
-    console.log(`Gemini returned ${res.status} — falling back to Groq`)
-    return null
-  }
-
-  if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Gemini error ${res.status}: ${err}`)
-  }
-
-  const data = await res.json()
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
-  if (!text) throw new Error('Gemini returned empty content')
-  return text.trim()
+  return null
 }
 
 // ─── Groq fallback ────────────────────────────────────────────────────────────
 async function callGroq(systemInstruction: string, contentPrompt: string): Promise<string> {
   const url = 'https://api.groq.com/openai/v1/chat/completions'
 
-  const body = {
-    model: 'llama-3.3-70b-versatile',
-    messages: [
-      { role: 'system', content: systemInstruction },
-      { role: 'user',   content: contentPrompt },
-    ],
-    temperature: 0.3,
-    max_tokens: 800,
+  // Use llama-3.1-8b-instant as primary Groq model: ultra-fast (<300ms),
+  // universally supported on all accounts without 404 access restrictions.
+  // Fall back to llama-3.3-70b-versatile and mixtral-8x7b-32768 if needed.
+  const models = ['llama-3.1-8b-instant', 'llama-3.3-70b-versatile', 'mixtral-8x7b-32768']
+  let lastError = ''
+
+  for (const model of models) {
+    try {
+      const body = {
+        model,
+        messages: [
+          { role: 'system', content: systemInstruction },
+          { role: 'user',   content: contentPrompt },
+        ],
+        temperature: 0.3,
+        max_tokens: 1000,
+      }
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${GROQ_API_KEY}`,
+        },
+        body: JSON.stringify(body),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        const content = data?.choices?.[0]?.message?.content
+        if (content) return content.trim()
+      } else {
+        const err = await res.text()
+        lastError = `Groq (${model}) error ${res.status}: ${err}`
+        console.warn(lastError)
+        continue
+      }
+    } catch (e: any) {
+      lastError = e?.message ?? 'Network error'
+      console.warn(`Groq (${model}) exception:`, e)
+    }
   }
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${GROQ_API_KEY}`,
-    },
-    body: JSON.stringify(body),
-  })
-
-  if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Groq error ${res.status}: ${err}`)
-  }
-
-  const data = await res.json()
-  const content = data?.choices?.[0]?.message?.content
-  if (!content) throw new Error('Groq returned empty content')
-  return content.trim()
+  throw new Error(lastError || 'Groq generation failed across all available models')
 }
 
 // ─── Main handler ─────────────────────────────────────────────────────────────
@@ -404,6 +455,8 @@ Deno.serve(async (req: Request) => {
       description = await callGroq(systemInstruction, contentPrompt)
       provider = 'groq'
     }
+
+    description = cleanUpDescription(description)
 
     return new Response(
       JSON.stringify({ description, provider }),

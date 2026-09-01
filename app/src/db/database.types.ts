@@ -275,6 +275,7 @@ export type Database = {
           invoice_id: number
           monthly_rent: number
           num_days: number | null
+          shift?: string | null
           shift_multiplier: number | null
           sort_order: number
           subtotal: number
@@ -288,6 +289,7 @@ export type Database = {
           invoice_id: number
           monthly_rent: number
           num_days?: number | null
+          shift?: string | null
           shift_multiplier?: number | null
           sort_order?: number
           subtotal: number
@@ -301,6 +303,7 @@ export type Database = {
           invoice_id?: number
           monthly_rent?: number
           num_days?: number | null
+          shift?: string | null
           shift_multiplier?: number | null
           sort_order?: number
           subtotal?: number

@@ -7,6 +7,9 @@ export interface KpiData {
   thisFyRevenue: number
   activeWoCount: number
   expiringWoCount: number
+  thisMonthCollected: number
+  thisFyCollected: number
+  totalOutstanding: number
 }
 
 export interface UnbilledVehicle {
@@ -95,7 +98,7 @@ export async function fetchKpis(): Promise<KpiData> {
   const today      = now.toISOString().slice(0, 10)
   const in30Days   = new Date(now.getTime() + 30 * 86400000).toISOString().slice(0, 10)
 
-  const [monthRes, fyRes, woRes] = await Promise.all([
+  const [monthRes, fyRes, woRes, monthPayRes, fyPayRes, invsRes] = await Promise.all([
     // This Month Revenue: sum net_receivable of final invoices raised THIS calendar month
     supabase
       .from('invoices')
@@ -117,15 +120,69 @@ export async function fetchKpis(): Promise<KpiData> {
       .from('work_orders')
       .select('id, valid_to')
       .neq('status', 'closed'),
+
+    // This Month Collected (Payments)
+    (supabase.from('payments') as any)
+      .select('amount')
+      .gte('payment_date', monthStart)
+      .lte('payment_date', monthEnd),
+
+    // FY Collected (Payments)
+    (supabase.from('payments') as any)
+      .select('amount')
+      .gte('payment_date', fyStart)
+      .lte('payment_date', fyEnd),
+
+    // All final invoices to compute total outstanding
+    supabase
+      .from('invoices')
+      .select('id, net_receivable')
+      .eq('status', 'final'),
   ])
 
-  const thisMonthRevenue = (monthRes.data ?? []).reduce((s, r) => s + (r.net_receivable ?? 0), 0)
-  const thisFyRevenue    = (fyRes.data   ?? []).reduce((s, r) => s + (r.net_receivable ?? 0), 0)
+  const thisMonthRevenue = (monthRes.data ?? []).reduce((s, r) => s + (Number(r.net_receivable) || 0), 0)
+  const thisFyRevenue    = (fyRes.data   ?? []).reduce((s, r) => s + (Number(r.net_receivable) || 0), 0)
   const wos              = woRes.data ?? []
   const activeWoCount    = wos.length
   const expiringWoCount  = wos.filter(w => w.valid_to && w.valid_to >= today && w.valid_to <= in30Days).length
 
-  return { thisMonthRevenue, thisFyRevenue, activeWoCount, expiringWoCount }
+  // Safely fetch payment collections
+  let thisMonthCollected = 0
+  let thisFyCollected = 0
+  let totalAllocated = 0
+
+  try {
+    const [monthPayRes, fyPayRes, allocsRes] = await Promise.all([
+      (supabase.from('payments') as any)
+        .select('amount')
+        .gte('payment_date', monthStart)
+        .lte('payment_date', monthEnd),
+      (supabase.from('payments') as any)
+        .select('amount')
+        .gte('payment_date', fyStart)
+        .lte('payment_date', fyEnd),
+      (supabase.from('payment_allocations') as any)
+        .select('allocated_amount'),
+    ])
+    thisMonthCollected = (monthPayRes?.data ?? []).reduce((s: number, p: any) => s + (Number(p.amount) || 0), 0)
+    thisFyCollected    = (fyPayRes?.data ?? []).reduce((s: number, p: any) => s + (Number(p.amount) || 0), 0)
+    totalAllocated     = (allocsRes?.data ?? []).reduce((s: number, a: any) => s + (Number(a.allocated_amount) || 0), 0)
+  } catch (err) {
+    console.warn('fetchKpis payment query notice:', err)
+  }
+
+  const totalInvoiced = (invsRes.data ?? []).reduce((s, r) => s + (Number(r.net_receivable) || 0), 0)
+  const totalOutstanding = Math.max(0, Math.round((totalInvoiced - totalAllocated) * 100) / 100)
+
+  return {
+    thisMonthRevenue,
+    thisFyRevenue,
+    activeWoCount,
+    expiringWoCount,
+    thisMonthCollected: Math.round(thisMonthCollected * 100) / 100,
+    thisFyCollected: Math.round(thisFyCollected * 100) / 100,
+    totalOutstanding,
+  }
 }
 
 // ─── Unbilled Vehicles ────────────────────────────────────────────────────────

@@ -475,7 +475,12 @@ function drawRentalTable(
   y = drawTableHeader(doc, cols, y)
 
   draft.rental_items.forEach((item, idx) => {
-    const mode = item.billing_mode === 'full_month' ? 'Full Month' : 'Partial'
+    const shiftLabel = item.shift === 'day_night' || (!item.shift && item.day_night_shift)
+      ? ' [DAY+NIGHT]'
+      : item.shift === 'night'
+        ? ' [NIGHT]'
+        : ' [DAY]'
+    const mode = (item.billing_mode === 'full_month' ? 'Full Month' : 'Partial') + shiftLabel
     const days = item.billing_mode === 'partial_days' && item.num_days ? String(item.num_days) : '—'
     const rowValues = [
       String(idx + 1),

@@ -11,6 +11,7 @@ import type {
   InvoiceRentalItemDraft,
   InvoiceItemDistributionDraft,
   Vehicle,
+  RentalShiftType,
 } from '../../db/types'
 import { getWorkOrderItems, getWorkOrders } from '../../db/workOrdersDb'
 import { getVehicles } from '../../db/vehiclesDb'
@@ -385,11 +386,6 @@ function Section2Rental({
 
   const rentalTotal = draft.rental_items.reduce((s, ri) => s + ri.subtotal, 0)
 
-  // IDs of vehicles already added (excluding nulls from unselected rows)
-  const selectedVehicleIds = new Set(
-    draft.rental_items.map(ri => ri.vehicle_id).filter((id): id is number => id !== null)
-  )
-
   // ── Vehicle row handlers ─────────────────────────────────
 
   function addVehicleRow() {
@@ -399,10 +395,8 @@ function Section2Rental({
       window.alert('Please select a vehicle in the current row before adding another.')
       return
     }
-    // Guard: all active vehicles are already added
-    const availableCount = vehicles.filter(v => !selectedVehicleIds.has(v.id)).length
-    if (availableCount === 0 && vehicles.length > 0) {
-      window.alert('All available vehicles have already been added.')
+    if (vehicles.length === 0) {
+      window.alert('No active vehicles available.')
       return
     }
     setRentalItems([...draft.rental_items, {
@@ -412,6 +406,7 @@ function Section2Rental({
       billing_mode:     'full_month',
       num_days:         null,
       monthly_rent:     0,
+      shift:            'day',
       day_night_shift:  false,
       shift_multiplier: null,
       subtotal:         0,
@@ -439,6 +434,7 @@ function Section2Rental({
         merged.num_days,
         merged.day_night_shift,
         merged.shift_multiplier,
+        merged.shift,
       )
       return merged
     })
@@ -453,6 +449,7 @@ function Section2Rental({
       reg_number:       v.reg_number,
       vehicle_type:     v.vehicle_type,
       monthly_rent:     v.default_monthly_rent ?? 0,
+      shift:            'day',
       day_night_shift:  false,
       shift_multiplier: null,
     })
@@ -497,9 +494,6 @@ function Section2Rental({
   const distTotal = draft.item_distribution.reduce((s, d) => s + d.allocation_pct, 0)
   const distOk    = Math.abs(distTotal - 100) < 0.1
 
-  // How many vehicles are still available to add
-  const remainingVehicles = vehicles.filter(v => !selectedVehicleIds.has(v.id)).length
-  const allVehiclesAdded  = vehicles.length > 0 && remainingVehicles === 0
   const hasIncompleteRow  = draft.rental_items.some(ri => ri.vehicle_id === null)
 
   if (loading) return <LoadingState />
@@ -520,7 +514,6 @@ function Section2Rental({
           ri={ri}
           idx={idx}
           vehicles={vehicles}
-          selectedVehicleIds={selectedVehicleIds}
           onVehicleSelect={vid => handleVehicleSelect(idx, vid)}
           onUpdate={patch => updateVehicleRow(idx, patch)}
           onRemove={() => removeVehicleRow(idx)}
@@ -530,24 +523,21 @@ function Section2Rental({
       <button
         type="button"
         onClick={addVehicleRow}
-        disabled={hasIncompleteRow || allVehiclesAdded}
+        disabled={hasIncompleteRow}
         style={{
           width: '100%', padding: '12px', marginTop: 8, marginBottom: 24,
           borderRadius: 10, border: '1.5px dashed var(--color-border)',
           background: 'transparent',
-          color: (hasIncompleteRow || allVehiclesAdded) ? 'var(--color-text-faint)' : 'var(--color-primary)',
+          color: hasIncompleteRow ? 'var(--color-text-faint)' : 'var(--color-primary)',
           fontWeight: 600, fontSize: 14,
-          cursor: (hasIncompleteRow || allVehiclesAdded) ? 'not-allowed' : 'pointer',
-          opacity: (hasIncompleteRow || allVehiclesAdded) ? 0.5 : 1,
+          cursor: hasIncompleteRow ? 'not-allowed' : 'pointer',
+          opacity: hasIncompleteRow ? 0.5 : 1,
           transition: 'opacity 0.15s',
         }}
       >
-        {allVehiclesAdded
-          ? '✓ All vehicles added'
-          : hasIncompleteRow
-            ? '⚠ Select a vehicle in the current row first'
-            : `+ Add Vehicle${remainingVehicles > 0 ? ` (${remainingVehicles} remaining)` : ''}`
-        }
+        {hasIncompleteRow
+          ? '⚠ Select a vehicle in the current row first'
+          : '+ Add Vehicle'}
       </button>
 
       {/* ── Distribution Panel (only when WO items are available) ── */}
@@ -672,19 +662,26 @@ function Section2Rental({
 
 // ─── Rental Vehicle Row ─────────────────────────────────────────────────
 function RentalVehicleRow({
-  ri, idx, vehicles, selectedVehicleIds, onVehicleSelect, onUpdate, onRemove,
+  ri, idx, vehicles, onVehicleSelect, onUpdate, onRemove,
 }: {
   ri: InvoiceRentalItemDraft
   idx: number
   vehicles: Vehicle[]
-  selectedVehicleIds: Set<number>
   onVehicleSelect: (vehicleId: number) => void
   onUpdate: (patch: Partial<InvoiceRentalItemDraft>) => void
   onRemove: () => void
 }) {
+  const currentShift = ri.shift ?? (ri.day_night_shift ? 'day_night' : 'day')
+
   return (
     <div style={{ ...cardStyle, marginBottom: 12 }}>
       {/* Header row: vehicle selector + remove */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', color: 'var(--color-primary)' }}>
+          Vehicle Item #{idx + 1}
+        </span>
+      </div>
+
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
         <div style={{ flex: 1 }}>
           <label style={labelStyle}>Vehicle</label>
@@ -694,15 +691,11 @@ function RentalVehicleRow({
             style={{ ...inputStyle, color: ri.vehicle_id ? 'var(--color-text)' : 'var(--color-text-muted)' }}
           >
             <option value="">Select vehicle…</option>
-            {vehicles.map(v => {
-              // A vehicle is unavailable if it's already selected in a *different* row
-              const takenByOther = selectedVehicleIds.has(v.id) && v.id !== ri.vehicle_id
-              return (
-                <option key={v.id} value={v.id} disabled={takenByOther}>
-                  {v.reg_number}{v.vehicle_type ? ` — ${v.vehicle_type}` : ''}{takenByOther ? ' (already added)' : ''}
-                </option>
-              )
-            })}
+            {vehicles.map(v => (
+              <option key={v.id} value={v.id}>
+                {v.reg_number}{v.vehicle_type ? ` — ${v.vehicle_type}` : ''}
+              </option>
+            ))}
           </select>
         </div>
         <button
@@ -773,28 +766,57 @@ function RentalVehicleRow({
         )}
       </div>
 
-      {/* Day/Night shift row */}
+      {/* Shift selection */}
       {ri.vehicle_id && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12, marginBottom: 12 }}>
-          <div
-            style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
-            onClick={() => {
-              const nextVal = !ri.day_night_shift
-              const defaultMult = vehicles.find(v => v.id === ri.vehicle_id)?.default_day_night_multiplier ?? 1.5
-              onUpdate({
-                day_night_shift: nextVal,
-                shift_multiplier: nextVal ? (ri.shift_multiplier ?? defaultMult) : null
-              })
-            }}
-          >
-            <Checkbox checked={ri.day_night_shift ?? false} />
-            <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text)' }}>
-              Vehicle worked Day & Night?
-            </span>
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>Working Shift</label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+            {[
+              { key: 'day', label: 'Daytime', desc: 'Default (1.0x)' },
+              { key: 'night', label: 'Night Time', desc: 'No multiplier' },
+              { key: 'day_night', label: 'Day & Night', desc: 'With multiplier' },
+            ].map(sOpt => {
+              const isSelected = currentShift === sOpt.key
+              return (
+                <button
+                  key={sOpt.key}
+                  type="button"
+                  onClick={() => {
+                    const nextShift = sOpt.key as RentalShiftType
+                    const isDN = nextShift === 'day_night'
+                    const defaultMult = vehicles.find(v => v.id === ri.vehicle_id)?.default_day_night_multiplier ?? 1.5
+                    onUpdate({
+                      shift: nextShift,
+                      day_night_shift: isDN,
+                      shift_multiplier: isDN ? (ri.shift_multiplier ?? defaultMult) : null,
+                    })
+                  }}
+                  style={{
+                    padding: '8px 6px',
+                    borderRadius: 10,
+                    border: `2px solid ${isSelected ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                    background: isSelected ? 'var(--color-primary-highlight)' : 'transparent',
+                    color: isSelected ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                    fontWeight: isSelected ? 700 : 500,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 2,
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  <span>{sOpt.label}</span>
+                  <span style={{ fontSize: 10, opacity: isSelected ? 0.9 : 0.6 }}>{sOpt.desc}</span>
+                </button>
+              )
+            })}
           </div>
 
-          {ri.day_night_shift && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'center' }}>
+          {/* Shift multiplier input when Day & Night is active */}
+          {(currentShift === 'day_night') && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'center', marginTop: 12 }}>
               <div>
                 <label style={labelStyle}>Shift Multiplier</label>
                 <input
@@ -825,14 +847,18 @@ function RentalVehicleRow({
           border: '1px solid var(--color-border)',
         }}>
           <div style={{ fontSize: 13, color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
-            {ri.day_night_shift && ri.shift_multiplier ? (
+            {currentShift === 'day_night' && ri.shift_multiplier ? (
               ri.billing_mode === 'full_month'
                 ? `Full month rental (with ${ri.shift_multiplier}x Day/Night multiplier)`
                 : `(₹${fmt(ri.monthly_rent)} × ${ri.shift_multiplier}x multiplier) ÷ 30 × ${ri.num_days} days`
+            ) : currentShift === 'night' ? (
+              ri.billing_mode === 'full_month'
+                ? 'Full month rental (Night shift)'
+                : `₹${fmt(ri.monthly_rent)} ÷ 30 × ${ri.num_days} days (Night shift)`
             ) : (
               ri.billing_mode === 'full_month'
-                ? 'Full month rental'
-                : `₹${fmt(ri.monthly_rent)} ÷ 30 × ${ri.num_days} days`
+                ? 'Full month rental (Day shift)'
+                : `₹${fmt(ri.monthly_rent)} ÷ 30 × ${ri.num_days} days (Day shift)`
             )}
           </div>
           <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--color-text)' }}>

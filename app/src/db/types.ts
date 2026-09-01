@@ -219,6 +219,7 @@ export interface InvoiceVehicle {
 // One row per vehicle per rental invoice.
 // SUM(subtotal) across all rows for one invoice = invoices.total_taxable
 export type RentalBillingMode = 'full_month' | 'partial_days'
+export type RentalShiftType = 'day' | 'night' | 'day_night'
 
 export interface InvoiceRentalItem {
   id: number
@@ -230,6 +231,7 @@ export interface InvoiceRentalItem {
   monthly_rent: number              // snapshot at invoice time
   day_night_shift: boolean
   shift_multiplier: number | null
+  shift?: RentalShiftType
   subtotal: number                  // computed: full = monthly_rent; partial = (monthly_rent/30)*num_days
   created_at: string
 }
@@ -244,6 +246,7 @@ export interface InvoiceRentalItemDraft {
   monthly_rent: number
   day_night_shift: boolean
   shift_multiplier: number | null
+  shift?: RentalShiftType
   subtotal: number                  // auto-computed, read-only in UI
   sort_order: number
 }
@@ -283,6 +286,41 @@ export interface VehicleBillingLedger {
   created_at: string
 }
 
+// ─── Payment & Allocation types (Migration 009) ───────────────
+
+export interface Payment {
+  id: number
+  client_id: number
+  payment_date: string
+  amount: number
+  payment_mode: string | null
+  reference_number: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PaymentAllocation {
+  id: number
+  payment_id: number
+  invoice_id: number
+  allocated_amount: number
+  created_at: string
+  payment?: Payment
+}
+
+export type InvoicePaymentStatus = 'cleared' | 'partially_cleared' | 'uncleared'
+
+export interface ClientOutstandingSummary {
+  client_id: number
+  client_name: string
+  total_invoiced: number
+  total_received: number
+  total_pending: number
+  unallocated_advance: number
+  pending_invoices_count: number
+}
+
 // ─── Rich joined types ────────────────────────────────────────
 
 // Used in wizard and list page
@@ -297,6 +335,11 @@ export interface InvoiceWithDetails extends Invoice {
   // Rental invoice children
   rental_items: (InvoiceRentalItem & { reg_number: string | null; vehicle_type: string | null })[]
   item_distribution: InvoiceItemDistribution[]
+  // Payment allocations & tracking
+  allocations?: (PaymentAllocation & { payment?: Payment })[]
+  total_received: number
+  balance_due: number
+  payment_status: InvoicePaymentStatus
 }
 
 // ─── Wizard draft state (in-memory, not persisted until save) ─
@@ -384,6 +427,8 @@ export interface Database {
       invoice_rental_items:        { Row: InvoiceRentalItem;           Insert: Omit<InvoiceRentalItem, 'id' | 'created_at'>;                 Update: Partial<InvoiceRentalItem> }
       invoice_item_distribution:   { Row: InvoiceItemDistribution;     Insert: Omit<InvoiceItemDistribution, 'id' | 'created_at'>;           Update: Partial<InvoiceItemDistribution> }
       vehicle_billing_ledger:      { Row: VehicleBillingLedger;        Insert: Omit<VehicleBillingLedger, 'id' | 'created_at'>;              Update: Partial<VehicleBillingLedger> }
+      payments:                    { Row: Payment;                     Insert: Omit<Payment, 'id' | 'created_at' | 'updated_at'>;           Update: Partial<Payment> }
+      payment_allocations:         { Row: PaymentAllocation;          Insert: Omit<PaymentAllocation, 'id' | 'created_at'>;                 Update: Partial<PaymentAllocation> }
     }
   }
 }

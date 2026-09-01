@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react'
 import type {
   InvoiceDraft, InvoiceLineDraft, InvoiceVehicleDraft,
   InvoiceRentalItemDraft, InvoiceItemDistributionDraft,
-  TaxMode, InvoiceBillingType,
+  TaxMode, InvoiceBillingType, RentalShiftType,
 } from '../../db/types'
 import { saveDraftInvoice } from '../../db/invoicesDb'
 
@@ -123,8 +123,10 @@ export function computeRentalSubtotal(
   numDays: number | null,
   dayNightShift?: boolean,
   shiftMultiplier?: number | null,
+  shift?: RentalShiftType,
 ): number {
-  const baseRent = dayNightShift && shiftMultiplier && shiftMultiplier > 1
+  const isDayNight = shift ? shift === 'day_night' : !!dayNightShift
+  const baseRent = isDayNight && shiftMultiplier && shiftMultiplier > 1
     ? monthlyRent * shiftMultiplier
     : monthlyRent
   if (billingMode === 'full_month') return parseFloat(baseRent.toFixed(2))

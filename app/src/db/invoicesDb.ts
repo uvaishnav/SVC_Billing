@@ -3,7 +3,7 @@ import type {
   Invoice, InvoiceLineItem, InvoiceVehicle,
   InvoiceRentalItem, InvoiceItemDistribution,
   InvoiceWithDetails, InvoiceDraft, InvoiceStatus, InvoiceBillingType,
-  VehicleBillingLedger
+  VehicleBillingLedger, InvoicePaymentStatus
 } from './types'
 import { generateInvoiceNumber } from '../utils/invoiceNumbering'
 
@@ -73,8 +73,32 @@ export async function getInvoices(): Promise<InvoiceWithDetails[]> {
       invoice_item_distribution(*)
     `)
     .order('created_at', { ascending: false })
-  if (error) { console.error('getInvoices:', error); return [] }
-  return (data ?? []).map(mapInvoiceRow)
+
+  if (error) {
+    console.error('getInvoices base query error:', error)
+    return []
+  }
+  if (!data || data.length === 0) return []
+
+  // Safely fetch payment allocations in a separate query so base invoices NEVER fail to load
+  const allocsByInvoice = new Map<number, any[]>()
+  try {
+    const { data: allocData, error: allocErr } = await (supabase
+      .from('payment_allocations') as any)
+      .select('id, payment_id, invoice_id, allocated_amount, created_at, payments(*)')
+
+    if (!allocErr && allocData) {
+      for (const a of allocData) {
+        const list = allocsByInvoice.get(a.invoice_id) ?? []
+        list.push(a)
+        allocsByInvoice.set(a.invoice_id, list)
+      }
+    }
+  } catch (err) {
+    console.warn('payment_allocations query notice:', err)
+  }
+
+  return data.map(row => mapInvoiceRow(row, allocsByInvoice.get(row.id)))
 }
 
 export async function getInvoiceById(id: number): Promise<InvoiceWithDetails | null> {
@@ -92,8 +116,22 @@ export async function getInvoiceById(id: number): Promise<InvoiceWithDetails | n
     `)
     .eq('id', id)
     .single()
+
   if (error) { console.error('getInvoiceById:', error); return null }
-  return mapInvoiceRow(data)
+  if (!data) return null
+
+  let allocs: any[] = []
+  try {
+    const { data: allocData } = await (supabase
+      .from('payment_allocations') as any)
+      .select('id, payment_id, invoice_id, allocated_amount, created_at, payments(*)')
+      .eq('invoice_id', id)
+    if (allocData) allocs = allocData
+  } catch (err) {
+    console.warn('getInvoiceById allocations notice:', err)
+  }
+
+  return mapInvoiceRow(data, allocs)
 }
 
 export async function getInvoiceByNumber(invoiceNumber: string): Promise<InvoiceWithDetails | null> {
@@ -111,11 +149,60 @@ export async function getInvoiceByNumber(invoiceNumber: string): Promise<Invoice
     `)
     .eq('invoice_number', invoiceNumber)
     .single()
+
   if (error) { console.error('getInvoiceByNumber:', error); return null }
-  return mapInvoiceRow(data)
+  if (!data) return null
+
+  let allocs: any[] = []
+  try {
+    const { data: allocData } = await (supabase
+      .from('payment_allocations') as any)
+      .select('id, payment_id, invoice_id, allocated_amount, created_at, payments(*)')
+      .eq('invoice_id', data.id)
+    if (allocData) allocs = allocData
+  } catch (err) {
+    console.warn('getInvoiceByNumber allocations notice:', err)
+  }
+
+  return mapInvoiceRow(data, allocs)
 }
 
-function mapInvoiceRow(row: any): InvoiceWithDetails {
+function mapInvoiceRow(row: any, extraAllocations?: any[]): InvoiceWithDetails {
+  const rawAllocs = extraAllocations ?? row.payment_allocations ?? []
+  const allocations = rawAllocs.map((pa: any) => ({
+    id: pa.id,
+    payment_id: pa.payment_id,
+    invoice_id: pa.invoice_id,
+    allocated_amount: Number(pa.allocated_amount ?? 0),
+    created_at: pa.created_at,
+    payment: pa.payments ? {
+      id: pa.payments.id,
+      client_id: pa.payments.client_id,
+      payment_date: pa.payments.payment_date,
+      amount: Number(pa.payments.amount ?? 0),
+      payment_mode: pa.payments.payment_mode ?? null,
+      reference_number: pa.payments.reference_number ?? null,
+      notes: pa.payments.notes ?? null,
+      created_at: pa.payments.created_at,
+      updated_at: pa.payments.updated_at,
+    } : undefined,
+  }))
+
+  const total_received = allocations.reduce((sum: number, a: any) => sum + (Number(a.allocated_amount) || 0), 0)
+  const netReceivable = Number(row.net_receivable ?? 0)
+  const balance_due = Math.max(0, Math.round((netReceivable - total_received) * 100) / 100)
+
+  let payment_status: InvoicePaymentStatus = 'uncleared'
+  if (row.status === 'final') {
+    if (balance_due <= 0.01 && (total_received > 0 || netReceivable === 0)) {
+      payment_status = 'cleared'
+    } else if (total_received > 0.01) {
+      payment_status = 'partially_cleared'
+    } else {
+      payment_status = 'uncleared'
+    }
+  }
+
   return {
     ...row,
     client_name:          row.clients?.name ?? null,
@@ -134,12 +221,18 @@ function mapInvoiceRow(row: any): InvoiceWithDetails {
       vehicle_type: ri.vehicles?.vehicle_type ?? null,
       day_night_shift: ri.day_night_shift ?? false,
       shift_multiplier: ri.shift_multiplier ?? null,
+      shift: ri.shift ?? (ri.day_night_shift ? 'day_night' : 'day'),
       vehicles: undefined,
     })),
     item_distribution: (row.invoice_item_distribution ?? []) as InvoiceItemDistribution[],
+    allocations,
+    total_received,
+    balance_due,
+    payment_status,
     clients: undefined, client_gstins: undefined, work_orders: undefined,
     invoice_line_items: undefined, invoice_vehicles: undefined,
     invoice_rental_items: undefined, invoice_item_distribution: undefined,
+    payment_allocations: undefined,
   }
 }
 
@@ -203,6 +296,7 @@ export async function mapInvoiceWithDetailsToDraft(inv: InvoiceWithDetails): Pro
       monthly_rent:     ri.monthly_rent,
       day_night_shift:  ri.day_night_shift,
       shift_multiplier: ri.shift_multiplier,
+      shift:            ri.shift ?? (ri.day_night_shift ? 'day_night' : 'day'),
       subtotal:         ri.subtotal,
       sort_order:       ri.sort_order,
     })),
@@ -447,17 +541,22 @@ async function _replaceChildren(invoiceId: number, draft: InvoiceDraft): Promise
     await supabase.from('invoice_rental_items').delete().eq('invoice_id', invoiceId)
     if (draft.rental_items.length > 0) {
       const { error } = await supabase.from('invoice_rental_items').insert(
-        draft.rental_items.map(ri => ({
-          invoice_id:       invoiceId,
-          vehicle_id:       ri.vehicle_id,
-          sort_order:       ri.sort_order,
-          billing_mode:     ri.billing_mode,
-          num_days:         ri.billing_mode === 'partial_days' ? ri.num_days : null,
-          monthly_rent:     ri.monthly_rent,
-          day_night_shift:  ri.day_night_shift ?? false,
-          shift_multiplier: ri.day_night_shift ? ri.shift_multiplier : null,
-          subtotal:         ri.subtotal,
-        }))
+        draft.rental_items.map(ri => {
+          const shift = ri.shift ?? (ri.day_night_shift ? 'day_night' : 'day')
+          const isDayNight = shift === 'day_night'
+          return {
+            invoice_id:       invoiceId,
+            vehicle_id:       ri.vehicle_id,
+            sort_order:       ri.sort_order,
+            billing_mode:     ri.billing_mode,
+            num_days:         ri.billing_mode === 'partial_days' ? ri.num_days : null,
+            monthly_rent:     ri.monthly_rent,
+            shift,
+            day_night_shift:  isDayNight,
+            shift_multiplier: isDayNight ? ri.shift_multiplier : null,
+            subtotal:         ri.subtotal,
+          }
+        })
       )
       if (error) console.error('_replaceChildren rental_items:', error)
     }
@@ -519,16 +618,21 @@ async function _writeVehicleLedger(
   const ledgerRows: Omit<VehicleBillingLedger, 'id' | 'created_at'>[] = []
 
   if (billingType === 'rental') {
+    const vehicleTotals = new Map<number, number>()
     for (const ri of draft.rental_items) {
       if (!ri.vehicle_id) continue
+      const current = vehicleTotals.get(ri.vehicle_id) ?? 0
+      vehicleTotals.set(ri.vehicle_id, parseFloat((current + ri.subtotal).toFixed(2)))
+    }
+    for (const [vehicleId, amount] of vehicleTotals.entries()) {
       ledgerRows.push({
-        vehicle_id:     ri.vehicle_id,
+        vehicle_id:     vehicleId,
         invoice_id:     invoiceId,
         work_order_id,
         financial_year,
         billing_month,
         billing_type:   'rental',
-        amount:         ri.subtotal,
+        amount,
       })
     }
   } else {
