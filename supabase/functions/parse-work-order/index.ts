@@ -98,31 +98,49 @@ async function callGemini(ocrText: string): Promise<object | null> {
 async function callGroq(ocrText: string): Promise<object> {
   const url = 'https://api.groq.com/openai/v1/chat/completions'
 
-  const body = {
-    model: 'llama-3.3-70b-versatile',
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user',   content: `Extract structured data from this work order text and return valid JSON matching this schema: ${JSON.stringify(RESPONSE_SCHEMA)}\n\nWork order text:\n\n${ocrText}` },
-    ],
-    response_format: { type: 'json_object' },
-    temperature: 0,
+  const models = [
+    'llama-3.3-70b-versatile',
+    'openai/gpt-oss-120b',
+    'llama-3.1-8b-instant',
+    'openai/gpt-oss-20b',
+  ]
+  let lastErr = ''
+
+  for (const model of models) {
+    try {
+      const body = {
+        model,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user',   content: `Extract structured data from this work order text and return valid JSON matching this schema: ${JSON.stringify(RESPONSE_SCHEMA)}\n\nWork order text:\n\n${ocrText}` },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0,
+      }
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
+        body: JSON.stringify(body),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        const content = data?.choices?.[0]?.message?.content
+        if (content) return JSON.parse(content)
+      } else {
+        const err = await res.text()
+        lastErr = `Groq (${model}) error ${res.status}: ${err}`
+        console.warn(lastErr)
+        continue
+      }
+    } catch (e: any) {
+      lastErr = e?.message ?? 'Network error'
+      console.warn(`Groq (${model}) exception:`, e)
+    }
   }
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
-    body: JSON.stringify(body),
-  })
-
-  if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Groq error ${res.status}: ${err}`)
-  }
-
-  const data = await res.json()
-  const content = data?.choices?.[0]?.message?.content
-  if (!content) throw new Error('Groq returned empty content')
-  return JSON.parse(content)
+  throw new Error(lastErr || 'Groq extraction failed across all models')
 }
 
 Deno.serve(async (req: Request) => {

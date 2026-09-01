@@ -267,8 +267,8 @@ function cleanUpDescription(text: string): string {
 
 // ─── Gemini call ──────────────────────────────────────────────────────────────
 async function callGemini(systemInstruction: string, contentPrompt: string): Promise<string | null> {
-  // Support both 2.0-flash and 1.5-flash
-  const geminiModels = ['gemini-2.0-flash', 'gemini-1.5-flash']
+  // Support 2.5-flash, 2.0-flash, and 1.5-flash
+  const geminiModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']
 
   for (const model of geminiModels) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`
@@ -312,10 +312,13 @@ async function callGemini(systemInstruction: string, contentPrompt: string): Pro
 async function callGroq(systemInstruction: string, contentPrompt: string): Promise<string> {
   const url = 'https://api.groq.com/openai/v1/chat/completions'
 
-  // Use llama-3.1-8b-instant as primary Groq model: ultra-fast (<300ms),
-  // universally supported on all accounts without 404 access restrictions.
-  // Fall back to llama-3.3-70b-versatile and mixtral-8x7b-32768 if needed.
-  const models = ['llama-3.1-8b-instant', 'llama-3.3-70b-versatile', 'mixtral-8x7b-32768']
+  // Active, supported Groq models (mixtral-8x7b-32768 was decommissioned by Groq)
+  const models = [
+    'llama-3.3-70b-versatile',
+    'llama-3.1-8b-instant',
+    'openai/gpt-oss-120b',
+    'openai/gpt-oss-20b',
+  ]
   let lastError = ''
 
   for (const model of models) {
