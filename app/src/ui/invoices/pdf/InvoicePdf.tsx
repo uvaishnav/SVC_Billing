@@ -568,13 +568,15 @@ const s = StyleSheet.create({
     borderTopWidth: 1.0,
     borderTopColor: DIVIDER,
     paddingTop: 10,
-    marginTop: 4,
+    marginTop: 'auto',
+    minHeight: 120,
   },
   footerLeft: {
     flex: 1,
     paddingRight: 12,
     borderRightWidth: 1.0,
     borderRightColor: DIVIDER,
+    alignSelf: 'flex-start',
   },
   footerRight: {
     flex: 1,
@@ -618,6 +620,7 @@ const s = StyleSheet.create({
   footerSignatureBlock: {
     alignItems: 'center',
     alignSelf: 'flex-end',
+    marginTop: 48,
   },
   footerSignatureLine: {
     borderTopWidth: 1.25,
@@ -1039,7 +1042,7 @@ function TotalsSection({ props }: { props: InvoicePdfProps }) {
 function FooterSection({ props }: { props: InvoicePdfProps }) {
   const { supplier, bank } = props;
   return (
-    <View style={s.footer}>
+    <View style={s.footer} wrap={false}>
       <View style={s.footerLeft}>
         <Text style={s.footerSectionLabel}>BANK DETAILS</Text>
         {bank ? (
