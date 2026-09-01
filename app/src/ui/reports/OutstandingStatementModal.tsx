@@ -15,8 +15,9 @@ interface Props {
   onClose: () => void
 }
 
-function fmt(n: number): string {
-  return new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
+function fmt(n?: number | null): string {
+  const val = typeof n === 'number' && !isNaN(n) ? n : 0
+  return new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val)
 }
 
 function formatDateDisplay(d: Date): string {
@@ -44,6 +45,8 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
       if (!selectedClientId && cList.length > 0) {
         setSelectedClientId(cList[0].id)
       }
+    }).catch(err => {
+      console.warn('Error loading statement masters:', err)
     })
   }, [])
 
@@ -52,6 +55,7 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
     if (!selectedClientId) {
       setBills([])
       setAdvances(null)
+      setLoading(false)
       return
     }
 
@@ -105,16 +109,16 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
       invoiceDate: b.invoiceDate,
       workOrderRef: b.workOrderRef,
       billingPeriod: b.billingPeriod,
-      netReceivable: b.netReceivable,
-      alreadyReceived: b.alreadyReceived,
-      balanceDue: b.balanceDue,
+      netReceivable: Number(b.netReceivable ?? 0),
+      alreadyReceived: Number(b.alreadyReceived ?? 0),
+      balanceDue: Number(b.balanceDue ?? 0),
     }))
   }, [bills])
 
-  const totalNet = useMemo(() => statementItems.reduce((s, i) => s + i.netReceivable, 0), [statementItems])
-  const totalRec = useMemo(() => statementItems.reduce((s, i) => s + i.alreadyReceived, 0), [statementItems])
-  const totalDue = useMemo(() => statementItems.reduce((s, i) => s + i.balanceDue, 0), [statementItems])
-  const advanceAmount = advances?.unallocatedAdvance ?? 0
+  const totalNet = useMemo(() => statementItems.reduce((s, i) => s + (Number(i.netReceivable) || 0), 0), [statementItems])
+  const totalRec = useMemo(() => statementItems.reduce((s, i) => s + (Number(i.alreadyReceived) || 0), 0), [statementItems])
+  const totalDue = useMemo(() => statementItems.reduce((s, i) => s + (Number(i.balanceDue) || 0), 0), [statementItems])
+  const advanceAmount = Number(advances?.unallocatedAdvance ?? 0)
   const netPayable = Math.max(0, Math.round((totalDue - advanceAmount) * 100) / 100)
 
   async function handleDownloadPdf() {
@@ -200,15 +204,12 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(25, 18, 12, 0.65)',
-        backdropFilter: 'blur(4px)',
-        WebkitBackdropFilter: 'blur(4px)',
-        zIndex: 9999,
+        backgroundColor: 'rgba(30, 20, 10, 0.65)',
+        zIndex: 1000,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         padding: '16px',
-        animation: 'fadeIn 180ms ease-out',
       }}
       onClick={onClose}
     >

@@ -14,8 +14,9 @@ interface Props {
   initialClientId?: number
 }
 
-function fmt(n: number): string {
-  return new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
+function fmt(n?: number | null): string {
+  const val = typeof n === 'number' && !isNaN(n) ? n : 0
+  return new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val)
 }
 
 const PAYMENT_MODES = [
@@ -133,15 +134,12 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(25, 18, 12, 0.65)',
-        backdropFilter: 'blur(4px)',
-        WebkitBackdropFilter: 'blur(4px)',
-        zIndex: 9999,
+        backgroundColor: 'rgba(30, 20, 10, 0.65)',
+        zIndex: 1000,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         padding: '16px',
-        animation: 'fadeIn 180ms ease-out',
       }}
       onClick={onClose}
     >

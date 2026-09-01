@@ -52,5 +52,10 @@ BEGIN
   END IF;
 END $$;
 
--- 5. Notify PostgREST to refresh its relationship cache immediately
+-- 5. Table & Sequence Grants for Supabase Authenticated Role
+GRANT SELECT, INSERT, UPDATE, DELETE ON payments TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON payment_allocations TO authenticated;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+
+-- 6. Notify PostgREST to refresh its relationship cache immediately
 NOTIFY pgrst, 'reload schema';

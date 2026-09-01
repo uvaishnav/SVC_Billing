@@ -8,6 +8,7 @@ import { getClientOutstandingSummaries } from '../../db/paymentsDb'
 import type { ClientOutstandingSummary } from '../../db/types'
 import RecordPaymentModal from './RecordPaymentModal'
 import OutstandingStatementModal from '../reports/OutstandingStatementModal'
+import ErrorBoundary from '../common/ErrorBoundary'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -488,8 +489,8 @@ function ClientOutstandingSection({
       </div>
 
       {pendingDues.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '16px 0', color: 'var(--color-success)', fontSize: 13, fontWeight: 600 }}>
-          🎉 All client bills are currently fully cleared!
+        <div style={{ textAlign: 'center', padding: '16px 12px', color: 'var(--color-success)', fontSize: 13, background: 'var(--color-surface-offset)', borderRadius: 10 }}>
+          🎉 All client bills are currently fully cleared! Use the <b>Add Payment</b> button above if you need to record any advance payment.
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -527,42 +528,26 @@ function ClientOutstandingSection({
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: 4 }}>
-                  <button
-                    type="button"
-                    title="View Statement PDF"
-                    onClick={() => onOpenStatement(d.client_id)}
-                    style={{
-                      background: 'transparent',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: 6,
-                      padding: '5px 8px',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: 'var(--color-text-muted)',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    📄 Report
-                  </button>
-                  <button
-                    type="button"
-                    title="Record Payment"
-                    onClick={() => onRecordPayment(d.client_id)}
-                    style={{
-                      background: 'rgba(200,169,106,0.22)',
-                      border: '1px solid var(--color-accent)',
-                      borderRadius: 6,
-                      padding: '5px 8px',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: 'var(--color-primary)',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    💰 Pay
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  title="View Statement PDF"
+                  onClick={() => onOpenStatement(d.client_id)}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 6,
+                    padding: '5px 10px',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: 'var(--color-text-muted)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <span>📄</span> Report
+                </button>
               </div>
             </div>
           ))}
@@ -704,26 +689,6 @@ export default function DashboardPage() {
                 padding: '4px 10px', letterSpacing: '0.3px',
               }}>{activeUnbilled} unbilled</div>
             )}
-            <button
-              type="button"
-              onClick={() => handleOpenPayment()}
-              style={{
-                background: 'var(--color-accent)',
-                color: 'var(--color-primary)',
-                border: 'none',
-                borderRadius: 8,
-                padding: '7px 12px',
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-                boxShadow: '0 2px 8px rgba(200,169,106,0.25)',
-              }}
-            >
-              <span>💰</span> Add Received Amount
-            </button>
             <button type="button" onClick={loadAll} style={{
               background: 'rgba(200,169,106,0.18)',
               border: '1px solid rgba(200,169,106,0.35)',
@@ -768,29 +733,33 @@ export default function DashboardPage() {
 
       {/* ─── Record Payment Modal (Method 2) ─── */}
       {showPaymentModal && (
-        <RecordPaymentModal
-          initialClientId={paymentClientId}
-          onClose={() => {
-            setShowPaymentModal(false)
-            setPaymentClientId(undefined)
-          }}
-          onSuccess={() => {
-            setShowPaymentModal(false)
-            setPaymentClientId(undefined)
-            loadAll()
-          }}
-        />
+        <ErrorBoundary fallbackTitle="Payment Entry Error" onClose={() => setShowPaymentModal(false)}>
+          <RecordPaymentModal
+            initialClientId={paymentClientId}
+            onClose={() => {
+              setShowPaymentModal(false)
+              setPaymentClientId(undefined)
+            }}
+            onSuccess={() => {
+              setShowPaymentModal(false)
+              setPaymentClientId(undefined)
+              loadAll()
+            }}
+          />
+        </ErrorBoundary>
       )}
 
       {/* ─── Client Outstanding Statement Modal (PDF Report) ─── */}
       {showStatementModal && (
-        <OutstandingStatementModal
-          initialClientId={statementClientId}
-          onClose={() => {
-            setShowStatementModal(false)
-            setStatementClientId(undefined)
-          }}
-        />
+        <ErrorBoundary fallbackTitle="Statement Report Error" onClose={() => setShowStatementModal(false)}>
+          <OutstandingStatementModal
+            initialClientId={statementClientId}
+            onClose={() => {
+              setShowStatementModal(false)
+              setStatementClientId(undefined)
+            }}
+          />
+        </ErrorBoundary>
       )}
     </div>
   )

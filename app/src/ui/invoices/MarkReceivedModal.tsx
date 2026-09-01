@@ -13,8 +13,9 @@ interface Props {
   onSuccess: () => void
 }
 
-function fmt(n: number): string {
-  return new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
+function fmt(n?: number | null): string {
+  const val = typeof n === 'number' && !isNaN(n) ? n : 0
+  return new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val)
 }
 
 const PAYMENT_MODES = [
@@ -29,7 +30,10 @@ const PAYMENT_MODES = [
 
 export default function MarkReceivedModal({ invoice, onClose, onSuccess }: Props) {
   const today = new Date().toISOString().slice(0, 10)
-  const initialAmount = invoice.balance_due > 0 ? invoice.balance_due : invoice.net_receivable
+  const balanceDue = Number(invoice.balance_due ?? invoice.net_receivable ?? 0)
+  const netReceivable = Number(invoice.net_receivable ?? 0)
+  const totalReceived = Number(invoice.total_received ?? 0)
+  const initialAmount = balanceDue > 0 ? balanceDue : netReceivable
 
   const [paymentDate, setPaymentDate] = useState<string>(today)
   const [amount, setAmount] = useState<string>(String(initialAmount))
@@ -46,14 +50,16 @@ export default function MarkReceivedModal({ invoice, onClose, onSuccess }: Props
 
   useEffect(() => {
     if (invoice.client_id) {
-      getClientAdvances(invoice.client_id).then(setClientAdvance)
+      getClientAdvances(invoice.client_id)
+        .then(setClientAdvance)
+        .catch(err => console.warn('Could not load client advances:', err))
     }
   }, [invoice.client_id])
 
   const parsedAmount = parseFloat(amount) || 0
-  const isFullClearance = Math.abs(parsedAmount - invoice.balance_due) <= 0.01
-  const isPartialClearance = parsedAmount > 0 && parsedAmount < invoice.balance_due - 0.01
-  const isOverBalance = parsedAmount > invoice.balance_due + 0.01
+  const isFullClearance = Math.abs(parsedAmount - balanceDue) <= 0.01
+  const isPartialClearance = parsedAmount > 0 && parsedAmount < balanceDue - 0.01
+  const isOverBalance = parsedAmount > balanceDue + 0.01
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -99,7 +105,7 @@ export default function MarkReceivedModal({ invoice, onClose, onSuccess }: Props
 
   async function handleApplyAdvance() {
     if (!invoice.client_id || !clientAdvance || clientAdvance.unallocatedAdvance <= 0) return
-    const toApply = Math.min(clientAdvance.unallocatedAdvance, invoice.balance_due)
+    const toApply = Math.min(clientAdvance.unallocatedAdvance, balanceDue)
     if (toApply <= 0) return
 
     setApplyingAdvance(true)
@@ -121,15 +127,12 @@ export default function MarkReceivedModal({ invoice, onClose, onSuccess }: Props
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(25, 18, 12, 0.65)',
-        backdropFilter: 'blur(4px)',
-        WebkitBackdropFilter: 'blur(4px)',
-        zIndex: 9999,
+        backgroundColor: 'rgba(30, 20, 10, 0.65)',
+        zIndex: 1000,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         padding: '16px',
-        animation: 'fadeIn 180ms ease-out',
       }}
       onClick={onClose}
     >
@@ -207,19 +210,19 @@ export default function MarkReceivedModal({ invoice, onClose, onSuccess }: Props
               <div style={{ background: '#fff', padding: '8px', borderRadius: 8, border: '1px solid var(--color-border)' }}>
                 <div style={{ fontSize: 10, color: 'var(--color-text-faint)' }}>Net Bill</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)' }}>
-                  ₹{fmt(invoice.net_receivable)}
+                  ₹{fmt(netReceivable)}
                 </div>
               </div>
               <div style={{ background: '#fff', padding: '8px', borderRadius: 8, border: '1px solid var(--color-border)' }}>
                 <div style={{ fontSize: 10, color: 'var(--color-text-faint)' }}>Received</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-success, #5A7A2E)' }}>
-                  ₹{fmt(invoice.total_received ?? 0)}
+                  ₹{fmt(totalReceived)}
                 </div>
               </div>
               <div style={{ background: '#fff', padding: '8px', borderRadius: 8, border: '1px solid var(--color-border)' }}>
                 <div style={{ fontSize: 10, color: 'var(--color-text-faint)' }}>Balance Due</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-warning, #A05C1A)' }}>
-                  ₹{fmt(invoice.balance_due)}
+                  ₹{fmt(balanceDue)}
                 </div>
               </div>
             </div>
@@ -300,7 +303,7 @@ export default function MarkReceivedModal({ invoice, onClose, onSuccess }: Props
               </label>
               <button
                 type="button"
-                onClick={() => setAmount(String(invoice.balance_due))}
+                onClick={() => setAmount(String(balanceDue))}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -312,7 +315,7 @@ export default function MarkReceivedModal({ invoice, onClose, onSuccess }: Props
                   padding: 0,
                 }}
               >
-                Full Balance (₹{fmt(invoice.balance_due)})
+                Full Balance (₹{fmt(balanceDue)})
               </button>
             </div>
             <input
@@ -346,12 +349,12 @@ export default function MarkReceivedModal({ invoice, onClose, onSuccess }: Props
               )}
               {isPartialClearance && (
                 <span style={{ color: 'var(--color-warning)', fontWeight: 600 }}>
-                  🟠 This will mark the bill as <b>Partially Cleared</b> (₹{fmt(invoice.balance_due - parsedAmount)} remaining balance).
+                  🟠 This will mark the bill as <b>Partially Cleared</b> (₹{fmt(balanceDue - parsedAmount)} remaining balance).
                 </span>
               )}
               {isOverBalance && (
                 <span style={{ color: 'var(--color-error)', fontWeight: 600 }}>
-                  ⚠️ Amount exceeds bill balance due by ₹{fmt(parsedAmount - invoice.balance_due)}. For lump-sum payments across multiple bills, use the Home page payment option.
+                  ⚠️ Amount exceeds bill balance due by ₹{fmt(parsedAmount - balanceDue)}. For lump-sum payments across multiple bills, use the Home page payment option.
                 </span>
               )}
             </div>

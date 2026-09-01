@@ -15,11 +15,13 @@ import InvoiceWizard from './InvoiceWizard'
 import { InvoiceActions } from './InvoiceActions'
 import MarkReceivedModal from './MarkReceivedModal'
 import OutstandingStatementModal from '../reports/OutstandingStatementModal'
+import ErrorBoundary from '../common/ErrorBoundary'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function fmt(n: number): string {
-  return new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
+function fmt(n?: number | null): string {
+  const val = typeof n === 'number' && !isNaN(n) ? n : 0
+  return new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val)
 }
 
 function getFY(dateStr: string): string {
@@ -644,21 +646,25 @@ export default function InvoicesPage() {
 
       {/* ─── Mark Received Modal (Method 1) ─── */}
       {markReceivedInv && (
-        <MarkReceivedModal
-          invoice={markReceivedInv}
-          onClose={() => setMarkReceivedInv(null)}
-          onSuccess={() => {
-            setMarkReceivedInv(null)
-            load()
-          }}
-        />
+        <ErrorBoundary fallbackTitle="Payment Receipt Error" onClose={() => setMarkReceivedInv(null)}>
+          <MarkReceivedModal
+            invoice={markReceivedInv}
+            onClose={() => setMarkReceivedInv(null)}
+            onSuccess={() => {
+              setMarkReceivedInv(null)
+              load()
+            }}
+          />
+        </ErrorBoundary>
       )}
 
       {/* ─── Client Outstanding Statement Modal (PDF Report) ─── */}
       {showStatementModal && (
-        <OutstandingStatementModal
-          onClose={() => setShowStatementModal(false)}
-        />
+        <ErrorBoundary fallbackTitle="Statement Report Error" onClose={() => setShowStatementModal(false)}>
+          <OutstandingStatementModal
+            onClose={() => setShowStatementModal(false)}
+          />
+        </ErrorBoundary>
       )}
     </div>
   )
