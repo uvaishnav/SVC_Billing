@@ -116,6 +116,8 @@ function buildPayload(
             vehicle_type: ri.vehicle_type,
             billing_mode: ri.billing_mode,
             num_days:     ri.num_days,
+            shift:        ri.shift ?? (ri.day_night_shift ? 'day_night' : 'day'),
+            day_night_shift: ri.day_night_shift,
           }))
       : [],
 

@@ -19,7 +19,7 @@ import { getWorkOrders } from '../../db/workOrdersDb'
 import { getSacCodes } from '../../db/settingsDb'
 
 // Character limit for the description field
-const CHAR_LIMIT = 350
+const CHAR_LIMIT = 500
 
 // ─── Shared iOS-premium style tokens ───────────────────────────────
 const GOLD        = 'rgba(200,169,106,1)'
