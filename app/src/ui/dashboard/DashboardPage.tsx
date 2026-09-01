@@ -4,6 +4,10 @@ import {
   ignoreUnbilledMonth, unignoreUnbilledMonth,
 } from '../../db/dashboardDb'
 import type { KpiData, UnbilledVehicle, VehicleRevenue, WoFlag, MonthlyTrend } from '../../db/dashboardDb'
+import { getClientOutstandingSummaries } from '../../db/paymentsDb'
+import type { ClientOutstandingSummary } from '../../db/types'
+import RecordPaymentModal from './RecordPaymentModal'
+import OutstandingStatementModal from '../reports/OutstandingStatementModal'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -373,12 +377,23 @@ function UnbilledAlert({ items, onIgnore, onUnignore }: {
 
 function KpiStrip({ kpis }: { kpis: KpiData | null }) {
   const items = [
-    { label: currentMonthLabel(), value: kpis ? fmt(kpis.thisMonthRevenue) : '…', sub: 'Net Receivable' },
-    { label: currentFyLabel(),    value: kpis ? fmt(kpis.thisFyRevenue)    : '…', sub: 'Net Receivable' },
-    { label: 'Work Orders',       value: kpis ? String(kpis.activeWoCount) : '…', sub: 'Active' },
+    { label: currentMonthLabel(), value: kpis ? fmt(kpis.thisMonthRevenue) : '…', sub: 'Billed (Net)' },
     {
-      label: 'Expiring', value: kpis ? String(kpis.expiringWoCount) : '…', sub: '≤30 days',
-      accentColor: kpis && kpis.expiringWoCount > 0 ? 'var(--color-warning)' : undefined,
+      label: 'Collected This Month',
+      value: kpis ? fmt(kpis.thisMonthCollected) : '…',
+      sub: 'Amount Received',
+      accentColor: 'var(--color-success)',
+    },
+    {
+      label: 'Total Outstanding',
+      value: kpis ? fmt(kpis.totalOutstanding) : '…',
+      sub: 'Pending Client Dues',
+      accentColor: kpis && kpis.totalOutstanding > 0 ? 'var(--color-warning)' : undefined,
+    },
+    {
+      label: currentFyLabel(),
+      value: kpis ? fmt(kpis.thisFyCollected) : '…',
+      sub: `FY Collected (Billed ${kpis ? fmt(kpis.thisFyRevenue) : '…'})`,
     },
   ]
 
@@ -404,7 +419,7 @@ function KpiStrip({ kpis }: { kpis: KpiData | null }) {
           )}
           <div style={{ fontSize: 10, color: 'var(--color-text-faint)', marginBottom: 3, letterSpacing: '0.3px', lineHeight: 1.3 }}>{item.label}</div>
           <div style={{
-            fontSize: 22, fontWeight: 700,
+            fontSize: 20, fontWeight: 700,
             color: item.accentColor ?? 'var(--color-primary)',
             fontFamily: 'Work Sans, sans-serif',
             fontVariantNumeric: 'tabular-nums',
@@ -413,6 +428,146 @@ function KpiStrip({ kpis }: { kpis: KpiData | null }) {
           <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 3 }}>{item.sub}</div>
         </div>
       ))}
+    </div>
+  )
+}
+
+// ─── Client Outstanding Section ───────────────────────────────────────────────
+
+function ClientOutstandingSection({
+  dues,
+  onRecordPayment,
+  onOpenStatement,
+}: {
+  dues: ClientOutstandingSummary[]
+  onRecordPayment: (clientId?: number) => void
+  onOpenStatement: (clientId?: number) => void
+}) {
+  const pendingDues = dues.filter(d => d.total_pending > 0.01)
+  const totalPending = dues.reduce((s, d) => s + d.total_pending, 0)
+
+  if (dues.length === 0) return null
+
+  return (
+    <div style={{
+      background: 'var(--color-surface)',
+      borderRadius: 14,
+      padding: '16px',
+      border: '1px solid rgba(217,211,197,0.5)',
+      boxShadow: '0 1px 4px rgba(59,42,31,0.07)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)', fontFamily: 'Playfair Display, serif' }}>
+            Client Outstanding Dues
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
+            Total pending: <b style={{ color: 'var(--color-warning)' }}>₹{fmt(totalPending)}</b> across {pendingDues.length} client{pendingDues.length === 1 ? '' : 's'}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => onRecordPayment()}
+          style={{
+            background: 'var(--color-accent)',
+            color: 'var(--color-primary)',
+            border: 'none',
+            borderRadius: 8,
+            padding: '7px 12px',
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            boxShadow: '0 2px 6px rgba(200,169,106,0.25)',
+          }}
+        >
+          <span>💰</span> Add Payment
+        </button>
+      </div>
+
+      {pendingDues.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '16px 0', color: 'var(--color-success)', fontSize: 13, fontWeight: 600 }}>
+          🎉 All client bills are currently fully cleared!
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {pendingDues.map(d => (
+            <div
+              key={d.client_id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 12px',
+                background: 'var(--color-surface-offset)',
+                borderRadius: 10,
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              <div style={{ minWidth: 0, flex: 1, marginRight: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {d.client_name}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                  {d.pending_invoices_count} pending bill{d.pending_invoices_count === 1 ? '' : 's'}
+                  {d.unallocated_advance > 0.01 && (
+                    <span style={{ color: 'var(--color-primary)', marginLeft: 6, fontWeight: 600 }}>
+                      · Adv: ₹{fmt(d.unallocated_advance)}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ textAlign: 'right', marginRight: 4 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-warning)', fontVariantNumeric: 'tabular-nums' }}>
+                    ₹{fmt(d.total_pending)}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button
+                    type="button"
+                    title="View Statement PDF"
+                    onClick={() => onOpenStatement(d.client_id)}
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 6,
+                      padding: '5px 8px',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: 'var(--color-text-muted)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    📄 Report
+                  </button>
+                  <button
+                    type="button"
+                    title="Record Payment"
+                    onClick={() => onRecordPayment(d.client_id)}
+                    style={{
+                      background: 'rgba(200,169,106,0.22)',
+                      border: '1px solid var(--color-accent)',
+                      borderRadius: 6,
+                      padding: '5px 8px',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: 'var(--color-primary)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    💰 Pay
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -461,28 +616,37 @@ function WoFlags({ flags }: { flags: WoFlag[] }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const [kpis,           setKpis]           = useState<KpiData | null>(null)
-  const [unbilled,       setUnbilled]       = useState<UnbilledVehicle[]>([])
-  const [vehicleRevenue, setVehicleRevenue] = useState<VehicleRevenue[]>([])
-  const [revPeriod,      setRevPeriod]      = useState<'month' | 'fy'>('month')
-  const [woFlags,        setWoFlags]        = useState<WoFlag[]>([])
-  const [monthlyTrend,   setMonthlyTrend]   = useState<MonthlyTrend[]>([])
-  const [loading,        setLoading]        = useState(true)
+  const [kpis,               setKpis]               = useState<KpiData | null>(null)
+  const [unbilled,           setUnbilled]           = useState<UnbilledVehicle[]>([])
+  const [vehicleRevenue,     setVehicleRevenue]     = useState<VehicleRevenue[]>([])
+  const [revPeriod,          setRevPeriod]          = useState<'month' | 'fy'>('month')
+  const [woFlags,            setWoFlags]            = useState<WoFlag[]>([])
+  const [monthlyTrend,       setMonthlyTrend]       = useState<MonthlyTrend[]>([])
+  const [dues,               setDues]               = useState<ClientOutstandingSummary[]>([])
+  const [loading,            setLoading]            = useState(true)
+
+  // Modals state
+  const [showPaymentModal,   setShowPaymentModal]   = useState(false)
+  const [paymentClientId,    setPaymentClientId]    = useState<number | undefined>(undefined)
+  const [showStatementModal, setShowStatementModal] = useState(false)
+  const [statementClientId,  setStatementClientId]  = useState<number | undefined>(undefined)
 
   async function loadAll() {
     setLoading(true)
-    const [k, u, v, f, t] = await Promise.all([
+    const [k, u, v, f, t, d] = await Promise.all([
       fetchKpis(),
       fetchUnbilledVehicles(),
       fetchVehicleRevenue('month'),
       fetchWoFlags(),
       fetchMonthlyTrend(),
+      getClientOutstandingSummaries(),
     ])
     setKpis(k)
     setUnbilled(u)
     setVehicleRevenue(v)
     setWoFlags(f)
     setMonthlyTrend(t)
+    setDues(d)
     setLoading(false)
   }
 
@@ -506,6 +670,16 @@ export default function DashboardPage() {
     ))
   }
 
+  function handleOpenPayment(clientId?: number) {
+    setPaymentClientId(clientId)
+    setShowPaymentModal(true)
+  }
+
+  function handleOpenStatement(clientId?: number) {
+    setStatementClientId(clientId)
+    setShowStatementModal(true)
+  }
+
   useEffect(() => { loadAll() }, [])
 
   const activeUnbilled = unbilled.filter(i => !i.isIgnored).length
@@ -522,7 +696,7 @@ export default function DashboardPage() {
             }}>Dashboard</h1>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 2, letterSpacing: '0.2px' }}>{currentMonthLabel()}</div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {activeUnbilled > 0 && !loading && (
               <div style={{
                 background: 'var(--color-warning)', color: 'white',
@@ -530,6 +704,26 @@ export default function DashboardPage() {
                 padding: '4px 10px', letterSpacing: '0.3px',
               }}>{activeUnbilled} unbilled</div>
             )}
+            <button
+              type="button"
+              onClick={() => handleOpenPayment()}
+              style={{
+                background: 'var(--color-accent)',
+                color: 'var(--color-primary)',
+                border: 'none',
+                borderRadius: 8,
+                padding: '7px 12px',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                boxShadow: '0 2px 8px rgba(200,169,106,0.25)',
+              }}
+            >
+              <span>💰</span> Add Received Amount
+            </button>
             <button type="button" onClick={loadAll} style={{
               background: 'rgba(200,169,106,0.18)',
               border: '1px solid rgba(200,169,106,0.35)',
@@ -559,6 +753,11 @@ export default function DashboardPage() {
         ) : (
           <>
             <KpiStrip kpis={kpis} />
+            <ClientOutstandingSection
+              dues={dues}
+              onRecordPayment={handleOpenPayment}
+              onOpenStatement={handleOpenStatement}
+            />
             <UnbilledAlert items={unbilled} onIgnore={handleIgnore} onUnignore={handleUnignore} />
             <MonthlyTrendChart data={monthlyTrend} />
             <VehicleRevenueChart data={vehicleRevenue} period={revPeriod} onPeriodChange={handleRevPeriodChange} />
@@ -566,6 +765,33 @@ export default function DashboardPage() {
           </>
         )}
       </div>
+
+      {/* ─── Record Payment Modal (Method 2) ─── */}
+      {showPaymentModal && (
+        <RecordPaymentModal
+          initialClientId={paymentClientId}
+          onClose={() => {
+            setShowPaymentModal(false)
+            setPaymentClientId(undefined)
+          }}
+          onSuccess={() => {
+            setShowPaymentModal(false)
+            setPaymentClientId(undefined)
+            loadAll()
+          }}
+        />
+      )}
+
+      {/* ─── Client Outstanding Statement Modal (PDF Report) ─── */}
+      {showStatementModal && (
+        <OutstandingStatementModal
+          initialClientId={statementClientId}
+          onClose={() => {
+            setShowStatementModal(false)
+            setStatementClientId(undefined)
+          }}
+        />
+      )}
     </div>
   )
 }

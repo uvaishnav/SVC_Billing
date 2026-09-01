@@ -13,6 +13,8 @@ import type { InvoiceDraft } from '../../db/types'
 import { sectionTitleStyle } from '../settings/_components'
 import InvoiceWizard from './InvoiceWizard'
 import { InvoiceActions } from './InvoiceActions'
+import MarkReceivedModal from './MarkReceivedModal'
+import OutstandingStatementModal from '../reports/OutstandingStatementModal'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -54,6 +56,27 @@ const STATUS_BG: Record<string, string> = {
   draft:     'rgba(160,92,26,0.10)',
   final:     'rgba(200,169,106,0.12)',
   cancelled: 'rgba(139,46,46,0.10)',
+}
+
+const PAYMENT_BADGE_CONFIG: Record<string, { label: string; color: string; bg: string; icon: string }> = {
+  cleared: {
+    label: 'Cleared',
+    color: 'var(--color-success)',
+    bg: 'rgba(90,122,46,0.12)',
+    icon: '🟢',
+  },
+  partially_cleared: {
+    label: 'Partial',
+    color: 'var(--color-warning)',
+    bg: 'rgba(160,92,26,0.12)',
+    icon: '🟠',
+  },
+  uncleared: {
+    label: 'Uncleared',
+    color: 'var(--color-terracotta, #8C4A32)',
+    bg: 'rgba(140,74,50,0.10)',
+    icon: '⚪',
+  },
 }
 
 // ── Delete-draft button ───────────────────────────────────────────────────────
@@ -149,18 +172,21 @@ function VoidStamp() {
 // ── Invoice card ──────────────────────────────────────────────────────────────
 
 function InvoiceCard({
-  inv, onOpen, onDeleted, onCancelled, loadingEdit,
+  inv, onOpen, onDeleted, onCancelled, onMarkReceived, loadingEdit,
 }: {
   inv: InvoiceWithDetails
   onOpen: (inv: InvoiceWithDetails) => void
   onDeleted: (id: number) => void
   onCancelled: (id: number) => void
+  onMarkReceived: (inv: InvoiceWithDetails) => void
   loadingEdit: number | null
 }) {
   const isDraft     = inv.status === 'draft'
   const isFinal     = inv.status === 'final'
   const isCancelled = inv.status === 'cancelled'
   const st          = inv.status ?? 'draft'
+  const pStatus     = inv.payment_status ?? 'uncleared'
+  const pConfig     = PAYMENT_BADGE_CONFIG[pStatus] ?? PAYMENT_BADGE_CONFIG.uncleared
 
   return (
     <div style={{
@@ -194,6 +220,23 @@ function InvoiceCard({
             background: STATUS_BG[st] ?? 'transparent',
             textTransform: 'capitalize',
           }}>{st}</span>
+
+          {/* Payment Status Badge (Final Invoices Only) */}
+          {isFinal && (
+            <span style={{
+              fontSize: 11, fontWeight: 600, padding: '4px 10px',
+              borderRadius: 999,
+              color: pConfig.color,
+              background: pConfig.bg,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+            }}>
+              <span>{pConfig.icon}</span>
+              <span>{pConfig.label}</span>
+            </span>
+          )}
+
           {isDraft && <DeleteDraftButton invoiceId={inv.id} onDeleted={() => onDeleted(inv.id)} />}
           {loadingEdit === inv.id && <span style={{ fontSize: 12, color: 'var(--color-text-faint)' }}>Loading…</span>}
         </div>
@@ -207,13 +250,47 @@ function InvoiceCard({
         )}
       </div>
 
-      {/* Amount row — shows net receivable (after TDS) */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isFinal || isCancelled ? 12 : 0 }}>
+      {/* Financial row */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: isFinal ? 6 : (isCancelled ? 12 : 0),
+      }}>
         <span style={{ fontSize: 12, color: 'var(--color-text-faint)' }}>Net Receivable</span>
         <span style={{ fontSize: 16, fontWeight: 700, color: isCancelled ? 'var(--color-text-faint)' : 'var(--color-text)', fontVariantNumeric: 'tabular-nums' }}>
           ₹{fmt(inv.net_receivable)}
         </span>
       </div>
+
+      {/* Payment details strip for Final Invoices */}
+      {isFinal && (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 12,
+          background: 'var(--color-surface-offset)',
+          borderRadius: 8,
+          padding: '7px 10px',
+          fontSize: 12,
+        }}>
+          <div>
+            <span style={{ color: 'var(--color-text-faint)' }}>Received: </span>
+            <span style={{ fontWeight: 600, color: 'var(--color-success)' }}>₹{fmt(inv.total_received ?? 0)}</span>
+          </div>
+          <div>
+            <span style={{ color: 'var(--color-text-faint)' }}>Balance Due: </span>
+            <span style={{
+              fontWeight: 700,
+              color: (inv.balance_due ?? 0) <= 0.01 ? 'var(--color-success)' : 'var(--color-warning)',
+              fontVariantNumeric: 'tabular-nums',
+            }}>
+              ₹{fmt(inv.balance_due ?? inv.net_receivable)}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Draft: tap to edit */}
       {isDraft && (
@@ -228,7 +305,7 @@ function InvoiceCard({
         </div>
       )}
 
-      {/* Final: PDF + Edit + Cancel */}
+      {/* Final: PDF + Edit + Mark Received + Cancel */}
       {isFinal && (
         <div onClick={e => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -245,6 +322,36 @@ function InvoiceCard({
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-primary)' }}
             >{loadingEdit === inv.id ? 'Loading…' : '✏️ Edit'}</button>
           </div>
+
+          {/* Mark Received Button (shown if invoice has pending balance) */}
+          {(inv.balance_due ?? 0) > 0.01 && (
+            <button
+              type="button"
+              onClick={() => onMarkReceived(inv)}
+              aria-label={`Mark received for ${inv.invoice_number}`}
+              style={{
+                width: '100%',
+                padding: '8px 0',
+                borderRadius: 8,
+                border: '1px solid var(--color-accent)',
+                background: 'rgba(200,169,106,0.15)',
+                color: 'var(--color-primary)',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                transition: 'background 150ms',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-accent)'; e.currentTarget.style.color = 'var(--color-primary)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(200,169,106,0.15)'; e.currentTarget.style.color = 'var(--color-primary)' }}
+            >
+              <span>💰</span> Mark Received (Due: ₹{fmt(inv.balance_due)})
+            </button>
+          )}
+
           <CancelInvoiceButton invoiceId={inv.id} onCancelled={() => onCancelled(inv.id)} />
         </div>
       )}
@@ -262,18 +369,22 @@ function InvoiceCard({
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 type FilterStatus = 'final' | 'draft' | 'cancelled' | 'all'
+type PaymentFilter = 'all' | 'uncleared' | 'partially_cleared' | 'cleared'
 
 export default function InvoicesPage() {
-  const [invoices,      setInvoices]      = useState<InvoiceWithDetails[]>([])
-  const [loading,       setLoading]       = useState(true)
-  const [search,        setSearch]        = useState('')
-  const [selectedFY,    setSelectedFY]    = useState<string>(currentFY())
-  const [statusFilter,  setStatusFilter]  = useState<FilterStatus>('final')
-  const [showWizard,    setShowWizard]    = useState(false)
-  const [editDraft,     setEditDraft]     = useState<InvoiceDraft | undefined>(undefined)
-  const [editStatus,    setEditStatus]    = useState<InvoiceStatus | undefined>(undefined)
-  const [editInvoiceId, setEditInvoiceId] = useState<number | null>(null)
-  const [loadingEdit,   setLoadingEdit]   = useState<number | null>(null)
+  const [invoices,           setInvoices]           = useState<InvoiceWithDetails[]>([])
+  const [loading,            setLoading]            = useState(true)
+  const [search,             setSearch]             = useState('')
+  const [selectedFY,         setSelectedFY]         = useState<string>(currentFY())
+  const [statusFilter,       setStatusFilter]       = useState<FilterStatus>('final')
+  const [paymentFilter,      setPaymentFilter]      = useState<PaymentFilter>('all')
+  const [showWizard,         setShowWizard]         = useState(false)
+  const [editDraft,          setEditDraft]          = useState<InvoiceDraft | undefined>(undefined)
+  const [editStatus,         setEditStatus]         = useState<InvoiceStatus | undefined>(undefined)
+  const [editInvoiceId,      setEditInvoiceId]      = useState<number | null>(null)
+  const [loadingEdit,        setLoadingEdit]        = useState<number | null>(null)
+  const [markReceivedInv,    setMarkReceivedInv]    = useState<InvoiceWithDetails | null>(null)
+  const [showStatementModal, setShowStatementModal] = useState<boolean>(false)
 
   async function load() {
     setLoading(true)
@@ -302,16 +413,17 @@ export default function InvoicesPage() {
 
   const filtered = useMemo(() => {
     const result = invoices.filter(inv => {
-      const isDraft  = inv.status === 'draft'
-      const fyOk     = isDraft ? selectedFY === currentFY() : getFY(inv.invoice_date) === selectedFY
-      const statusOk = statusFilter === 'all' || inv.status === statusFilter
-      const searchOk = !search.trim() ||
+      const isDraft   = inv.status === 'draft'
+      const fyOk      = isDraft ? selectedFY === currentFY() : getFY(inv.invoice_date) === selectedFY
+      const statusOk  = statusFilter === 'all' || inv.status === statusFilter
+      const paymentOk = paymentFilter === 'all' || (inv.status === 'final' && inv.payment_status === paymentFilter)
+      const searchOk  = !search.trim() ||
         (inv.invoice_number ?? '').toLowerCase().includes(search.toLowerCase()) ||
         (inv.client_name   ?? '').toLowerCase().includes(search.toLowerCase())
-      return fyOk && statusOk && searchOk
+      return fyOk && statusOk && paymentOk && searchOk
     })
     return sortByNumberDesc(result)
-  }, [invoices, selectedFY, statusFilter, search])
+  }, [invoices, selectedFY, statusFilter, paymentFilter, search])
 
   async function handleOpen(inv: InvoiceWithDetails) {
     setLoadingEdit(inv.id)
@@ -355,18 +467,33 @@ export default function InvoicesPage() {
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <h1 style={{ fontSize: 20, color: 'var(--color-accent)', margin: 0, fontFamily: 'Playfair Display, serif' }}>Invoices</h1>
-          <button
-            type="button"
-            onClick={() => { setEditDraft(undefined); setEditStatus(undefined); setEditInvoiceId(null); setShowWizard(true) }}
-            style={{
-              background: 'var(--color-accent)', color: 'var(--color-primary)',
-              border: 'none', borderRadius: 10, padding: '9px 16px',
-              fontSize: 13, fontWeight: 700, cursor: 'pointer',
-              fontFamily: 'Work Sans, sans-serif',
-              boxShadow: '0 2px 8px rgba(200,169,106,0.25)',
-              minHeight: 38,
-            }}
-          >+ New Invoice</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => setShowStatementModal(true)}
+              style={{
+                background: 'rgba(200,169,106,0.18)', color: 'var(--color-primary)',
+                border: '1px solid var(--color-accent)', borderRadius: 10, padding: '9px 12px',
+                fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                fontFamily: 'Work Sans, sans-serif',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              <span>📄</span> Statement Report
+            </button>
+            <button
+              type="button"
+              onClick={() => { setEditDraft(undefined); setEditStatus(undefined); setEditInvoiceId(null); setShowWizard(true) }}
+              style={{
+                background: 'var(--color-accent)', color: 'var(--color-primary)',
+                border: 'none', borderRadius: 10, padding: '9px 16px',
+                fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                fontFamily: 'Work Sans, sans-serif',
+                boxShadow: '0 2px 8px rgba(200,169,106,0.25)',
+                minHeight: 38,
+              }}
+            >+ New Invoice</button>
+          </div>
         </div>
 
         {/* Search */}
@@ -424,6 +551,40 @@ export default function InvoicesPage() {
             }}>{s === 'all' ? 'All' : s}</button>
           ))}
         </div>
+
+        {/* Payment Sub-filters (when viewing final or all invoices) */}
+        {(statusFilter === 'final' || statusFilter === 'all') && (
+          <div style={{ display: 'flex', gap: 6, marginTop: 8, overflowX: 'auto', paddingBottom: 2 }}>
+            <span style={{ fontSize: 11, color: 'var(--color-text-faint)', alignSelf: 'center', marginRight: 2 }}>Payment:</span>
+            {[
+              { id: 'all', label: 'All' },
+              { id: 'uncleared', label: '⚪ Uncleared' },
+              { id: 'partially_cleared', label: '🟠 Partial' },
+              { id: 'cleared', label: '🟢 Cleared' },
+            ].map(p => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setPaymentFilter(p.id as PaymentFilter)}
+                style={{
+                  flexShrink: 0,
+                  fontSize: 11,
+                  padding: '3px 10px',
+                  borderRadius: 16,
+                  border: `1px solid ${paymentFilter === p.id ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                  background: paymentFilter === p.id ? 'var(--color-primary)' : 'transparent',
+                  color: paymentFilter === p.id ? '#fff' : 'var(--color-text-muted)',
+                  fontWeight: paymentFilter === p.id ? 700 : 500,
+                  cursor: 'pointer',
+                  fontFamily: 'Work Sans, sans-serif',
+                  transition: 'all 150ms',
+                }}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ─── List ─── */}
@@ -449,11 +610,31 @@ export default function InvoicesPage() {
               onOpen={handleOpen}
               onDeleted={handleDeleted}
               onCancelled={handleCancelled}
+              onMarkReceived={setMarkReceivedInv}
               loadingEdit={loadingEdit}
             />
           ))
         )}
       </div>
+
+      {/* ─── Mark Received Modal (Method 1) ─── */}
+      {markReceivedInv && (
+        <MarkReceivedModal
+          invoice={markReceivedInv}
+          onClose={() => setMarkReceivedInv(null)}
+          onSuccess={() => {
+            setMarkReceivedInv(null)
+            load()
+          }}
+        />
+      )}
+
+      {/* ─── Client Outstanding Statement Modal (PDF Report) ─── */}
+      {showStatementModal && (
+        <OutstandingStatementModal
+          onClose={() => setShowStatementModal(false)}
+        />
+      )}
     </div>
   )
 }

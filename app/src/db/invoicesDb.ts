@@ -3,7 +3,7 @@ import type {
   Invoice, InvoiceLineItem, InvoiceVehicle,
   InvoiceRentalItem, InvoiceItemDistribution,
   InvoiceWithDetails, InvoiceDraft, InvoiceStatus, InvoiceBillingType,
-  VehicleBillingLedger
+  VehicleBillingLedger, InvoicePaymentStatus
 } from './types'
 import { generateInvoiceNumber } from '../utils/invoiceNumbering'
 
@@ -70,7 +70,8 @@ export async function getInvoices(): Promise<InvoiceWithDetails[]> {
       invoice_line_items(*),
       invoice_vehicles(*, vehicles(reg_number, vehicle_type)),
       invoice_rental_items(*, vehicles(reg_number, vehicle_type)),
-      invoice_item_distribution(*)
+      invoice_item_distribution(*),
+      payment_allocations(*, payments(*))
     `)
     .order('created_at', { ascending: false })
   if (error) { console.error('getInvoices:', error); return [] }
@@ -88,7 +89,8 @@ export async function getInvoiceById(id: number): Promise<InvoiceWithDetails | n
       invoice_line_items(*),
       invoice_vehicles(*, vehicles(reg_number, vehicle_type)),
       invoice_rental_items(*, vehicles(reg_number, vehicle_type)),
-      invoice_item_distribution(*)
+      invoice_item_distribution(*),
+      payment_allocations(*, payments(*))
     `)
     .eq('id', id)
     .single()
@@ -107,7 +109,8 @@ export async function getInvoiceByNumber(invoiceNumber: string): Promise<Invoice
       invoice_line_items(*),
       invoice_vehicles(*, vehicles(reg_number, vehicle_type)),
       invoice_rental_items(*, vehicles(reg_number, vehicle_type)),
-      invoice_item_distribution(*)
+      invoice_item_distribution(*),
+      payment_allocations(*, payments(*))
     `)
     .eq('invoice_number', invoiceNumber)
     .single()
@@ -116,6 +119,40 @@ export async function getInvoiceByNumber(invoiceNumber: string): Promise<Invoice
 }
 
 function mapInvoiceRow(row: any): InvoiceWithDetails {
+  const allocations = (row.payment_allocations ?? []).map((pa: any) => ({
+    id: pa.id,
+    payment_id: pa.payment_id,
+    invoice_id: pa.invoice_id,
+    allocated_amount: Number(pa.allocated_amount ?? 0),
+    created_at: pa.created_at,
+    payment: pa.payments ? {
+      id: pa.payments.id,
+      client_id: pa.payments.client_id,
+      payment_date: pa.payments.payment_date,
+      amount: Number(pa.payments.amount ?? 0),
+      payment_mode: pa.payments.payment_mode ?? null,
+      reference_number: pa.payments.reference_number ?? null,
+      notes: pa.payments.notes ?? null,
+      created_at: pa.payments.created_at,
+      updated_at: pa.payments.updated_at,
+    } : undefined,
+  }))
+
+  const total_received = allocations.reduce((sum: number, a: any) => sum + (Number(a.allocated_amount) || 0), 0)
+  const netReceivable = Number(row.net_receivable ?? 0)
+  const balance_due = Math.max(0, Math.round((netReceivable - total_received) * 100) / 100)
+
+  let payment_status: InvoicePaymentStatus = 'uncleared'
+  if (row.status === 'final') {
+    if (balance_due <= 0.01 && (total_received > 0 || netReceivable === 0)) {
+      payment_status = 'cleared'
+    } else if (total_received > 0.01) {
+      payment_status = 'partially_cleared'
+    } else {
+      payment_status = 'uncleared'
+    }
+  }
+
   return {
     ...row,
     client_name:          row.clients?.name ?? null,
@@ -137,9 +174,14 @@ function mapInvoiceRow(row: any): InvoiceWithDetails {
       vehicles: undefined,
     })),
     item_distribution: (row.invoice_item_distribution ?? []) as InvoiceItemDistribution[],
+    allocations,
+    total_received,
+    balance_due,
+    payment_status,
     clients: undefined, client_gstins: undefined, work_orders: undefined,
     invoice_line_items: undefined, invoice_vehicles: undefined,
     invoice_rental_items: undefined, invoice_item_distribution: undefined,
+    payment_allocations: undefined,
   }
 }
 
