@@ -9,7 +9,11 @@ import {
   getClientAdvances,
   type ClientAdvancesResult
 } from '../../db/paymentsDb'
-import { OutstandingStatementPdf, type StatementItem } from './OutstandingStatementPdf'
+import {
+  OutstandingStatementPdf,
+  type StatementItem,
+  type StatementBankSummary,
+} from './OutstandingStatementPdf'
 
 interface Props {
   initialClientId?: number
@@ -83,38 +87,106 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
     return selectedClient.gstins.find(g => g.is_primary) ?? selectedClient.gstins[0]
   }, [selectedClient])
 
-  const activeBank = useMemo(() => {
-    if (bankAccounts.length === 0) {
-      return {
-        accountName: settings?.business_name ?? 'Sri Vaishnav Constructions',
-        bankName: 'State Bank of India',
-        accountNumber: '—',
-        ifsc: '—',
-        branch: null,
+  // Group unsettled bills by their assigned bank account
+  const bankSummaries = useMemo<StatementBankSummary[]>(() => {
+    const defId = settings?.default_bank_account_id
+    const fallbackBank = bankAccounts.find(b => b.id === defId) ?? bankAccounts[0]
+
+    if (bills.length === 0) {
+      return [{
+        bankId: fallbackBank?.id,
+        accountName: fallbackBank?.account_name ?? settings?.business_name ?? 'Sri Vaishnav Constructions',
+        bankName: fallbackBank?.bank_name ?? 'State Bank of India',
+        accountNumber: fallbackBank?.account_number ?? '—',
+        ifsc: fallbackBank?.ifsc ?? '—',
+        branch: fallbackBank?.branch ?? null,
+        nickname: fallbackBank?.nickname ?? null,
+        totalDue: 0,
+        billsCount: 0,
+        invoiceNumbers: [],
+      }]
+    }
+
+    const groupMap = new Map<string, StatementBankSummary>()
+
+    for (const b of bills) {
+      let matchedBank: BankAccount | undefined = undefined
+      if (b.bankAccountId) {
+        matchedBank = bankAccounts.find(acc => acc.id === b.bankAccountId)
+      }
+      if (!matchedBank && (b as any).bankAccount) {
+        matchedBank = {
+          id: (b as any).bankAccount.id,
+          account_name: (b as any).bankAccount.accountName,
+          bank_name: (b as any).bankAccount.bankName,
+          account_number: (b as any).bankAccount.accountNumber,
+          ifsc: (b as any).bankAccount.ifsc,
+          branch: (b as any).bankAccount.branch,
+          nickname: (b as any).bankAccount.nickname ?? '',
+          is_active: true,
+          created_at: '',
+        }
+      }
+      if (!matchedBank) {
+        matchedBank = fallbackBank
+      }
+
+      const key = matchedBank ? `bank_${matchedBank.id}` : 'default_fallback'
+      const existing = groupMap.get(key)
+      const due = Number(b.balanceDue || 0)
+
+      if (existing) {
+        existing.totalDue = Math.round((existing.totalDue + due) * 100) / 100
+        existing.billsCount += 1
+        existing.invoiceNumbers.push(b.invoiceNumber)
+      } else {
+        groupMap.set(key, {
+          bankId: matchedBank?.id,
+          accountName: matchedBank?.account_name ?? settings?.business_name ?? 'Sri Vaishnav Constructions',
+          bankName: matchedBank?.bank_name ?? 'State Bank of India',
+          accountNumber: matchedBank?.account_number ?? '—',
+          ifsc: matchedBank?.ifsc ?? '—',
+          branch: matchedBank?.branch ?? null,
+          nickname: matchedBank?.nickname ?? null,
+          totalDue: Math.round(due * 100) / 100,
+          billsCount: 1,
+          invoiceNumbers: [b.invoiceNumber],
+        })
       }
     }
-    const defId = settings?.default_bank_account_id
-    const found = bankAccounts.find(b => b.id === defId) ?? bankAccounts[0]
-    return {
-      accountName: found.account_name,
-      bankName: found.bank_name,
-      accountNumber: found.account_number,
-      ifsc: found.ifsc,
-      branch: found.branch,
-    }
-  }, [bankAccounts, settings])
+
+    return Array.from(groupMap.values())
+  }, [bills, bankAccounts, settings])
 
   const statementItems: StatementItem[] = useMemo(() => {
-    return bills.map(b => ({
-      invoiceNumber: b.invoiceNumber,
-      invoiceDate: b.invoiceDate,
-      workOrderRef: b.workOrderRef,
-      billingPeriod: b.billingPeriod,
-      netReceivable: Number(b.netReceivable ?? 0),
-      alreadyReceived: Number(b.alreadyReceived ?? 0),
-      balanceDue: Number(b.balanceDue ?? 0),
-    }))
-  }, [bills])
+    const defId = settings?.default_bank_account_id
+    const fallbackBank = bankAccounts.find(b => b.id === defId) ?? bankAccounts[0]
+
+    return bills.map(b => {
+      let matchedBank = b.bankAccountId ? bankAccounts.find(acc => acc.id === b.bankAccountId) : null
+      if (!matchedBank && (b as any).bankAccount) {
+        matchedBank = {
+          bank_name: (b as any).bankAccount.bankName,
+          nickname: (b as any).bankAccount.nickname,
+        } as any
+      }
+      if (!matchedBank) {
+        matchedBank = fallbackBank
+      }
+
+      return {
+        invoiceNumber: b.invoiceNumber,
+        invoiceDate: b.invoiceDate,
+        workOrderRef: b.workOrderRef,
+        billingPeriod: b.billingPeriod,
+        netReceivable: Number(b.netReceivable ?? 0),
+        alreadyReceived: Number(b.alreadyReceived ?? 0),
+        balanceDue: Number(b.balanceDue ?? 0),
+        bankName: matchedBank?.bank_name ?? null,
+        bankNickname: matchedBank?.nickname ?? null,
+      }
+    })
+  }, [bills, bankAccounts, settings])
 
   const totalNet = useMemo(() => statementItems.reduce((s, i) => s + (Number(i.netReceivable) || 0), 0), [statementItems])
   const totalRec = useMemo(() => statementItems.reduce((s, i) => s + (Number(i.alreadyReceived) || 0), 0), [statementItems])
@@ -133,15 +205,19 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
             address: settings?.address ?? 'Godavarru, Kankipadu Mandal, Krishna Dist., AP',
             gstin: settings?.gstin ?? '37ABFPS9446D1ZM',
             pan: settings?.pan,
+            state: settings?.state ?? 'Andhra Pradesh',
+            state_code: settings?.state_code ?? '37',
             phone: settings?.phone,
             email: settings?.email,
+            logo_url: settings?.logo_url ?? null,
+            authorized_signatory: settings?.authorized_signatory ?? '',
           }}
           client={{
             name: selectedClient.name,
             gstin: selectedGstin?.gstin,
             address: selectedGstin?.address,
           }}
-          bank={activeBank}
+          banks={bankSummaries}
           statementDate={formatDateDisplay(new Date())}
           items={statementItems}
           unallocatedAdvance={advanceAmount}
@@ -177,7 +253,8 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
     ]
 
     statementItems.forEach((item, idx) => {
-      lines.push(`${idx + 1}. *${item.invoiceNumber}* (${item.invoiceDate})`)
+      const bankTag = item.bankNickname ? ` [${item.bankNickname}]` : (item.bankName ? ` [${item.bankName}]` : '')
+      lines.push(`${idx + 1}. *${item.invoiceNumber}*${bankTag} (${item.invoiceDate})`)
       lines.push(`   Bill Net: ₹${fmt(item.netReceivable)} | Recd: ₹${fmt(item.alreadyReceived)} | *Due: ₹${fmt(item.balanceDue)}*`)
     })
 
@@ -189,11 +266,19 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
     }
     lines.push(``)
     lines.push(`*Bank Remittance Details:*`)
-    lines.push(`A/c Name: ${activeBank.accountName}`)
-    lines.push(`Bank: ${activeBank.bankName}`)
-    lines.push(`A/c No: ${activeBank.accountNumber}`)
-    lines.push(`IFSC: ${activeBank.ifsc}`)
-    if (activeBank.branch) lines.push(`Branch: ${activeBank.branch}`)
+    bankSummaries.forEach(b => {
+      if (bankSummaries.length > 1) {
+        lines.push(`\n*Account: ${b.bankName}${b.nickname ? ` (${b.nickname})` : ''}* — *Due: ₹${fmt(b.totalDue)}*`)
+        if (b.invoiceNumbers.length > 0) lines.push(`Bills: ${b.invoiceNumbers.join(', ')}`)
+      } else {
+        lines.push(`Bank: ${b.bankName}`)
+        if (b.totalDue > 0) lines.push(`Pending Amount: ₹${fmt(b.totalDue)}`)
+      }
+      lines.push(`A/c Name: ${b.accountName}`)
+      lines.push(`A/c No: ${b.accountNumber}`)
+      lines.push(`IFSC: ${b.ifsc}`)
+      if (b.branch) lines.push(`Branch: ${b.branch}`)
+    })
 
     navigator.clipboard.writeText(lines.join('\n'))
     setCopiedWhatsApp(true)
@@ -347,7 +432,24 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
                   {statementItems.map(item => (
                     <tr key={item.invoiceNumber} style={{ borderBottom: '1px solid var(--color-border)' }}>
                       <td style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--color-text)' }}>
-                        {item.invoiceNumber}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <span>{item.invoiceNumber}</span>
+                          {(item.bankNickname || item.bankName) && (
+                            <span
+                              style={{
+                                fontSize: 10,
+                                padding: '1px 5px',
+                                borderRadius: 4,
+                                background: 'var(--color-surface-offset)',
+                                border: '1px solid var(--color-border)',
+                                color: 'var(--color-text-muted)',
+                                fontWeight: 500,
+                              }}
+                            >
+                              {item.bankNickname || item.bankName}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td style={{ padding: '8px 10px', color: 'var(--color-text-muted)' }}>
                         {item.invoiceDate}
@@ -373,6 +475,39 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
                   </tr>
                 </tfoot>
               </table>
+            </div>
+          )}
+
+          {/* Bank Accounts Breakdown */}
+          {statementItems.length > 0 && (
+            <div style={{ background: 'var(--color-surface-offset)', borderRadius: 10, border: '1px solid var(--color-border)', padding: '12px 14px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--color-primary)', marginBottom: 8 }}>
+                {bankSummaries.length > 1 ? '🏦 Remittance Bank Accounts (By Bill)' : '🏦 Remittance Bank Account'}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: bankSummaries.length > 1 ? 'repeat(auto-fit, minmax(260px, 1fr))' : '1fr', gap: 10 }}>
+                {bankSummaries.map((b, idx) => (
+                  <div key={b.accountNumber + idx} style={{ background: '#fff', borderRadius: 8, border: '1px solid var(--color-border)', padding: '10px 12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)' }}>
+                        {b.bankName} {b.nickname ? `(${b.nickname})` : ''}
+                      </div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-warning)' }}>
+                        ₹{fmt(b.totalDue)}
+                      </div>
+                    </div>
+                    {b.invoiceNumbers.length > 0 && (
+                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 6 }}>
+                        Bills: {b.invoiceNumbers.join(', ')}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
+                      <div><b>A/c:</b> {b.accountNumber} | <b>IFSC:</b> {b.ifsc}</div>
+                      <div><b>Name:</b> {b.accountName}</div>
+                      {b.branch && <div><b>Branch:</b> {b.branch}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

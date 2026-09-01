@@ -38,7 +38,9 @@ export async function getClientOutstandingBills(clientId: number) {
       billing_to,
       net_receivable,
       status,
-      work_orders(wo_reference)
+      bank_account_id,
+      work_orders(wo_reference),
+      bank_accounts(id, account_name, account_number, ifsc, bank_name, branch, nickname)
     `)
     .eq('client_id', clientId)
     .eq('status', 'final')
@@ -78,6 +80,7 @@ export async function getClientOutstandingBills(clientId: number) {
       const netReceivable = Number(inv.net_receivable ?? 0)
       const balanceDue = Math.max(0, Math.round((netReceivable - alreadyReceived) * 100) / 100)
       const woRef = (inv.work_orders as any)?.wo_reference ?? null
+      const bank = (inv as any).bank_accounts ?? null
 
       return {
         id: inv.id,
@@ -88,6 +91,16 @@ export async function getClientOutstandingBills(clientId: number) {
         netReceivable,
         alreadyReceived,
         balanceDue,
+        bankAccountId: (inv as any).bank_account_id ? Number((inv as any).bank_account_id) : null,
+        bankAccount: bank ? {
+          id: Number(bank.id),
+          accountName: String(bank.account_name ?? ''),
+          accountNumber: String(bank.account_number ?? ''),
+          ifsc: String(bank.ifsc ?? ''),
+          bankName: String(bank.bank_name ?? ''),
+          branch: bank.branch ? String(bank.branch) : null,
+          nickname: bank.nickname ? String(bank.nickname) : null,
+        } : null,
       }
     })
     .filter(inv => inv.balanceDue > 0.01)
