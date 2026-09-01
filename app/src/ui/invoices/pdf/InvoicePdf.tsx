@@ -618,7 +618,7 @@ const s = StyleSheet.create({
   footerSignatureBlock: {
     alignItems: 'center',
     alignSelf: 'flex-end',
-    marginTop: 38,
+    marginTop: 48,
   },
   footerSignatureLine: {
     borderTopWidth: 1.25,
