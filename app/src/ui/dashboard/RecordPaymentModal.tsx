@@ -130,6 +130,8 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
     }
   }
 
+  const [breakdownView, setBreakdownView] = useState<'cards' | 'table'>('cards')
+
   if (typeof document === 'undefined') return null
 
   return createPortal(
@@ -138,11 +140,12 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
         position: 'fixed',
         inset: 0,
         backgroundColor: 'rgba(30, 20, 10, 0.65)',
+        backdropFilter: 'blur(3px)',
         zIndex: 10000,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '16px',
+        padding: '12px 10px',
       }}
       onClick={onClose}
     >
@@ -150,52 +153,55 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
         style={{
           background: 'var(--color-surface, #FAF8F3)',
           borderRadius: 18,
-          maxWidth: 620,
+          maxWidth: 640,
           width: '100%',
-          maxHeight: '92vh',
-          overflowY: 'auto',
-          boxShadow: '0 8px 32px rgba(43,31,21,0.25)',
+          maxHeight: '94dvh',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: '0 12px 40px rgba(43,31,21,0.3)',
           border: '1px solid var(--color-border, #D9D3C5)',
+          overflow: 'hidden',
         }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div
           style={{
-            padding: '18px 20px',
+            padding: '16px 18px',
             borderBottom: '1px solid var(--color-border, #D9D3C5)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             background: 'var(--color-primary, #3B2A1F)',
             color: '#fff',
-            borderTopLeftRadius: 17,
-            borderTopRightRadius: 17,
+            flexShrink: 0,
           }}
         >
-          <div>
+          <div style={{ minWidth: 0, paddingRight: 8 }}>
             <div style={{ fontSize: 11, color: 'var(--color-accent, #C8A96A)', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600 }}>
               Client Payment Entry
             </div>
-            <h2 style={{ margin: 0, fontSize: 17, fontFamily: 'Playfair Display, serif', color: '#fff' }}>
+            <h2 style={{ margin: 0, fontSize: 17, fontFamily: 'Playfair Display, serif', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               Add Received Amount (Lump Sum / FIFO)
             </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close modal"
             style={{
               background: 'rgba(255,255,255,0.12)',
               border: 'none',
               borderRadius: '50%',
-              width: 32,
-              height: 32,
+              width: 34,
+              height: 34,
               color: '#fff',
               fontSize: 16,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              flexShrink: 0,
             }}
           >
             ✕
@@ -203,7 +209,17 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <form
+          onSubmit={handleSubmit}
+          style={{
+            padding: '16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
           {/* Client Selection Row */}
           <div>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text)', marginBottom: 6 }}>
@@ -257,8 +273,8 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
             </div>
           </div>
 
-          {/* Amount and Date Fields */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {/* Amount and Date Fields (Responsive 1 or 2 Columns) */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 12 }}>
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text)' }}>
@@ -279,7 +295,7 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
                       padding: 0,
                     }}
                   >
-                    Clear All
+                    Clear All (₹{fmt(totalClientPending)})
                   </button>
                 )}
               </div>
@@ -296,12 +312,13 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
                   boxSizing: 'border-box',
                   padding: '10px 12px',
                   borderRadius: 10,
-                  border: '1px solid var(--color-border)',
+                  border: '1.5px solid var(--color-border)',
                   background: '#fff',
                   fontSize: 16,
                   fontWeight: 700,
                   fontFamily: 'Work Sans, sans-serif',
                   outline: 'none',
+                  color: 'var(--color-text)',
                 }}
               />
             </div>
@@ -320,18 +337,20 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
                   boxSizing: 'border-box',
                   padding: '10px 12px',
                   borderRadius: 10,
-                  border: '1px solid var(--color-border)',
+                  border: '1.5px solid var(--color-border)',
                   background: '#fff',
                   fontSize: 14,
+                  fontWeight: 600,
                   fontFamily: 'Work Sans, sans-serif',
                   outline: 'none',
+                  color: 'var(--color-text)',
                 }}
               />
             </div>
           </div>
 
-          {/* Mode & Reference */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {/* Mode & Reference (Responsive 1 or 2 Columns) */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 12 }}>
             <div>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 6 }}>
                 Payment Mode (Optional)
@@ -349,6 +368,7 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
                   fontSize: 13,
                   fontFamily: 'Work Sans, sans-serif',
                   outline: 'none',
+                  color: 'var(--color-text)',
                 }}
               >
                 {PAYMENT_MODES.map(m => (
@@ -376,6 +396,7 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
                   fontSize: 13,
                   fontFamily: 'Work Sans, sans-serif',
                   outline: 'none',
+                  color: 'var(--color-text)',
                 }}
               />
             </div>
@@ -401,6 +422,7 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
                 fontSize: 13,
                 fontFamily: 'Work Sans, sans-serif',
                 outline: 'none',
+                color: 'var(--color-text)',
               }}
             />
           </div>
@@ -430,15 +452,54 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
             </div>
           )}
 
-          {/* FIFO Bill Clearance Allocation Preview Table */}
+          {/* FIFO Bill Clearance Allocation Preview */}
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary)', fontFamily: 'Playfair Display, serif' }}>
-                Bill Clearance Breakdown (Ascending Order / FIFO)
-              </span>
-              <span style={{ fontSize: 11, color: 'var(--color-text-faint)' }}>
-                Oldest bills cleared first
-              </span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+              <div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary)', fontFamily: 'Playfair Display, serif' }}>
+                  Bill Clearance Breakdown (FIFO)
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--color-text-faint)', marginLeft: 6 }}>
+                  (Oldest first)
+                </span>
+              </div>
+
+              {preview.items.length > 0 && !loadingBills && (
+                <div style={{ display: 'flex', background: 'var(--color-surface-offset)', padding: 2, borderRadius: 8, border: '1px solid var(--color-border)' }}>
+                  <button
+                    type="button"
+                    onClick={() => setBreakdownView('cards')}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: 6,
+                      border: 'none',
+                      background: breakdownView === 'cards' ? '#fff' : 'transparent',
+                      color: breakdownView === 'cards' ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                      fontWeight: breakdownView === 'cards' ? 700 : 500,
+                      fontSize: 11,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cards
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBreakdownView('table')}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: 6,
+                      border: 'none',
+                      background: breakdownView === 'table' ? '#fff' : 'transparent',
+                      color: breakdownView === 'table' ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                      fontWeight: breakdownView === 'table' ? 700 : 500,
+                      fontSize: 11,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Table
+                  </button>
+                </div>
+              )}
             </div>
 
             {loadingBills ? (
@@ -446,27 +507,84 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
                 Loading bills…
               </div>
             ) : preview.items.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '20px 0', background: 'var(--color-surface-offset)', borderRadius: 10, color: 'var(--color-text-muted)', fontSize: 13 }}>
+              <div style={{ textAlign: 'center', padding: '20px 12px', background: 'var(--color-surface-offset)', borderRadius: 10, color: 'var(--color-text-muted)', fontSize: 13 }}>
                 🎉 No pending bills found for {selectedClient?.name}. The entire payment will be saved as an Advance Balance.
               </div>
+            ) : breakdownView === 'cards' ? (
+              /* Mobile-optimized FIFO card list */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 240, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                {preview.items.map(item => (
+                  <div
+                    key={item.invoiceId}
+                    style={{
+                      background: item.allocatedNow > 0 ? (item.newStatus === 'cleared' ? 'rgba(90,122,46,0.06)' : 'rgba(160,92,26,0.06)') : '#fff',
+                      border: `1px solid ${item.allocatedNow > 0 ? (item.newStatus === 'cleared' ? 'rgba(90,122,46,0.3)' : 'rgba(160,92,26,0.3)') : 'var(--color-border)'}`,
+                      borderRadius: 10,
+                      padding: '10px 12px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--color-text)' }}>
+                        {item.invoiceNumber}
+                      </div>
+                      <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                        {item.invoiceDate}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, flexWrap: 'wrap', gap: 4 }}>
+                      <div>
+                        <span style={{ color: 'var(--color-text-faint)', fontSize: 11 }}>Due: </span>
+                        <span style={{ fontWeight: 600, color: 'var(--color-text-muted)' }}>₹{fmt(item.balanceDue)}</span>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div>
+                          <span style={{ color: 'var(--color-text-faint)', fontSize: 11 }}>Clearing: </span>
+                          <span style={{ fontWeight: 700, color: item.allocatedNow > 0 ? 'var(--color-primary)' : 'var(--color-text-faint)' }}>
+                            ₹{fmt(item.allocatedNow)}
+                          </span>
+                        </div>
+
+                        {item.allocatedNow <= 0 ? (
+                          <span style={{ fontSize: 10, color: 'var(--color-text-faint)', padding: '2px 6px', background: 'var(--color-surface-offset)', borderRadius: 6 }}>Unchanged</span>
+                        ) : item.newStatus === 'cleared' ? (
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 12, background: 'rgba(90,122,46,0.15)', color: 'var(--color-success)' }}>
+                            🟢 Cleared
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 12, background: 'rgba(160,92,26,0.15)', color: 'var(--color-warning)' }}>
+                            🟠 Partial
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
+              /* Horizontally scrollable table */
               <div
                 style={{
                   border: '1px solid var(--color-border)',
                   borderRadius: 10,
-                  overflow: 'hidden',
+                  overflowX: 'auto',
+                  WebkitOverflowScrolling: 'touch',
                   maxHeight: 220,
                   overflowY: 'auto',
                 }}
               >
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, textAlign: 'left' }}>
+                <table style={{ width: '100%', minWidth: 480, borderCollapse: 'collapse', fontSize: 12, textAlign: 'left' }}>
                   <thead>
                     <tr style={{ background: 'var(--color-surface-offset)', color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)' }}>
-                      <th style={{ padding: '8px 10px' }}>Invoice</th>
-                      <th style={{ padding: '8px 10px' }}>Date</th>
-                      <th style={{ padding: '8px 10px', textAlign: 'right' }}>Balance Due</th>
-                      <th style={{ padding: '8px 10px', textAlign: 'right' }}>Clearing Now</th>
-                      <th style={{ padding: '8px 10px', textAlign: 'center' }}>Result</th>
+                      <th style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>Invoice</th>
+                      <th style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>Date</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Balance Due</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Clearing Now</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>Result</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -478,19 +596,19 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
                           background: item.allocatedNow > 0 ? (item.newStatus === 'cleared' ? 'rgba(90,122,46,0.06)' : 'rgba(160,92,26,0.06)') : 'transparent',
                         }}
                       >
-                        <td style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--color-text)' }}>
+                        <td style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--color-text)', whiteSpace: 'nowrap' }}>
                           {item.invoiceNumber}
                         </td>
-                        <td style={{ padding: '8px 10px', color: 'var(--color-text-muted)' }}>
+                        <td style={{ padding: '8px 10px', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
                           {item.invoiceDate}
                         </td>
-                        <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--color-text-muted)' }}>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
                           ₹{fmt(item.balanceDue)}
                         </td>
-                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: item.allocatedNow > 0 ? 'var(--color-primary)' : 'var(--color-text-faint)' }}>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: item.allocatedNow > 0 ? 'var(--color-primary)' : 'var(--color-text-faint)', whiteSpace: 'nowrap' }}>
                           ₹{fmt(item.allocatedNow)}
                         </td>
-                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                        <td style={{ padding: '8px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                           {item.allocatedNow <= 0 ? (
                             <span style={{ fontSize: 10, color: 'var(--color-text-faint)' }}>Unchanged</span>
                           ) : item.newStatus === 'cleared' ? (
@@ -528,7 +646,7 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
               id="ack-fifo-check"
               checked={acknowledged}
               onChange={e => setAcknowledged(e.target.checked)}
-              style={{ marginTop: 2, cursor: 'pointer' }}
+              style={{ marginTop: 3, cursor: 'pointer', width: 16, height: 16 }}
             />
             <label htmlFor="ack-fifo-check" style={{ fontSize: 12, color: 'var(--color-text)', cursor: 'pointer', lineHeight: 1.4 }}>
               I confirm receipt of <b>₹{fmt(parsedAmount)}</b> from <b>{selectedClient?.name ?? 'client'}</b> on <b>{paymentDate}</b> to clear bills in ascending order.
@@ -542,13 +660,14 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
           )}
 
           {/* Buttons */}
-          <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 4 }}>
             <button
               type="button"
               onClick={onClose}
               disabled={submitting}
               style={{
-                flex: 1,
+                flex: '1 1 100px',
+                minHeight: 46,
                 padding: '11px 0',
                 borderRadius: 10,
                 border: '1px solid var(--color-border)',
@@ -565,8 +684,9 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
               type="submit"
               disabled={submitting || parsedAmount <= 0 || !acknowledged || !selectedClientId}
               style={{
-                flex: 2,
-                padding: '11px 0',
+                flex: '2 1 200px',
+                minHeight: 46,
+                padding: '11px 16px',
                 borderRadius: 10,
                 border: 'none',
                 background: 'var(--color-primary, #3B2A1F)',

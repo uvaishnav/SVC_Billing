@@ -284,6 +284,8 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
     setTimeout(() => setCopiedWhatsApp(false), 3000)
   }
 
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards')
+
   if (typeof document === 'undefined') return null
 
   return createPortal(
@@ -292,11 +294,12 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
         position: 'fixed',
         inset: 0,
         backgroundColor: 'rgba(30, 20, 10, 0.65)',
+        backdropFilter: 'blur(3px)',
         zIndex: 10000,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '16px',
+        padding: '12px 10px',
       }}
       onClick={onClose}
     >
@@ -304,62 +307,84 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
         style={{
           background: 'var(--color-surface, #FAF8F3)',
           borderRadius: 18,
-          maxWidth: 680,
+          maxWidth: 720,
           width: '100%',
-          maxHeight: '92vh',
-          overflowY: 'auto',
-          boxShadow: '0 8px 32px rgba(43,31,21,0.25)',
+          maxHeight: '94dvh',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: '0 12px 40px rgba(43,31,21,0.3)',
           border: '1px solid var(--color-border, #D9D3C5)',
+          overflow: 'hidden',
         }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div
           style={{
-            padding: '18px 20px',
+            padding: '16px 18px',
             borderBottom: '1px solid var(--color-border, #D9D3C5)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             background: 'var(--color-primary, #3B2A1F)',
             color: '#fff',
-            borderTopLeftRadius: 17,
-            borderTopRightRadius: 17,
+            flexShrink: 0,
           }}
         >
-          <div>
+          <div style={{ minWidth: 0, paddingRight: 8 }}>
             <div style={{ fontSize: 11, color: 'var(--color-accent, #C8A96A)', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600 }}>
               Client Statement Report
             </div>
-            <h2 style={{ margin: 0, fontSize: 17, fontFamily: 'Playfair Display, serif', color: '#fff' }}>
+            <h2 style={{ margin: 0, fontSize: 17, fontFamily: 'Playfair Display, serif', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               Pending Bills Detail Sheet
             </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close statement modal"
             style={{
               background: 'rgba(255,255,255,0.12)',
               border: 'none',
               borderRadius: '50%',
-              width: 32,
-              height: 32,
+              width: 34,
+              height: 34,
               color: '#fff',
               fontSize: 16,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              flexShrink: 0,
             }}
           >
             ✕
           </button>
         </div>
 
-        {/* Content */}
-        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Client Selector & Quick Stats */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'center' }}>
+        {/* Scrollable Content Body */}
+        <div
+          style={{
+            padding: '16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
+          {/* Client Selector & Quick Stats Banner */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+              background: 'var(--color-surface-offset)',
+              padding: '14px',
+              borderRadius: 12,
+              border: '1px solid var(--color-border)',
+            }}
+          >
             <div>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text)', marginBottom: 6 }}>
                 Select Client
@@ -370,13 +395,15 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
                 style={{
                   width: '100%',
                   boxSizing: 'border-box',
-                  padding: '9px 12px',
+                  padding: '10px 12px',
                   borderRadius: 10,
-                  border: '1px solid var(--color-border)',
+                  border: '1.5px solid var(--color-border)',
                   background: '#fff',
                   fontSize: 14,
+                  fontWeight: 600,
                   fontFamily: 'Work Sans, sans-serif',
                   outline: 'none',
+                  color: 'var(--color-text)',
                 }}
               >
                 {clients.length === 0 ? (
@@ -389,15 +416,66 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
               </select>
             </div>
 
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <div style={{ background: 'var(--color-surface-offset)', padding: '8px 14px', borderRadius: 10, border: '1px solid var(--color-border)', textAlign: 'right' }}>
-                <div style={{ fontSize: 10, color: 'var(--color-text-faint)' }}>Total Pending</div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-warning)' }}>₹{fmt(totalDue)}</div>
+            {/* Quick Stat Pill */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, paddingTop: 4 }}>
+              <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+                {loading ? 'Fetching records…' : `${statementItems.length} pending bill${statementItems.length === 1 ? '' : 's'} found`}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, color: 'var(--color-text-faint)' }}>Total Pending:</span>
+                <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--color-warning)', fontVariantNumeric: 'tabular-nums' }}>
+                  ₹{fmt(totalDue)}
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Statement Table */}
+          {/* Statement View Mode Bar (Cards vs Table) */}
+          {statementItems.length > 0 && !loading && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--color-primary)' }}>
+                Unsettled Invoices
+              </div>
+              <div style={{ display: 'flex', background: 'var(--color-surface-offset)', padding: 2, borderRadius: 8, border: '1px solid var(--color-border)' }}>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('cards')}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: 6,
+                    border: 'none',
+                    background: viewMode === 'cards' ? '#fff' : 'transparent',
+                    color: viewMode === 'cards' ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                    fontWeight: viewMode === 'cards' ? 700 : 500,
+                    fontSize: 11,
+                    cursor: 'pointer',
+                    boxShadow: viewMode === 'cards' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  }}
+                >
+                  📋 Cards
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('table')}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: 6,
+                    border: 'none',
+                    background: viewMode === 'table' ? '#fff' : 'transparent',
+                    color: viewMode === 'table' ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                    fontWeight: viewMode === 'table' ? 700 : 500,
+                    fontSize: 11,
+                    cursor: 'pointer',
+                    boxShadow: viewMode === 'table' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  }}
+                >
+                  📊 Table
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Statement Table or Card List */}
           {loading ? (
             <div style={{ textAlign: 'center', padding: '36px 0', color: 'var(--color-text-faint)', fontSize: 13 }}>
               Loading statement data…
@@ -415,34 +493,141 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
                 </div>
               )}
             </div>
+          ) : viewMode === 'cards' ? (
+            /* ─── Mobile-First Card View (No Horizontal Clipping) ─── */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {statementItems.map((item, idx) => (
+                <div
+                  key={item.invoiceNumber}
+                  style={{
+                    background: '#fff',
+                    borderRadius: 12,
+                    border: '1px solid var(--color-border)',
+                    padding: '12px 14px',
+                    boxShadow: '0 1px 4px rgba(43,31,21,0.04)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                  }}
+                >
+                  {/* Card Top: Number & Date */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary)', fontFamily: 'Playfair Display, serif' }}>
+                        #{idx + 1} {item.invoiceNumber}
+                      </span>
+                      {item.bankNickname && (
+                        <span style={{ fontSize: 10, background: 'rgba(200,169,106,0.18)', color: 'var(--color-primary)', padding: '2px 6px', borderRadius: 6, fontWeight: 600 }}>
+                          {item.bankNickname}
+                        </span>
+                      )}
+                    </div>
+                    <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                      📅 {item.invoiceDate}
+                    </span>
+                  </div>
+
+                  {/* Context / Period / Work Order if present */}
+                  {(item.workOrderRef || item.billingPeriod) && (
+                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                      {item.billingPeriod && <span>Period: {item.billingPeriod}</span>}
+                      {item.billingPeriod && item.workOrderRef && <span> &bull; </span>}
+                      {item.workOrderRef && <span>WO: {item.workOrderRef}</span>}
+                    </div>
+                  )}
+
+                  {/* 3-Column Financial Stat Row */}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(3, 1fr)',
+                      gap: 6,
+                      background: 'var(--color-surface-offset)',
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      textAlign: 'center',
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--color-text-faint)' }}>Net Bill</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text)', fontVariantNumeric: 'tabular-nums' }}>
+                        ₹{fmt(item.netReceivable)}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--color-text-faint)' }}>Received</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-success)', fontVariantNumeric: 'tabular-nums' }}>
+                        ₹{fmt(item.alreadyReceived)}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--color-text-faint)' }}>Balance Due</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-warning)', fontVariantNumeric: 'tabular-nums' }}>
+                        ₹{fmt(item.balanceDue)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Card List Summary Footer */}
+              <div
+                style={{
+                  background: 'var(--color-primary)',
+                  color: '#fff',
+                  borderRadius: 10,
+                  padding: '10px 14px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 6,
+                }}
+              >
+                <div style={{ fontSize: 12, fontWeight: 600 }}>
+                  Total Pending ({statementItems.length} bills)
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-accent)' }}>
+                  Due: ₹{fmt(totalDue)}
+                </div>
+              </div>
+            </div>
           ) : (
-            <div style={{ border: '1px solid var(--color-border)', borderRadius: 10, overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, textAlign: 'left' }}>
+            /* ─── Scrollable Table View (Horizontal Scroll Enabled) ─── */
+            <div
+              style={{
+                border: '1px solid var(--color-border)',
+                borderRadius: 10,
+                overflowX: 'auto',
+                WebkitOverflowScrolling: 'touch',
+              }}
+            >
+              <table style={{ width: '100%', minWidth: 540, borderCollapse: 'collapse', fontSize: 12, textAlign: 'left' }}>
                 <thead>
                   <tr style={{ background: 'var(--color-surface-offset)', color: 'var(--color-text-muted)', borderBottom: '1px solid var(--color-border)' }}>
-                    <th style={{ padding: '8px 10px' }}>Invoice</th>
-                    <th style={{ padding: '8px 10px' }}>Date</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'right' }}>Net Bill</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'right' }}>Received</th>
-                    <th style={{ padding: '8px 10px', textAlign: 'right' }}>Balance Due</th>
+                    <th style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>Invoice</th>
+                    <th style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>Date</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Net Bill</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Received</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'right', whiteSpace: 'nowrap' }}>Balance Due</th>
                   </tr>
                 </thead>
                 <tbody>
                   {statementItems.map(item => (
                     <tr key={item.invoiceNumber} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                      <td style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--color-text)' }}>
+                      <td style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--color-text)', whiteSpace: 'nowrap' }}>
                         {item.invoiceNumber}
                       </td>
-                      <td style={{ padding: '8px 10px', color: 'var(--color-text-muted)' }}>
+                      <td style={{ padding: '8px 10px', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
                         {item.invoiceDate}
                       </td>
-                      <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--color-text-muted)' }}>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
                         ₹{fmt(item.netReceivable)}
                       </td>
-                      <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--color-success)' }}>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--color-success)', whiteSpace: 'nowrap' }}>
                         ₹{fmt(item.alreadyReceived)}
                       </td>
-                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: 'var(--color-warning)' }}>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: 'var(--color-warning)', whiteSpace: 'nowrap' }}>
                         ₹{fmt(item.balanceDue)}
                       </td>
                     </tr>
@@ -462,18 +647,18 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
 
           {/* Bank Accounts Breakdown */}
           {statementItems.length > 0 && (
-            <div style={{ background: 'var(--color-surface-offset)', borderRadius: 10, border: '1px solid var(--color-border)', padding: '12px 14px' }}>
+            <div style={{ background: 'var(--color-surface-offset)', borderRadius: 12, border: '1px solid var(--color-border)', padding: '12px 14px' }}>
               <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--color-primary)', marginBottom: 8 }}>
                 {bankSummaries.length > 1 ? '🏦 Remittance Bank Accounts (By Bill)' : '🏦 Remittance Bank Account'}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: bankSummaries.length > 1 ? 'repeat(auto-fit, minmax(260px, 1fr))' : '1fr', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 10 }}>
                 {bankSummaries.map((b, idx) => (
-                  <div key={b.accountNumber + idx} style={{ background: '#fff', borderRadius: 8, border: '1px solid var(--color-border)', padding: '10px 12px' }}>
+                  <div key={b.accountNumber + idx} style={{ background: '#fff', borderRadius: 10, border: '1px solid var(--color-border)', padding: '10px 12px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)' }}>
                         {b.bankName}
                       </div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-warning)' }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-warning)', fontVariantNumeric: 'tabular-nums' }}>
                         ₹{fmt(b.totalDue)}
                       </div>
                     </div>
@@ -482,8 +667,9 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
                         Bills: {b.invoiceNumbers.join(', ')}
                       </div>
                     )}
-                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
-                      <div><b>A/c:</b> {b.accountNumber} | <b>IFSC:</b> {b.ifsc}</div>
+                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+                      <div><b>A/c:</b> {b.accountNumber}</div>
+                      <div><b>IFSC:</b> {b.ifsc}</div>
                       <div><b>Name:</b> {b.accountName}</div>
                       {b.branch && <div><b>Branch:</b> {b.branch}</div>}
                     </div>
@@ -504,6 +690,8 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 8,
               }}
             >
               <div style={{ fontSize: 12, color: 'var(--color-primary)' }}>
@@ -515,63 +703,78 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
             </div>
           )}
 
-          {/* Action Buttons: PDF Download + WhatsApp Copy */}
-          <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-            <button
-              type="button"
-              onClick={handleCopyWhatsApp}
-              disabled={statementItems.length === 0}
-              style={{
-                flex: 1,
-                padding: '11px 0',
-                borderRadius: 10,
-                border: '1px solid var(--color-success)',
-                background: copiedWhatsApp ? 'var(--color-success)' : 'transparent',
-                color: copiedWhatsApp ? '#fff' : 'var(--color-success)',
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: statementItems.length === 0 ? 'not-allowed' : 'pointer',
-                opacity: statementItems.length === 0 ? 0.5 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-                transition: 'all 180ms',
-              }}
-            >
-              <span>💬</span>
-              {copiedWhatsApp ? 'Copied to Clipboard! ✓' : 'Copy for WhatsApp'}
-            </button>
+          {/* Action Buttons: PDF Download + WhatsApp Copy (Mobile-Friendly Stack/Row) */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+              marginTop: 4,
+              paddingTop: 8,
+              borderTop: '1px solid var(--color-border)',
+            }}
+          >
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+              <button
+                type="button"
+                onClick={handleCopyWhatsApp}
+                disabled={statementItems.length === 0}
+                style={{
+                  flex: '1 1 180px',
+                  minHeight: 46,
+                  padding: '11px 14px',
+                  borderRadius: 10,
+                  border: '1.5px solid var(--color-success)',
+                  background: copiedWhatsApp ? 'var(--color-success)' : 'transparent',
+                  color: copiedWhatsApp ? '#fff' : 'var(--color-success)',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: statementItems.length === 0 ? 'not-allowed' : 'pointer',
+                  opacity: statementItems.length === 0 ? 0.5 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  transition: 'all 180ms',
+                }}
+              >
+                <span style={{ fontSize: 16 }}>💬</span>
+                <span>{copiedWhatsApp ? 'Copied to Clipboard! ✓' : 'Copy for WhatsApp'}</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={handleDownloadPdf}
-              disabled={generatingPdf || statementItems.length === 0}
-              style={{
-                flex: 1.2,
-                padding: '11px 0',
-                borderRadius: 10,
-                border: 'none',
-                background: 'var(--color-primary)',
-                color: '#fff',
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: generatingPdf || statementItems.length === 0 ? 'not-allowed' : 'pointer',
-                opacity: generatingPdf || statementItems.length === 0 ? 0.5 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-                boxShadow: '0 2px 8px rgba(59,42,31,0.25)',
-              }}
-            >
-              <span>📄</span>
-              {generatingPdf ? 'Generating PDF…' : 'Download Statement PDF'}
-            </button>
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                disabled={generatingPdf || statementItems.length === 0}
+                style={{
+                  flex: '1 1 200px',
+                  minHeight: 46,
+                  padding: '11px 16px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: 'var(--color-primary)',
+                  color: '#fff',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: generatingPdf || statementItems.length === 0 ? 'not-allowed' : 'pointer',
+                  opacity: generatingPdf || statementItems.length === 0 ? 0.5 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  boxShadow: '0 3px 12px rgba(59,42,31,0.25)',
+                  transition: 'all 180ms',
+                }}
+              >
+                <span style={{ fontSize: 16 }}>📄</span>
+                <span>{generatingPdf ? 'Generating PDF…' : 'Download Statement PDF'}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
     </div>,
     document.body
+
   )
 }

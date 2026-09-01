@@ -190,44 +190,96 @@ function InvoiceCard({
   const pStatus     = inv.payment_status ?? 'uncleared'
   const pConfig     = PAYMENT_BADGE_CONFIG[pStatus] ?? PAYMENT_BADGE_CONFIG.uncleared
 
+  const netReceivable = Number(inv.net_receivable ?? 0)
+  const totalReceived = Number(inv.total_received ?? 0)
+  const balanceDue    = Number(inv.balance_due ?? netReceivable)
+  const pctReceived   = netReceivable > 0 ? Math.min(100, Math.max(0, Math.round((totalReceived / netReceivable) * 100))) : (pStatus === 'cleared' ? 100 : 0)
+
+  // Status-driven left border color
+  const leftBorderColor = isCancelled
+    ? 'var(--color-error)'
+    : isDraft
+    ? 'var(--color-accent)'
+    : pStatus === 'cleared'
+    ? 'var(--color-success)'
+    : pStatus === 'partially_cleared'
+    ? 'var(--color-warning)'
+    : 'var(--color-terracotta, #8C4A32)'
+
   return (
     <div style={{
-      background: 'var(--color-surface)',
-      borderRadius: 14,
-      padding: '14px 16px',
-      border: '1px solid rgba(217,211,197,0.45)',
-      boxShadow: '0 1px 3px rgba(43,31,21,0.05), 0 4px 14px rgba(43,31,21,0.03)',
+      background: '#fff',
+      borderRadius: 16,
+      padding: '16px',
+      border: '1px solid var(--color-border)',
+      borderLeft: `5px solid ${leftBorderColor}`,
+      boxShadow: '0 2px 8px rgba(43,31,21,0.05), 0 6px 20px rgba(43,31,21,0.03)',
       position: 'relative',
       overflow: 'hidden',
-      opacity: loadingEdit === inv.id || isCancelled ? (isCancelled ? 0.72 : 0.6) : 1,
-      transition: 'opacity 150ms',
+      opacity: loadingEdit === inv.id || isCancelled ? (isCancelled ? 0.75 : 0.6) : 1,
+      transition: 'all 200ms ease',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 10,
     }}>
       {isCancelled && <VoidStamp />}
 
-      {/* Top row */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+      {/* Top Row: Invoice Number, Client, & Badges */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-primary)', fontFamily: 'Playfair Display, serif', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {inv.invoice_number}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 16 }}>🧾</span>
+            <h3 style={{
+              margin: 0,
+              fontSize: 16,
+              fontWeight: 700,
+              color: 'var(--color-primary)',
+              fontFamily: 'Playfair Display, serif',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}>
+              {inv.invoice_number}
+            </h3>
           </div>
-          <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {inv.client_name ?? '—'}
+          <div style={{
+            fontSize: 13,
+            fontWeight: 600,
+            color: 'var(--color-text)',
+            marginTop: 3,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}>
+            <span style={{ opacity: 0.6, fontSize: 12 }}>🏢</span>
+            <span>{inv.client_name ?? '—'}</span>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 8 }}>
+
+        {/* Right Badges */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           <span style={{
-            fontSize: 11, fontWeight: 600, padding: '4px 10px',
-            borderRadius: 999,
+            fontSize: 11,
+            fontWeight: 700,
+            padding: '3px 8px',
+            borderRadius: 20,
             color: STATUS_COLOR[st] ?? 'var(--color-text-muted)',
             background: STATUS_BG[st] ?? 'transparent',
+            border: `1px solid ${STATUS_COLOR[st] ?? 'var(--color-border)'}`,
             textTransform: 'capitalize',
-          }}>{st}</span>
+          }}>
+            {st}
+          </span>
 
-          {/* Payment Status Badge (Final Invoices Only) */}
           {isFinal && (
             <span style={{
-              fontSize: 11, fontWeight: 600, padding: '4px 10px',
-              borderRadius: 999,
+              fontSize: 11,
+              fontWeight: 700,
+              padding: '3px 8px',
+              borderRadius: 20,
               color: pConfig.color,
               background: pConfig.bg,
               display: 'inline-flex',
@@ -244,72 +296,152 @@ function InvoiceCard({
         </div>
       </div>
 
-      {/* Date + period row */}
-      <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 8 }}>
-        {inv.invoice_date} &bull; {inv.billing_from} → {inv.billing_to}
+      {/* Metadata Row: Date, Period, WO */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--color-text-muted)' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--color-surface-offset)', padding: '3px 8px', borderRadius: 6 }}>
+          <span>📅</span> {inv.invoice_date}
+        </span>
+        {(inv.billing_from || inv.billing_to) && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--color-surface-offset)', padding: '3px 8px', borderRadius: 6 }}>
+            <span>🕒</span> {inv.billing_from} → {inv.billing_to}
+          </span>
+        )}
         {inv.work_order_reference && (
-          <span style={{ marginLeft: 6, color: 'var(--color-text-faint)' }}>· W.O. {inv.work_order_reference}</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(200,169,106,0.15)', color: 'var(--color-primary)', padding: '3px 8px', borderRadius: 6, fontWeight: 600 }}>
+            <span>🔖</span> WO #{inv.work_order_reference}
+          </span>
         )}
       </div>
 
-      {/* Financial row */}
+      {/* Financials 3-Part Summary Block */}
       <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: isFinal ? 6 : (isCancelled ? 12 : 0),
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: 6,
+        background: 'var(--color-surface-offset)',
+        padding: '10px 12px',
+        borderRadius: 10,
+        textAlign: 'center',
       }}>
-        <span style={{ fontSize: 12, color: 'var(--color-text-faint)' }}>Net Receivable</span>
-        <span style={{ fontSize: 16, fontWeight: 700, color: isCancelled ? 'var(--color-text-faint)' : 'var(--color-text)', fontVariantNumeric: 'tabular-nums' }}>
-          ₹{fmt(inv.net_receivable)}
-        </span>
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--color-text-faint)', textTransform: 'uppercase', letterSpacing: '0.4px', fontWeight: 600 }}>
+            Total Billed
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: isCancelled ? 'var(--color-text-faint)' : 'var(--color-text)', fontVariantNumeric: 'tabular-nums', marginTop: 2 }}>
+            ₹{fmt(netReceivable)}
+          </div>
+        </div>
+
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--color-text-faint)', textTransform: 'uppercase', letterSpacing: '0.4px', fontWeight: 600 }}>
+            Received
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-success)', fontVariantNumeric: 'tabular-nums', marginTop: 2 }}>
+            ₹{fmt(totalReceived)}
+          </div>
+        </div>
+
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--color-text-faint)', textTransform: 'uppercase', letterSpacing: '0.4px', fontWeight: 600 }}>
+            Balance Due
+          </div>
+          <div style={{
+            fontSize: 13,
+            fontWeight: 700,
+            color: isCancelled ? 'var(--color-text-faint)' : (balanceDue <= 0.01 ? 'var(--color-success)' : 'var(--color-warning)'),
+            fontVariantNumeric: 'tabular-nums',
+            marginTop: 2,
+          }}>
+            ₹{fmt(balanceDue)}
+          </div>
+        </div>
       </div>
 
-      {/* Payment details strip for Final Invoices */}
+      {/* Payment Progress Bar (for final invoices) */}
       {isFinal && (
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 12,
-          background: 'var(--color-surface-offset)',
-          borderRadius: 8,
-          padding: '7px 10px',
-          fontSize: 12,
-        }}>
-          <div>
-            <span style={{ color: 'var(--color-text-faint)' }}>Received: </span>
-            <span style={{ fontWeight: 600, color: 'var(--color-success)' }}>₹{fmt(inv.total_received ?? 0)}</span>
-          </div>
-          <div>
-            <span style={{ color: 'var(--color-text-faint)' }}>Balance Due: </span>
+        <div style={{ marginTop: -2, marginBottom: 2 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, marginBottom: 4 }}>
+            <span style={{ color: 'var(--color-text-faint)', fontSize: 10 }}>Collection Progress</span>
             <span style={{
               fontWeight: 700,
-              color: (inv.balance_due ?? 0) <= 0.01 ? 'var(--color-success)' : 'var(--color-warning)',
-              fontVariantNumeric: 'tabular-nums',
+              fontSize: 11,
+              color: pStatus === 'cleared' ? 'var(--color-success)' : (pStatus === 'partially_cleared' ? 'var(--color-warning)' : 'var(--color-text-faint)'),
             }}>
-              ₹{fmt(inv.balance_due ?? inv.net_receivable)}
+              {pStatus === 'cleared' ? '100% Cleared ✓' : `${pctReceived}% Paid`}
             </span>
+          </div>
+          <div style={{ height: 6, background: 'var(--color-surface-offset)', borderRadius: 999, overflow: 'hidden' }}>
+            <div style={{
+              height: '100%',
+              width: `${pctReceived}%`,
+              background: pStatus === 'cleared' ? 'var(--color-success)' : 'linear-gradient(90deg, var(--color-accent), var(--color-warning))',
+              borderRadius: 999,
+              transition: 'width 250ms ease-out',
+            }} />
           </div>
         </div>
       )}
 
-      {/* Draft: tap to edit */}
+      {/* Draft: tap to continue editing */}
       {isDraft && (
         <div
           onClick={() => onOpen(inv)}
           role="button"
           tabIndex={0}
           aria-label={`Edit draft invoice ${inv.invoice_number}`}
-          style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, background: 'var(--color-surface-offset)', fontSize: 13, color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
+          style={{
+            marginTop: 4,
+            padding: '10px 14px',
+            borderRadius: 10,
+            background: 'rgba(200, 169, 106, 0.15)',
+            border: '1px dashed var(--color-accent)',
+            fontSize: 13,
+            fontWeight: 600,
+            color: 'var(--color-primary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            cursor: 'pointer',
+          }}
         >
-          <span>✏️</span><span>Tap to continue editing</span>
+          <span>✏️</span>
+          <span>Tap to continue drafting this invoice</span>
         </div>
       )}
 
-      {/* Final: PDF + Edit + Mark Received + Cancel */}
+      {/* Final: Action Toolbar */}
       {isFinal && (
-        <div onClick={e => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div onClick={e => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+          {/* Mark Received Button (shown if invoice has pending balance) */}
+          {balanceDue > 0.01 && (
+            <button
+              type="button"
+              onClick={() => onMarkReceived(inv)}
+              aria-label={`Mark received for ${inv.invoice_number}`}
+              style={{
+                width: '100%',
+                minHeight: 40,
+                padding: '9px 14px',
+                borderRadius: 10,
+                border: '1.5px solid var(--color-accent)',
+                background: 'rgba(200, 169, 106, 0.16)',
+                color: 'var(--color-primary)',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                boxShadow: '0 1px 4px rgba(200, 169, 106, 0.2)',
+                transition: 'all 150ms',
+              }}
+            >
+              <span>💰</span> Mark Received (Due: ₹{fmt(balanceDue)})
+            </button>
+          )}
+
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{ flex: 1 }}>
               <InvoiceActions invoiceId={inv.id} invoiceNumber={inv.invoice_number} status={inv.status} />
@@ -319,40 +451,25 @@ function InvoiceCard({
               disabled={loadingEdit === inv.id}
               onClick={() => onOpen(inv)}
               aria-label={`Edit invoice ${inv.invoice_number}`}
-              style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--color-primary)', background: 'transparent', color: 'var(--color-primary)', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'background 150ms, color 150ms', opacity: loadingEdit === inv.id ? 0.6 : 1 }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-primary)'; e.currentTarget.style.color = '#fff' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-primary)' }}
-            >{loadingEdit === inv.id ? 'Loading…' : '✏️ Edit'}</button>
-          </div>
-
-          {/* Mark Received Button (shown if invoice has pending balance) */}
-          {(inv.balance_due ?? 0) > 0.01 && (
-            <button
-              type="button"
-              onClick={() => onMarkReceived(inv)}
-              aria-label={`Mark received for ${inv.invoice_number}`}
               style={{
-                width: '100%',
-                padding: '8px 0',
+                padding: '8px 16px',
                 borderRadius: 8,
-                border: '1px solid var(--color-accent)',
-                background: 'rgba(200,169,106,0.15)',
+                border: '1.5px solid var(--color-primary)',
+                background: 'transparent',
                 color: 'var(--color-primary)',
                 fontSize: 13,
-                fontWeight: 700,
+                fontWeight: 600,
                 cursor: 'pointer',
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
-                justifyContent: 'center',
                 gap: 6,
-                transition: 'background 150ms',
+                transition: 'all 150ms',
+                opacity: loadingEdit === inv.id ? 0.6 : 1,
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-accent)'; e.currentTarget.style.color = 'var(--color-primary)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(200,169,106,0.15)'; e.currentTarget.style.color = 'var(--color-primary)' }}
             >
-              <span>💰</span> Mark Received (Due: ₹{fmt(inv.balance_due)})
+              {loadingEdit === inv.id ? '…' : '✏️ Edit'}
             </button>
-          )}
+          </div>
 
           <CancelInvoiceButton invoiceId={inv.id} onCancelled={() => onCancelled(inv.id)} />
         </div>
@@ -360,7 +477,7 @@ function InvoiceCard({
 
       {/* Cancelled: PDF only */}
       {isCancelled && (
-        <div onClick={e => e.stopPropagation()}>
+        <div onClick={e => e.stopPropagation()} style={{ marginTop: 4 }}>
           <InvoiceActions invoiceId={inv.id} invoiceNumber={inv.invoice_number} status={inv.status} />
         </div>
       )}
@@ -426,19 +543,64 @@ export default function InvoicesPage() {
     }
   }, [invoices])
 
+  // Invoices filtered by active FY
+  const fyInvoices = useMemo(() => {
+    return invoices.filter(inv => {
+      const isDraft = inv.status === 'draft'
+      return isDraft ? selectedFY === currentFY() : getFY(inv.invoice_date) === selectedFY
+    })
+  }, [invoices, selectedFY])
+
+  // Pre-calculated counts for filters in the selected FY
+  const counts = useMemo(() => {
+    const total = fyInvoices.length
+    const finalCount = fyInvoices.filter(i => i.status === 'final').length
+    const draftCount = fyInvoices.filter(i => i.status === 'draft').length
+    const cancelledCount = fyInvoices.filter(i => i.status === 'cancelled').length
+
+    const finalInvoices = fyInvoices.filter(i => i.status === 'final')
+    const unclearedCount = finalInvoices.filter(i => (i.payment_status ?? 'uncleared') === 'uncleared').length
+    const partialCount = finalInvoices.filter(i => i.payment_status === 'partially_cleared').length
+    const clearedCount = finalInvoices.filter(i => i.payment_status === 'cleared').length
+
+    return {
+      total,
+      final: finalCount,
+      draft: draftCount,
+      cancelled: cancelledCount,
+      uncleared: unclearedCount,
+      partial: partialCount,
+      cleared: clearedCount,
+    }
+  }, [fyInvoices])
+
+  // Financial KPI totals for the selected FY
+  const kpis = useMemo(() => {
+    const active = fyInvoices.filter(i => i.status !== 'cancelled')
+    const totalBilled = active.reduce((sum, i) => sum + (Number(i.net_receivable) || 0), 0)
+    const totalReceived = active.reduce((sum, i) => sum + (Number(i.total_received) || 0), 0)
+    const totalDue = active.reduce((sum, i) => sum + (Number(i.balance_due ?? i.net_receivable) || 0), 0)
+    return {
+      totalBilled,
+      totalReceived,
+      totalDue,
+    }
+  }, [fyInvoices])
+
+  // Search & filter matching
   const filtered = useMemo(() => {
-    const result = invoices.filter(inv => {
-      const isDraft   = inv.status === 'draft'
-      const fyOk      = isDraft ? selectedFY === currentFY() : getFY(inv.invoice_date) === selectedFY
+    const term = search.trim().toLowerCase()
+    const result = fyInvoices.filter(inv => {
       const statusOk  = statusFilter === 'all' || inv.status === statusFilter
-      const paymentOk = paymentFilter === 'all' || (inv.status === 'final' && inv.payment_status === paymentFilter)
-      const searchOk  = !search.trim() ||
-        (inv.invoice_number ?? '').toLowerCase().includes(search.toLowerCase()) ||
-        (inv.client_name   ?? '').toLowerCase().includes(search.toLowerCase())
-      return fyOk && statusOk && paymentOk && searchOk
+      const paymentOk = paymentFilter === 'all' || (inv.status === 'final' && (inv.payment_status ?? 'uncleared') === paymentFilter)
+      const searchOk  = !term ||
+        (inv.invoice_number ?? '').toLowerCase().includes(term) ||
+        (inv.client_name   ?? '').toLowerCase().includes(term) ||
+        (inv.work_order_reference ?? '').toLowerCase().includes(term)
+      return statusOk && paymentOk && searchOk
     })
     return sortByNumberDesc(result)
-  }, [invoices, selectedFY, statusFilter, paymentFilter, search])
+  }, [fyInvoices, statusFilter, paymentFilter, search])
 
   async function handleOpen(inv: InvoiceWithDetails) {
     setLoadingEdit(inv.id)
@@ -477,21 +639,39 @@ export default function InvoicesPage() {
   }
 
   return (
-    <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
-      {/* ─── Sticky header ─── */}
+    <div style={{ minHeight: '100%', background: 'var(--color-bg)', paddingBottom: 'calc(var(--nav-height, 60px) + 24px)' }}>
+      {/* ─── Sticky header with Executive KPIs ─── */}
       <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <h1 style={{ fontSize: 20, color: 'var(--color-accent)', margin: 0, fontFamily: 'Playfair Display, serif' }}>Invoices</h1>
-          <div style={{ display: 'flex', gap: 8 }}>
+        {/* Title & Action Buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
+          <div>
+            <h1 style={{ fontSize: 22, color: 'var(--color-accent)', margin: 0, fontFamily: 'Playfair Display, serif' }}>
+              Invoices & Billing
+            </h1>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+              FY {selectedFY} &bull; {counts.total} Bill{counts.total === 1 ? '' : 's'} recorded
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button
               type="button"
               onClick={() => setShowStatementModal(true)}
               style={{
-                background: 'rgba(200,169,106,0.18)', color: 'var(--color-primary)',
-                border: '1px solid var(--color-accent)', borderRadius: 10, padding: '9px 12px',
-                fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                background: 'rgba(200,169,106,0.18)',
+                color: 'var(--color-accent)',
+                border: '1px solid var(--color-accent)',
+                borderRadius: 10,
+                padding: '8px 12px',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
                 fontFamily: 'Work Sans, sans-serif',
-                display: 'flex', alignItems: 'center', gap: 6,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                minHeight: 38,
+                transition: 'all 150ms',
               }}
             >
               <span>📄</span> Statement Report
@@ -500,114 +680,220 @@ export default function InvoicesPage() {
               type="button"
               onClick={() => { setEditDraft(undefined); setEditStatus(undefined); setEditInvoiceId(null); setShowWizard(true) }}
               style={{
-                background: 'var(--color-accent)', color: 'var(--color-primary)',
-                border: 'none', borderRadius: 10, padding: '9px 16px',
-                fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                background: 'var(--color-accent)',
+                color: 'var(--color-primary)',
+                border: 'none',
+                borderRadius: 10,
+                padding: '8px 16px',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
                 fontFamily: 'Work Sans, sans-serif',
                 boxShadow: '0 2px 8px rgba(200,169,106,0.25)',
                 minHeight: 38,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
               }}
-            >+ New Invoice</button>
+            >
+              <span>+</span> New Invoice
+            </button>
           </div>
         </div>
 
-        {/* Search */}
-        <input
-          type="search"
-          placeholder="Search invoice # or client…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{
-            width: '100%', boxSizing: 'border-box',
-            padding: '9px 12px', borderRadius: 10,
-            border: '1px solid var(--color-border)',
-            background: 'var(--color-surface-offset)',
-            color: 'var(--color-text)', fontSize: 14,
-            fontFamily: 'Work Sans, sans-serif',
-            outline: 'none', marginBottom: 10,
-          }}
-        />
+        {/* Executive Financial Summary KPIs for Selected FY */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
+          <div style={{ background: 'rgba(200, 169, 106, 0.12)', border: '1px solid rgba(200, 169, 106, 0.3)', borderRadius: 12, padding: '9px 10px' }}>
+            <div style={{ fontSize: 10, color: 'var(--color-accent)', textTransform: 'uppercase', letterSpacing: '0.4px', fontWeight: 600 }}>Total Billed</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', fontVariantNumeric: 'tabular-nums', marginTop: 2 }}>
+              ₹{fmt(kpis.totalBilled)}
+            </div>
+          </div>
+          <div style={{ background: 'rgba(90, 122, 46, 0.18)', border: '1px solid rgba(90, 122, 46, 0.35)', borderRadius: 12, padding: '9px 10px' }}>
+            <div style={{ fontSize: 10, color: '#88C057', textTransform: 'uppercase', letterSpacing: '0.4px', fontWeight: 600 }}>Collected</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#A5D6A7', fontVariantNumeric: 'tabular-nums', marginTop: 2 }}>
+              ₹{fmt(kpis.totalReceived)}
+            </div>
+          </div>
+          <div style={{ background: 'rgba(160, 92, 26, 0.22)', border: '1px solid rgba(160, 92, 26, 0.4)', borderRadius: 12, padding: '9px 10px' }}>
+            <div style={{ fontSize: 10, color: '#E59866', textTransform: 'uppercase', letterSpacing: '0.4px', fontWeight: 600 }}>Pending Due</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#FFCC80', fontVariantNumeric: 'tabular-nums', marginTop: 2 }}>
+              ₹{fmt(kpis.totalDue)}
+            </div>
+          </div>
+        </div>
 
-        {/* FY tabs */}
-        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
+        {/* Search Input with Clear Button */}
+        <div style={{ position: 'relative', marginBottom: 10 }}>
+          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 14, opacity: 0.6, pointerEvents: 'none' }}>
+            🔍
+          </span>
+          <input
+            type="search"
+            placeholder="Search invoice #, client, or WO ref…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              padding: '9px 34px 9px 36px',
+              borderRadius: 10,
+              border: '1px solid rgba(200, 169, 106, 0.35)',
+              background: 'rgba(255, 255, 255, 0.08)',
+              color: '#fff',
+              fontSize: 14,
+              fontFamily: 'Work Sans, sans-serif',
+              outline: 'none',
+            }}
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              style={{
+                position: 'absolute',
+                right: 10,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                color: 'rgba(255,255,255,0.6)',
+                cursor: 'pointer',
+                fontSize: 13,
+                padding: 4,
+              }}
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        {/* FY Tabs */}
+        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 4 }}>
           {availableFYs.map(fy => (
-            <button key={fy} type="button" onClick={() => setSelectedFY(fy)} style={{
-              flexShrink: 0, fontSize: 12, padding: '5px 14px', borderRadius: 20, minHeight: 30,
-              border: '1px solid var(--color-border)',
-              background: selectedFY === fy ? 'var(--color-accent)' : 'transparent',
-              color: selectedFY === fy ? 'var(--color-primary)' : 'var(--color-text-muted)',
-              fontWeight: selectedFY === fy ? 600 : 400, cursor: 'pointer',
-              fontFamily: 'Work Sans, sans-serif',
-              transition: 'background 180ms, color 180ms',
-            }}>FY {fy}</button>
+            <button
+              key={fy}
+              type="button"
+              onClick={() => setSelectedFY(fy)}
+              style={{
+                flexShrink: 0,
+                fontSize: 12,
+                padding: '5px 14px',
+                borderRadius: 20,
+                minHeight: 30,
+                border: `1px solid ${selectedFY === fy ? 'var(--color-accent)' : 'rgba(255,255,255,0.18)'}`,
+                background: selectedFY === fy ? 'var(--color-accent)' : 'transparent',
+                color: selectedFY === fy ? 'var(--color-primary)' : 'rgba(255,255,255,0.65)',
+                fontWeight: selectedFY === fy ? 700 : 500,
+                cursor: 'pointer',
+                fontFamily: 'Work Sans, sans-serif',
+                transition: 'all 180ms',
+              }}
+            >
+              FY {fy}
+            </button>
           ))}
         </div>
 
-        {/* Status filter */}
-        <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-          {(['final', 'draft', 'cancelled', 'all'] as FilterStatus[]).map(s => (
-            <button key={s} type="button" onClick={() => setStatusFilter(s)} style={{
-              flexShrink: 0, fontSize: 12, padding: '5px 14px', borderRadius: 20, minHeight: 30,
-              border: `1px solid ${
-                statusFilter === s
-                  ? (STATUS_COLOR[s] ?? 'var(--color-accent)')
-                  : 'var(--color-border)'
-              }`,
-              background: statusFilter === s
-                ? (STATUS_BG[s] ?? 'rgba(200,169,106,0.12)')
-                : 'transparent',
-              color: statusFilter === s
-                ? (STATUS_COLOR[s] ?? 'var(--color-primary)')
-                : 'var(--color-text-muted)',
-              fontWeight: statusFilter === s ? 600 : 400, cursor: 'pointer',
-              fontFamily: 'Work Sans, sans-serif',
-              textTransform: 'capitalize',
-              transition: 'all 180ms',
-            }}>{s === 'all' ? 'All' : s}</button>
-          ))}
-        </div>
-
-        {/* Payment Sub-filters (when viewing final or all invoices) */}
-        {(statusFilter === 'final' || statusFilter === 'all') && (
-          <div style={{ display: 'flex', gap: 6, marginTop: 8, overflowX: 'auto', paddingBottom: 2 }}>
-            <span style={{ fontSize: 11, color: 'var(--color-text-faint)', alignSelf: 'center', marginRight: 2 }}>Payment:</span>
-            {[
-              { id: 'all', label: 'All' },
-              { id: 'uncleared', label: '⚪ Uncleared' },
-              { id: 'partially_cleared', label: '🟠 Partial' },
-              { id: 'cleared', label: '🟢 Cleared' },
-            ].map(p => (
+        {/* Status Filter Tabs with Live Count Badges */}
+        <div style={{ display: 'flex', gap: 6, marginTop: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 2 }}>
+          {(['final', 'draft', 'cancelled', 'all'] as FilterStatus[]).map(s => {
+            const cnt = s === 'all' ? counts.total : counts[s]
+            const isActive = statusFilter === s
+            return (
               <button
-                key={p.id}
+                key={s}
                 type="button"
-                onClick={() => setPaymentFilter(p.id as PaymentFilter)}
+                onClick={() => setStatusFilter(s)}
                 style={{
                   flexShrink: 0,
-                  fontSize: 11,
-                  padding: '3px 10px',
-                  borderRadius: 16,
-                  border: `1px solid ${paymentFilter === p.id ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                  background: paymentFilter === p.id ? 'var(--color-primary)' : 'transparent',
-                  color: paymentFilter === p.id ? '#fff' : 'var(--color-text-muted)',
-                  fontWeight: paymentFilter === p.id ? 700 : 500,
+                  fontSize: 12,
+                  padding: '5px 12px',
+                  borderRadius: 20,
+                  minHeight: 30,
+                  border: `1px solid ${isActive ? (STATUS_COLOR[s] ?? 'var(--color-accent)') : 'rgba(255,255,255,0.18)'}`,
+                  background: isActive ? (STATUS_BG[s] ?? 'rgba(200,169,106,0.2)') : 'rgba(255,255,255,0.06)',
+                  color: isActive ? '#fff' : 'rgba(255,255,255,0.65)',
+                  fontWeight: isActive ? 700 : 500,
                   cursor: 'pointer',
                   fontFamily: 'Work Sans, sans-serif',
-                  transition: 'all 150ms',
+                  textTransform: 'capitalize',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  transition: 'all 180ms',
                 }}
               >
-                {p.label}
+                <span>{s === 'all' ? 'All' : s}</span>
+                <span style={{
+                  fontSize: 10,
+                  padding: '1px 6px',
+                  borderRadius: 10,
+                  background: isActive ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)',
+                  color: isActive ? '#fff' : 'rgba(255,255,255,0.7)',
+                }}>
+                  {cnt}
+                </span>
               </button>
-            ))}
+            )
+          })}
+        </div>
+
+        {/* Payment Sub-filters (when viewing final or all invoices) with Count Badges */}
+        {(statusFilter === 'final' || statusFilter === 'all') && (
+          <div style={{ display: 'flex', gap: 6, marginTop: 8, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 2, alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', alignSelf: 'center', marginRight: 2, flexShrink: 0 }}>Payment:</span>
+            {[
+              { id: 'all', label: 'All', count: counts.final },
+              { id: 'uncleared', label: '⚪ Uncleared', count: counts.uncleared },
+              { id: 'partially_cleared', label: '🟠 Partial', count: counts.partial },
+              { id: 'cleared', label: '🟢 Cleared', count: counts.cleared },
+            ].map(p => {
+              const isActive = paymentFilter === p.id
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setPaymentFilter(p.id as PaymentFilter)}
+                  style={{
+                    flexShrink: 0,
+                    fontSize: 11,
+                    padding: '3px 9px',
+                    borderRadius: 16,
+                    border: `1px solid ${isActive ? 'var(--color-accent)' : 'rgba(255,255,255,0.15)'}`,
+                    background: isActive ? 'rgba(200, 169, 106, 0.25)' : 'transparent',
+                    color: isActive ? '#fff' : 'rgba(255,255,255,0.65)',
+                    fontWeight: isActive ? 700 : 500,
+                    cursor: 'pointer',
+                    fontFamily: 'Work Sans, sans-serif',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    transition: 'all 150ms',
+                  }}
+                >
+                  <span>{p.label}</span>
+                  <span style={{
+                    fontSize: 9,
+                    padding: '0 5px',
+                    borderRadius: 8,
+                    background: isActive ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)',
+                  }}>
+                    {p.count}
+                  </span>
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
 
-      {/* ─── List ─── */}
+      {/* ─── Invoices List ─── */}
       <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {loading ? (
           Array.from({ length: 4 }).map((_, i) => (
             <div key={i} style={{
-              height: 110, borderRadius: 14,
+              height: 120, borderRadius: 16,
               background: 'linear-gradient(90deg, var(--color-surface-offset) 25%, var(--color-surface-dynamic, #e6e4df) 50%, var(--color-surface-offset) 75%)',
               backgroundSize: '200% 100%',
               animation: 'shimmer 1.5s ease-in-out infinite',
@@ -615,16 +901,16 @@ export default function InvoicesPage() {
           ))
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '48px 16px', color: 'var(--color-text-faint)' }}>
-            <div style={{ fontSize: 32, marginBottom: 10 }}>📄</div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 6 }}>
-              No {statusFilter === 'all' ? '' : statusFilter} invoices found for FY {selectedFY}
+            <div style={{ fontSize: 36, marginBottom: 10 }}>📄</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text)', marginBottom: 6 }}>
+              No {statusFilter === 'all' ? '' : statusFilter} invoices found
             </div>
             {invoices.length > 0 ? (
-              <div style={{ fontSize: 13, color: 'var(--color-accent)' }}>
-                You have {invoices.length} invoice{invoices.length === 1 ? '' : 's'} in other financial years or status filters. Select an FY tab above to view them.
+              <div style={{ fontSize: 13, color: 'var(--color-text-muted)', maxWidth: 360, margin: '0 auto' }}>
+                You have {invoices.length} invoice{invoices.length === 1 ? '' : 's'} across other FYs or filter settings. Switch financial year or clear search to view.
               </div>
             ) : (
-              <div style={{ fontSize: 13, color: 'var(--color-text-faint)' }}>
+              <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
                 Tap "+ New Invoice" above to create your first bill.
               </div>
             )}

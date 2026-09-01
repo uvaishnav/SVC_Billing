@@ -131,11 +131,12 @@ export default function MarkReceivedModal({ invoice, onClose, onSuccess }: Props
         position: 'fixed',
         inset: 0,
         backgroundColor: 'rgba(30, 20, 10, 0.65)',
+        backdropFilter: 'blur(3px)',
         zIndex: 10000,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '16px',
+        padding: '12px 10px',
       }}
       onClick={onClose}
     >
@@ -143,52 +144,55 @@ export default function MarkReceivedModal({ invoice, onClose, onSuccess }: Props
         style={{
           background: 'var(--color-surface, #FAF8F3)',
           borderRadius: 18,
-          maxWidth: 480,
+          maxWidth: 500,
           width: '100%',
-          maxHeight: '92vh',
-          overflowY: 'auto',
-          boxShadow: '0 8px 32px rgba(43,31,21,0.25)',
+          maxHeight: '94dvh',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: '0 12px 40px rgba(43,31,21,0.3)',
           border: '1px solid var(--color-border, #D9D3C5)',
+          overflow: 'hidden',
         }}
         onClick={e => e.stopPropagation()}
       >
         {/* Modal Header */}
         <div
           style={{
-            padding: '18px 20px',
+            padding: '16px 18px',
             borderBottom: '1px solid var(--color-border, #D9D3C5)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             background: 'var(--color-primary, #3B2A1F)',
             color: '#fff',
-            borderTopLeftRadius: 17,
-            borderTopRightRadius: 17,
+            flexShrink: 0,
           }}
         >
-          <div>
+          <div style={{ minWidth: 0, paddingRight: 8 }}>
             <div style={{ fontSize: 11, color: 'var(--color-accent, #C8A96A)', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600 }}>
               Payment Receipt
             </div>
-            <h2 style={{ margin: 0, fontSize: 17, fontFamily: 'Playfair Display, serif', color: '#fff' }}>
+            <h2 style={{ margin: 0, fontSize: 17, fontFamily: 'Playfair Display, serif', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               Mark Received: {invoice.invoice_number}
             </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close modal"
             style={{
               background: 'rgba(255,255,255,0.12)',
               border: 'none',
               borderRadius: '50%',
-              width: 32,
-              height: 32,
+              width: 34,
+              height: 34,
               color: '#fff',
               fontSize: 16,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              flexShrink: 0,
             }}
           >
             ✕
@@ -196,35 +200,45 @@ export default function MarkReceivedModal({ invoice, onClose, onSuccess }: Props
         </div>
 
         {/* Modal Body */}
-        <form onSubmit={handleSubmit} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <form
+          onSubmit={handleSubmit}
+          style={{
+            padding: '16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
           {/* Bill Summary Card */}
           <div
             style={{
               background: 'var(--color-surface-offset, #EDE9DE)',
               borderRadius: 12,
-              padding: '14px',
+              padding: '12px 14px',
               border: '1px solid rgba(217,211,197,0.8)',
             }}
           >
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text, #2A1F15)', marginBottom: 6 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text, #2A1F15)', marginBottom: 8 }}>
               {invoice.client_name ?? 'Client'}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, textAlign: 'center' }}>
-              <div style={{ background: '#fff', padding: '8px', borderRadius: 8, border: '1px solid var(--color-border)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, textAlign: 'center' }}>
+              <div style={{ background: '#fff', padding: '8px 4px', borderRadius: 8, border: '1px solid var(--color-border)' }}>
                 <div style={{ fontSize: 10, color: 'var(--color-text-faint)' }}>Net Bill</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text)', fontVariantNumeric: 'tabular-nums' }}>
                   ₹{fmt(netReceivable)}
                 </div>
               </div>
-              <div style={{ background: '#fff', padding: '8px', borderRadius: 8, border: '1px solid var(--color-border)' }}>
+              <div style={{ background: '#fff', padding: '8px 4px', borderRadius: 8, border: '1px solid var(--color-border)' }}>
                 <div style={{ fontSize: 10, color: 'var(--color-text-faint)' }}>Received</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-success, #5A7A2E)' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-success, #5A7A2E)', fontVariantNumeric: 'tabular-nums' }}>
                   ₹{fmt(totalReceived)}
                 </div>
               </div>
-              <div style={{ background: '#fff', padding: '8px', borderRadius: 8, border: '1px solid var(--color-border)' }}>
+              <div style={{ background: '#fff', padding: '8px 4px', borderRadius: 8, border: '1px solid var(--color-border)' }}>
                 <div style={{ fontSize: 10, color: 'var(--color-text-faint)' }}>Balance Due</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-warning, #A05C1A)' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-warning, #A05C1A)', fontVariantNumeric: 'tabular-nums' }}>
                   ₹{fmt(balanceDue)}
                 </div>
               </div>
@@ -238,19 +252,20 @@ export default function MarkReceivedModal({ invoice, onClose, onSuccess }: Props
                 background: 'rgba(200, 169, 106, 0.15)',
                 border: '1px solid var(--color-accent, #C8A96A)',
                 borderRadius: 10,
-                padding: '10px 14px',
+                padding: '10px 12px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                gap: 10,
+                flexWrap: 'wrap',
+                gap: 8,
               }}
             >
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)' }}>
-                  💎 Client Advance Available: ₹{fmt(clientAdvance.unallocatedAdvance)}
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary)' }}>
+                  💎 Client Advance: ₹{fmt(clientAdvance.unallocatedAdvance)}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-                  From previous excess lump-sum payments
+                  Excess credit on account
                 </div>
               </div>
               <button
@@ -262,7 +277,7 @@ export default function MarkReceivedModal({ invoice, onClose, onSuccess }: Props
                   color: 'var(--color-primary)',
                   border: 'none',
                   borderRadius: 8,
-                  padding: '6px 12px',
+                  padding: '7px 12px',
                   fontSize: 12,
                   fontWeight: 700,
                   cursor: 'pointer',
@@ -289,11 +304,13 @@ export default function MarkReceivedModal({ invoice, onClose, onSuccess }: Props
                 boxSizing: 'border-box',
                 padding: '10px 12px',
                 borderRadius: 10,
-                border: '1px solid var(--color-border)',
+                border: '1.5px solid var(--color-border)',
                 background: '#fff',
                 fontSize: 14,
+                fontWeight: 600,
                 fontFamily: 'Work Sans, sans-serif',
                 outline: 'none',
+                color: 'var(--color-text)',
               }}
             />
           </div>
@@ -334,12 +351,13 @@ export default function MarkReceivedModal({ invoice, onClose, onSuccess }: Props
                 boxSizing: 'border-box',
                 padding: '10px 12px',
                 borderRadius: 10,
-                border: '1px solid var(--color-border)',
+                border: '1.5px solid var(--color-border)',
                 background: '#fff',
                 fontSize: 16,
                 fontWeight: 700,
                 fontFamily: 'Work Sans, sans-serif',
                 outline: 'none',
+                color: 'var(--color-text)',
               }}
             />
 
@@ -363,8 +381,8 @@ export default function MarkReceivedModal({ invoice, onClose, onSuccess }: Props
             </div>
           </div>
 
-          {/* Payment Mode (Optional) */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {/* Payment Mode & Reference (Responsive 1 or 2 Columns) */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: 12 }}>
             <div>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 6 }}>
                 Mode (Optional)
@@ -382,6 +400,7 @@ export default function MarkReceivedModal({ invoice, onClose, onSuccess }: Props
                   fontSize: 13,
                   fontFamily: 'Work Sans, sans-serif',
                   outline: 'none',
+                  color: 'var(--color-text)',
                 }}
               >
                 {PAYMENT_MODES.map(m => (
@@ -410,6 +429,7 @@ export default function MarkReceivedModal({ invoice, onClose, onSuccess }: Props
                   fontSize: 13,
                   fontFamily: 'Work Sans, sans-serif',
                   outline: 'none',
+                  color: 'var(--color-text)',
                 }}
               />
             </div>
@@ -435,6 +455,7 @@ export default function MarkReceivedModal({ invoice, onClose, onSuccess }: Props
                 fontSize: 13,
                 fontFamily: 'Work Sans, sans-serif',
                 outline: 'none',
+                color: 'var(--color-text)',
               }}
             />
           </div>
@@ -456,7 +477,7 @@ export default function MarkReceivedModal({ invoice, onClose, onSuccess }: Props
               id="ack-check"
               checked={acknowledged}
               onChange={e => setAcknowledged(e.target.checked)}
-              style={{ marginTop: 2, cursor: 'pointer' }}
+              style={{ marginTop: 3, cursor: 'pointer', width: 16, height: 16 }}
             />
             <label htmlFor="ack-check" style={{ fontSize: 12, color: 'var(--color-text)', cursor: 'pointer', lineHeight: 1.4 }}>
               I confirm that <b>₹{fmt(parsedAmount)}</b> was received from <b>{invoice.client_name ?? 'the company'}</b> on <b>{paymentDate}</b> for Invoice <b>{invoice.invoice_number}</b>.
@@ -470,13 +491,14 @@ export default function MarkReceivedModal({ invoice, onClose, onSuccess }: Props
           )}
 
           {/* Buttons */}
-          <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 4 }}>
             <button
               type="button"
               onClick={onClose}
               disabled={submitting}
               style={{
-                flex: 1,
+                flex: '1 1 100px',
+                minHeight: 46,
                 padding: '11px 0',
                 borderRadius: 10,
                 border: '1px solid var(--color-border)',
@@ -493,8 +515,9 @@ export default function MarkReceivedModal({ invoice, onClose, onSuccess }: Props
               type="submit"
               disabled={submitting || parsedAmount <= 0 || !acknowledged}
               style={{
-                flex: 2,
-                padding: '11px 0',
+                flex: '2 1 200px',
+                minHeight: 46,
+                padding: '11px 16px',
                 borderRadius: 10,
                 border: 'none',
                 background: 'var(--color-primary, #3B2A1F)',
