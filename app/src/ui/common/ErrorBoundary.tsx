@@ -1,4 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 
 interface Props {
   children: ReactNode
@@ -27,7 +28,8 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
-      return (
+      if (typeof document === 'undefined') return null
+      return createPortal(
         <div
           style={{
             position: 'fixed',
@@ -81,7 +83,8 @@ export default class ErrorBoundary extends Component<Props, State> {
               Close
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )
     }
 

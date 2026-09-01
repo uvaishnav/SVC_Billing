@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { pdf } from '@react-pdf/renderer'
 import { getClients } from '../../db/clientsDb'
 import { getSettings, getBankAccounts } from '../../db/settingsDb'
@@ -199,13 +200,15 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
     setTimeout(() => setCopiedWhatsApp(false), 3000)
   }
 
-  return (
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
     <div
       style={{
         position: 'fixed',
         inset: 0,
         backgroundColor: 'rgba(30, 20, 10, 0.65)',
-        zIndex: 1000,
+        zIndex: 10000,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -292,9 +295,13 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
                   outline: 'none',
                 }}
               >
-                {clients.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
+                {clients.length === 0 ? (
+                  <option value="">Loading clients…</option>
+                ) : (
+                  clients.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))
+                )}
               </select>
             </div>
 
@@ -447,6 +454,7 @@ export default function OutstandingStatementModal({ initialClientId, onClose }: 
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

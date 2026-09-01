@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { InvoiceWithDetails } from '../../db/types'
 import {
   recordInvoicePayment,
@@ -122,13 +123,15 @@ export default function MarkReceivedModal({ invoice, onClose, onSuccess }: Props
     onSuccess()
   }
 
-  return (
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
     <div
       style={{
         position: 'fixed',
         inset: 0,
         backgroundColor: 'rgba(30, 20, 10, 0.65)',
-        zIndex: 1000,
+        zIndex: 10000,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -508,6 +511,7 @@ export default function MarkReceivedModal({ invoice, onClose, onSuccess }: Props
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

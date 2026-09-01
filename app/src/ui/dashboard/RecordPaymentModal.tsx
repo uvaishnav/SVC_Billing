@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { getClients } from '../../db/clientsDb'
 import type { Client } from '../../db/types'
 import {
@@ -129,13 +130,15 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
     }
   }
 
-  return (
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
     <div
       style={{
         position: 'fixed',
         inset: 0,
         backgroundColor: 'rgba(30, 20, 10, 0.65)',
-        zIndex: 1000,
+        zIndex: 10000,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -580,6 +583,7 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
