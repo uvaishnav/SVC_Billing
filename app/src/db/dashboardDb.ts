@@ -133,10 +133,10 @@ export async function fetchKpis(): Promise<KpiData> {
       .gte('payment_date', fyStart)
       .lte('payment_date', fyEnd),
 
-    // All final invoices with payment allocations to compute total outstanding
+    // All final invoices to compute total outstanding
     supabase
       .from('invoices')
-      .select('net_receivable, payment_allocations(allocated_amount)')
+      .select('id, net_receivable')
       .eq('status', 'final'),
   ])
 
@@ -146,17 +146,33 @@ export async function fetchKpis(): Promise<KpiData> {
   const activeWoCount    = wos.length
   const expiringWoCount  = wos.filter(w => w.valid_to && w.valid_to >= today && w.valid_to <= in30Days).length
 
-  const thisMonthCollected = ((monthPayRes as any)?.data ?? []).reduce((s: number, p: any) => s + (Number(p.amount) || 0), 0)
-  const thisFyCollected    = ((fyPayRes as any)?.data ?? []).reduce((s: number, p: any) => s + (Number(p.amount) || 0), 0)
+  // Safely fetch payment collections
+  let thisMonthCollected = 0
+  let thisFyCollected = 0
+  let totalAllocated = 0
 
-  let totalOutstanding = 0
-  for (const inv of (invsRes.data ?? [])) {
-    const net = Number(inv.net_receivable ?? 0)
-    const allocs = (inv.payment_allocations ?? []) as any[]
-    const received = allocs.reduce((sum, a) => sum + (Number(a.allocated_amount) || 0), 0)
-    const bal = Math.max(0, Math.round((net - received) * 100) / 100)
-    totalOutstanding += bal
+  try {
+    const [monthPayRes, fyPayRes, allocsRes] = await Promise.all([
+      (supabase.from('payments') as any)
+        .select('amount')
+        .gte('payment_date', monthStart)
+        .lte('payment_date', monthEnd),
+      (supabase.from('payments') as any)
+        .select('amount')
+        .gte('payment_date', fyStart)
+        .lte('payment_date', fyEnd),
+      (supabase.from('payment_allocations') as any)
+        .select('allocated_amount'),
+    ])
+    thisMonthCollected = (monthPayRes?.data ?? []).reduce((s: number, p: any) => s + (Number(p.amount) || 0), 0)
+    thisFyCollected    = (fyPayRes?.data ?? []).reduce((s: number, p: any) => s + (Number(p.amount) || 0), 0)
+    totalAllocated     = (allocsRes?.data ?? []).reduce((s: number, a: any) => s + (Number(a.allocated_amount) || 0), 0)
+  } catch (err) {
+    console.warn('fetchKpis payment query notice:', err)
   }
+
+  const totalInvoiced = (invsRes.data ?? []).reduce((s, r) => s + (Number(r.net_receivable) || 0), 0)
+  const totalOutstanding = Math.max(0, Math.round((totalInvoiced - totalAllocated) * 100) / 100)
 
   return {
     thisMonthRevenue,
@@ -165,7 +181,7 @@ export async function fetchKpis(): Promise<KpiData> {
     expiringWoCount,
     thisMonthCollected: Math.round(thisMonthCollected * 100) / 100,
     thisFyCollected: Math.round(thisFyCollected * 100) / 100,
-    totalOutstanding: Math.round(totalOutstanding * 100) / 100,
+    totalOutstanding,
   }
 }
 

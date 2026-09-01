@@ -70,12 +70,35 @@ export async function getInvoices(): Promise<InvoiceWithDetails[]> {
       invoice_line_items(*),
       invoice_vehicles(*, vehicles(reg_number, vehicle_type)),
       invoice_rental_items(*, vehicles(reg_number, vehicle_type)),
-      invoice_item_distribution(*),
-      payment_allocations(*, payments(*))
+      invoice_item_distribution(*)
     `)
     .order('created_at', { ascending: false })
-  if (error) { console.error('getInvoices:', error); return [] }
-  return (data ?? []).map(mapInvoiceRow)
+
+  if (error) {
+    console.error('getInvoices base query error:', error)
+    return []
+  }
+  if (!data || data.length === 0) return []
+
+  // Safely fetch payment allocations in a separate query so base invoices NEVER fail to load
+  const allocsByInvoice = new Map<number, any[]>()
+  try {
+    const { data: allocData, error: allocErr } = await (supabase
+      .from('payment_allocations') as any)
+      .select('id, payment_id, invoice_id, allocated_amount, created_at, payments(*)')
+
+    if (!allocErr && allocData) {
+      for (const a of allocData) {
+        const list = allocsByInvoice.get(a.invoice_id) ?? []
+        list.push(a)
+        allocsByInvoice.set(a.invoice_id, list)
+      }
+    }
+  } catch (err) {
+    console.warn('payment_allocations query notice:', err)
+  }
+
+  return data.map(row => mapInvoiceRow(row, allocsByInvoice.get(row.id)))
 }
 
 export async function getInvoiceById(id: number): Promise<InvoiceWithDetails | null> {
@@ -89,13 +112,26 @@ export async function getInvoiceById(id: number): Promise<InvoiceWithDetails | n
       invoice_line_items(*),
       invoice_vehicles(*, vehicles(reg_number, vehicle_type)),
       invoice_rental_items(*, vehicles(reg_number, vehicle_type)),
-      invoice_item_distribution(*),
-      payment_allocations(*, payments(*))
+      invoice_item_distribution(*)
     `)
     .eq('id', id)
     .single()
+
   if (error) { console.error('getInvoiceById:', error); return null }
-  return mapInvoiceRow(data)
+  if (!data) return null
+
+  let allocs: any[] = []
+  try {
+    const { data: allocData } = await (supabase
+      .from('payment_allocations') as any)
+      .select('id, payment_id, invoice_id, allocated_amount, created_at, payments(*)')
+      .eq('invoice_id', id)
+    if (allocData) allocs = allocData
+  } catch (err) {
+    console.warn('getInvoiceById allocations notice:', err)
+  }
+
+  return mapInvoiceRow(data, allocs)
 }
 
 export async function getInvoiceByNumber(invoiceNumber: string): Promise<InvoiceWithDetails | null> {
@@ -109,17 +145,31 @@ export async function getInvoiceByNumber(invoiceNumber: string): Promise<Invoice
       invoice_line_items(*),
       invoice_vehicles(*, vehicles(reg_number, vehicle_type)),
       invoice_rental_items(*, vehicles(reg_number, vehicle_type)),
-      invoice_item_distribution(*),
-      payment_allocations(*, payments(*))
+      invoice_item_distribution(*)
     `)
     .eq('invoice_number', invoiceNumber)
     .single()
+
   if (error) { console.error('getInvoiceByNumber:', error); return null }
-  return mapInvoiceRow(data)
+  if (!data) return null
+
+  let allocs: any[] = []
+  try {
+    const { data: allocData } = await (supabase
+      .from('payment_allocations') as any)
+      .select('id, payment_id, invoice_id, allocated_amount, created_at, payments(*)')
+      .eq('invoice_id', data.id)
+    if (allocData) allocs = allocData
+  } catch (err) {
+    console.warn('getInvoiceByNumber allocations notice:', err)
+  }
+
+  return mapInvoiceRow(data, allocs)
 }
 
-function mapInvoiceRow(row: any): InvoiceWithDetails {
-  const allocations = (row.payment_allocations ?? []).map((pa: any) => ({
+function mapInvoiceRow(row: any, extraAllocations?: any[]): InvoiceWithDetails {
+  const rawAllocs = extraAllocations ?? row.payment_allocations ?? []
+  const allocations = rawAllocs.map((pa: any) => ({
     id: pa.id,
     payment_id: pa.payment_id,
     invoice_id: pa.invoice_id,

@@ -411,6 +411,19 @@ export default function InvoicesPage() {
     return sorted
   }, [invoices])
 
+  // If the default currentFY() has no invoices, auto-select the latest FY that has invoices
+  useEffect(() => {
+    if (invoices.length > 0) {
+      const hasInSelected = invoices.some(i => (i.status === 'draft' ? selectedFY === currentFY() : getFY(i.invoice_date) === selectedFY))
+      if (!hasInSelected) {
+        const existingFys = Array.from(new Set(invoices.map(i => getFY(i.invoice_date)).filter(Boolean))).sort((a, b) => b.localeCompare(a))
+        if (existingFys.length > 0 && existingFys[0]) {
+          setSelectedFY(existingFys[0])
+        }
+      }
+    }
+  }, [invoices])
+
   const filtered = useMemo(() => {
     const result = invoices.filter(inv => {
       const isDraft   = inv.status === 'draft'
@@ -599,8 +612,20 @@ export default function InvoicesPage() {
             }} />
           ))
         ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--color-text-faint)', fontSize: 14 }}>
-            No invoices found
+          <div style={{ textAlign: 'center', padding: '48px 16px', color: 'var(--color-text-faint)' }}>
+            <div style={{ fontSize: 32, marginBottom: 10 }}>📄</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 6 }}>
+              No {statusFilter === 'all' ? '' : statusFilter} invoices found for FY {selectedFY}
+            </div>
+            {invoices.length > 0 ? (
+              <div style={{ fontSize: 13, color: 'var(--color-accent)' }}>
+                You have {invoices.length} invoice{invoices.length === 1 ? '' : 's'} in other financial years or status filters. Select an FY tab above to view them.
+              </div>
+            ) : (
+              <div style={{ fontSize: 13, color: 'var(--color-text-faint)' }}>
+                Tap "+ New Invoice" above to create your first bill.
+              </div>
+            )}
           </div>
         ) : (
           filtered.map(inv => (

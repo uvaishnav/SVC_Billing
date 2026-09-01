@@ -38,8 +38,7 @@ export async function getClientOutstandingBills(clientId: number) {
       billing_to,
       net_receivable,
       status,
-      work_orders(wo_reference),
-      payment_allocations(id, allocated_amount)
+      work_orders(wo_reference)
     `)
     .eq('client_id', clientId)
     .eq('status', 'final')
@@ -51,10 +50,31 @@ export async function getClientOutstandingBills(clientId: number) {
     return []
   }
 
-  return (data ?? [])
+  const invoices = data ?? []
+  if (invoices.length === 0) return []
+
+  // Fetch allocations safely
+  let allocsMap = new Map<number, number>()
+  try {
+    const invIds = invoices.map(i => i.id)
+    const { data: allocData } = await (supabase
+      .from('payment_allocations') as any)
+      .select('invoice_id, allocated_amount')
+      .in('invoice_id', invIds)
+
+    if (allocData) {
+      for (const a of allocData) {
+        const prev = allocsMap.get(a.invoice_id) ?? 0
+        allocsMap.set(a.invoice_id, prev + (Number(a.allocated_amount) || 0))
+      }
+    }
+  } catch (err) {
+    console.warn('getClientOutstandingBills allocations notice:', err)
+  }
+
+  return invoices
     .map(inv => {
-      const allocations = (inv.payment_allocations ?? []) as any[]
-      const alreadyReceived = allocations.reduce((sum, a) => sum + (Number(a.allocated_amount) || 0), 0)
+      const alreadyReceived = allocsMap.get(inv.id) ?? 0
       const netReceivable = Number(inv.net_receivable ?? 0)
       const balanceDue = Math.max(0, Math.round((netReceivable - alreadyReceived) * 100) / 100)
       const woRef = (inv.work_orders as any)?.wo_reference ?? null
@@ -432,14 +452,12 @@ export async function deletePayment(paymentId: number): Promise<{ ok: boolean; e
 // ─── Client Summaries for Dashboard & Statements ──────────────────────────────
 
 export async function getClientOutstandingSummaries(): Promise<ClientOutstandingSummary[]> {
-  // 1. Fetch clients with their finalized invoices and payments
-  const [invoicesRes, paymentsRes, clientsRes] = await Promise.all([
+  // 1. Fetch clients and finalized invoices
+  const [invoicesRes, clientsRes] = await Promise.all([
     supabase
       .from('invoices')
-      .select('id, client_id, net_receivable, status, payment_allocations(allocated_amount)')
+      .select('id, client_id, net_receivable, status')
       .eq('status', 'final'),
-    (supabase.from('payments') as any)
-      .select('id, client_id, amount, payment_allocations(allocated_amount)'),
     supabase
       .from('clients')
       .select('id, name')
@@ -454,7 +472,31 @@ export async function getClientOutstandingSummaries(): Promise<ClientOutstanding
 
   const clients = clientsRes.data ?? []
   const invoices = invoicesRes.data ?? []
-  const payments = paymentsRes.data ?? []
+
+  // 2. Safely fetch payment allocations and payments
+  const allocsByInvoice = new Map<number, number>()
+  const allocsByPayment = new Map<number, number>()
+  let payments: any[] = []
+
+  try {
+    const [allocsData, paymentsData] = await Promise.all([
+      (supabase.from('payment_allocations') as any).select('id, payment_id, invoice_id, allocated_amount'),
+      (supabase.from('payments') as any).select('id, client_id, amount'),
+    ])
+
+    if (allocsData?.data) {
+      for (const a of allocsData.data) {
+        const amt = Number(a.allocated_amount) || 0
+        allocsByInvoice.set(a.invoice_id, (allocsByInvoice.get(a.invoice_id) ?? 0) + amt)
+        allocsByPayment.set(a.payment_id, (allocsByPayment.get(a.payment_id) ?? 0) + amt)
+      }
+    }
+    if (paymentsData?.data) {
+      payments = paymentsData.data
+    }
+  } catch (err) {
+    console.warn('getClientOutstandingSummaries payments query notice:', err)
+  }
 
   const summaries: ClientOutstandingSummary[] = []
 
@@ -471,8 +513,7 @@ export async function getClientOutstandingSummaries(): Promise<ClientOutstanding
       const net = Number(inv.net_receivable ?? 0)
       totalInvoiced += net
 
-      const allocs = (inv.payment_allocations ?? []) as any[]
-      const received = allocs.reduce((sum, a) => sum + (Number(a.allocated_amount) || 0), 0)
+      const received = allocsByInvoice.get(inv.id) ?? 0
       totalReceived += received
 
       const balance = Math.max(0, Math.round((net - received) * 100) / 100)
@@ -487,8 +528,7 @@ export async function getClientOutstandingSummaries(): Promise<ClientOutstanding
     let totalClientAllocated = 0
     for (const p of clientPayments) {
       totalClientPaid += Number(p.amount ?? 0)
-      const pAllocs = (p.payment_allocations ?? []) as any[]
-      totalClientAllocated += pAllocs.reduce((sum, a) => sum + (Number(a.allocated_amount) || 0), 0)
+      totalClientAllocated += allocsByPayment.get(p.id) ?? 0
     }
 
     const unallocatedAdvance = Math.max(0, Math.round((totalClientPaid - totalClientAllocated) * 100) / 100)
@@ -509,3 +549,4 @@ export async function getClientOutstandingSummaries(): Promise<ClientOutstanding
 
   return summaries.sort((a, b) => b.total_pending - a.total_pending)
 }
+

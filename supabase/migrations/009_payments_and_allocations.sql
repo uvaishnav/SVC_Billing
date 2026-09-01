@@ -35,8 +35,22 @@ CREATE INDEX IF NOT EXISTS idx_payment_allocations_invoice_id ON payment_allocat
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payment_allocations ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "auth users full access on payments" ON payments
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'payments' AND policyname = 'auth users full access on payments'
+  ) THEN
+    CREATE POLICY "auth users full access on payments" ON payments
+      FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
 
-CREATE POLICY "auth users full access on payment_allocations" ON payment_allocations
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'payment_allocations' AND policyname = 'auth users full access on payment_allocations'
+  ) THEN
+    CREATE POLICY "auth users full access on payment_allocations" ON payment_allocations
+      FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+END $$;
+
+-- 5. Notify PostgREST to refresh its relationship cache immediately
+NOTIFY pgrst, 'reload schema';
