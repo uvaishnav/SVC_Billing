@@ -567,9 +567,8 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     borderTopWidth: 1.0,
     borderTopColor: DIVIDER,
-    paddingTop: 10,
-    marginTop: 'auto',
-    minHeight: 120,
+    paddingTop: 8,
+    marginTop: 6,
   },
   footerLeft: {
     flex: 1,
@@ -581,7 +580,6 @@ const s = StyleSheet.create({
   footerRight: {
     flex: 1,
     paddingLeft: 12,
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
   footerSectionLabel: {
@@ -620,7 +618,7 @@ const s = StyleSheet.create({
   footerSignatureBlock: {
     alignItems: 'center',
     alignSelf: 'flex-end',
-    marginTop: 48,
+    marginTop: 38,
   },
   footerSignatureLine: {
     borderTopWidth: 1.25,
