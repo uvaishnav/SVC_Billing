@@ -37,7 +37,33 @@ export default function VehicleDetailSheet({ vehicle, onClose, onEdit }: Props) 
                 <span style={{ fontSize: '13px', color: 'var(--color-accent)', opacity: 0.9 }}>{vehicle.vehicle_type}</span>
               )}
             </div>
-            <button type="button" onClick={onClose} style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.15)', color: 'var(--color-bg)', fontSize: '18px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => { onClose(); onEdit(vehicle) }}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '8px',
+                  background: 'var(--color-accent)',
+                  color: 'var(--color-primary)',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontFamily: 'Work Sans, sans-serif',
+                }}
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close"
+                style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.15)', color: 'var(--color-bg)', fontSize: '18px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+              >
+                ✕
+              </button>
+            </div>
           </div>
         </div>
 
@@ -111,9 +137,66 @@ export default function VehicleDetailSheet({ vehicle, onClose, onEdit }: Props) 
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '16px 20px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface)', flexShrink: 0, display: 'flex', gap: '12px' }}>
-          <button type="button" onClick={onClose} style={{ flex: 1, padding: '16px', background: 'var(--color-surface-offset)', color: 'var(--color-text-muted)', fontWeight: 600, fontSize: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontFamily: 'Work Sans, sans-serif' }}>Close</button>
-          <button type="button" onClick={() => { onClose(); onEdit(vehicle) }} style={{ flex: 2, padding: '16px', background: 'var(--color-primary)', color: 'var(--color-bg)', fontWeight: 600, fontSize: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontFamily: 'Work Sans, sans-serif' }}>Edit Vehicle</button>
+        <div style={{
+          padding: '16px 20px calc(16px + env(safe-area-inset-bottom, 0px))',
+          borderTop: '1px solid var(--color-border)',
+          background: 'var(--color-surface)',
+          flexShrink: 0,
+          display: 'flex',
+          gap: '12px',
+          alignItems: 'center',
+          boxSizing: 'border-box',
+          position: 'sticky',
+          bottom: 0,
+          zIndex: 10,
+        }}>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              flex: 1,
+              minHeight: '48px',
+              padding: '14px 16px',
+              background: 'var(--color-surface-offset)',
+              color: 'var(--color-text-muted)',
+              fontWeight: 600,
+              fontSize: '15px',
+              borderRadius: '12px',
+              border: '1px solid var(--color-border)',
+              cursor: 'pointer',
+              fontFamily: 'Work Sans, sans-serif',
+              boxSizing: 'border-box',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            onClick={() => { onClose(); onEdit(vehicle) }}
+            style={{
+              flex: 2,
+              minHeight: '48px',
+              padding: '14px 20px',
+              background: 'var(--color-primary)',
+              color: 'var(--color-bg)',
+              fontWeight: 700,
+              fontSize: '15px',
+              borderRadius: '12px',
+              border: 'none',
+              cursor: 'pointer',
+              fontFamily: 'Work Sans, sans-serif',
+              boxSizing: 'border-box',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 2px 6px rgba(59,42,31,0.2)',
+            }}
+          >
+            Edit Vehicle
+          </button>
         </div>
       </div>
     </div>

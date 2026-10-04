@@ -231,11 +231,39 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile: propPd
         {/* Header */}
         <div style={{ background: 'var(--color-primary)', padding: '12px 20px 16px', borderRadius: '20px 20px 0 0', flexShrink: 0 }}>
           <div style={{ width: '36px', height: '4px', background: 'rgba(255,255,255,0.25)', borderRadius: '2px', margin: '0 auto 14px' }} />
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <h2 style={{ color: 'var(--color-bg)', fontSize: '20px', fontFamily: 'Playfair Display, serif' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+            <h2 style={{ color: 'var(--color-bg)', fontSize: '20px', fontFamily: 'Playfair Display, serif', margin: 0 }}>
               {hasPrefill ? '📄 Review AI-Parsed WO' : isEdit ? 'Edit Work Order' : 'New Work Order'}
             </h2>
-            <button type="button" onClick={onClose} style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.15)', color: 'var(--color-bg)', fontSize: '18px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={isBusy}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '8px',
+                  background: 'var(--color-accent)',
+                  color: 'var(--color-primary)',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: isBusy ? 'not-allowed' : 'pointer',
+                  opacity: isBusy ? 0.7 : 1,
+                  fontFamily: 'Work Sans, sans-serif',
+                }}
+              >
+                {isBusy ? 'Saving…' : 'Save'}
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close"
+                style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.15)', color: 'var(--color-bg)', fontSize: '18px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                ✕
+              </button>
+            </div>
           </div>
         </div>
 
@@ -477,10 +505,53 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile: propPd
         </div>{/* end body */}
 
         {/* Footer */}
-        <div style={{ padding: '16px 20px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface)', flexShrink: 0, display: 'flex', gap: '12px' }}>
-          <button type="button" onClick={onClose}
-            style={{ flex: 1, padding: '16px', background: 'var(--color-surface-offset)', color: 'var(--color-text-muted)', fontWeight: 600, fontSize: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontFamily: 'Work Sans, sans-serif' }}>Cancel</button>
-          <PrimaryButton onClick={handleSave} disabled={isBusy}>{saveLabel}</PrimaryButton>
+        <div style={{
+          padding: '16px 20px calc(16px + env(safe-area-inset-bottom, 0px))',
+          borderTop: '1px solid var(--color-border)',
+          background: 'var(--color-surface)',
+          flexShrink: 0,
+          display: 'flex',
+          gap: '12px',
+          alignItems: 'center',
+          boxSizing: 'border-box',
+          position: 'sticky',
+          bottom: 0,
+          zIndex: 10,
+        }}>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              flex: 1,
+              minHeight: '48px',
+              padding: '14px 16px',
+              background: 'var(--color-surface-offset)',
+              color: 'var(--color-text-muted)',
+              fontWeight: 600,
+              fontSize: '15px',
+              borderRadius: '12px',
+              border: '1px solid var(--color-border)',
+              cursor: 'pointer',
+              fontFamily: 'Work Sans, sans-serif',
+              boxSizing: 'border-box',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            Cancel
+          </button>
+          <PrimaryButton
+            onClick={handleSave}
+            disabled={isBusy}
+            style={{
+              flex: 2,
+              minHeight: '48px',
+              boxSizing: 'border-box',
+            }}
+          >
+            {saveLabel}
+          </PrimaryButton>
         </div>
       </div>
     </div>

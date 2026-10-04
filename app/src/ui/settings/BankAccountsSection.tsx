@@ -89,9 +89,41 @@ export default function BankAccountsSection({ settings, onSettingsUpdate }: Prop
             <Field label="Bank Name" value={editing.bank_name ?? ''} onChange={v => setEditing(p => ({ ...p, bank_name: v }))} placeholder="HDFC Bank" required />
           </div>
           <Field label="Branch (optional)" value={editing.branch ?? ''} onChange={v => setEditing(p => ({ ...p, branch: v }))} placeholder="Kankipadu Branch" />
-          <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-            <PrimaryButton onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Account'}</PrimaryButton>
-            <button onClick={() => setEditing(null)} style={{ flex: 1, padding: '16px', background: 'var(--color-surface-offset)', color: 'var(--color-text-muted)', fontWeight: 600, fontSize: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer' }}>Cancel</button>
+          <div style={{ display: 'flex', gap: '12px', marginTop: '14px', alignItems: 'center' }}>
+            <button
+              type="button"
+              onClick={() => setEditing(null)}
+              style={{
+                flex: 1,
+                minHeight: '48px',
+                padding: '14px 16px',
+                background: 'var(--color-surface-offset)',
+                color: 'var(--color-text-muted)',
+                fontWeight: 600,
+                fontSize: '15px',
+                borderRadius: '12px',
+                border: '1px solid var(--color-border)',
+                cursor: 'pointer',
+                fontFamily: 'Work Sans, sans-serif',
+                boxSizing: 'border-box',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              Cancel
+            </button>
+            <PrimaryButton
+              onClick={handleSave}
+              disabled={saving}
+              style={{
+                flex: 2,
+                minHeight: '48px',
+                boxSizing: 'border-box',
+              }}
+            >
+              {saving ? 'Saving…' : 'Save Account'}
+            </PrimaryButton>
           </div>
         </div>
       ) : (

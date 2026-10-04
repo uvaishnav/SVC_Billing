@@ -17,11 +17,11 @@ export async function getSettings(): Promise<Settings | null> {
 export async function upsertSettings(values: Partial<Settings>): Promise<Settings | null> {
   const { data, error } = await supabase
     .from('settings')
-    .upsert({ ...values, id: 1 }, { onConflict: 'id' })
+    .upsert({ ...values, id: 1 } as any, { onConflict: 'id' })
     .select()
     .single()
   if (error) { console.error('upsertSettings:', error); return null }
-  return data
+  return data as Settings | null
 }
 
 // Use this for partial updates (e.g. setting a default bank account or SAC code)
@@ -29,12 +29,12 @@ export async function upsertSettings(values: Partial<Settings>): Promise<Setting
 export async function patchSettings(values: Partial<Settings>): Promise<Settings | null> {
   const { data, error } = await supabase
     .from('settings')
-    .update(values)
+    .update(values as any)
     .eq('id', 1)
     .select()
     .single()
   if (error) { console.error('patchSettings:', error); return null }
-  return data
+  return data as Settings | null
 }
 
 // ── Bank Accounts ─────────────────────────────────────────
@@ -46,17 +46,17 @@ export async function getBankAccounts(): Promise<BankAccount[]> {
     .eq('is_active', true)
     .order('id')
   if (error) { console.error('getBankAccounts:', error); return [] }
-  return data ?? []
+  return (data as BankAccount[]) ?? []
 }
 
 export async function upsertBankAccount(account: Partial<BankAccount> & { id?: number }): Promise<BankAccount | null> {
   const { data, error } = await supabase
     .from('bank_accounts')
-    .upsert(account)
+    .upsert(account as any)
     .select()
     .single()
   if (error) { console.error('upsertBankAccount:', error); return null }
-  return data
+  return data as BankAccount | null
 }
 
 export async function deactivateBankAccount(id: number): Promise<void> {
@@ -76,17 +76,17 @@ export async function getSacCodes(): Promise<SacCode[]> {
     .eq('is_active', true)
     .order('id')
   if (error) { console.error('getSacCodes:', error); return [] }
-  return data ?? []
+  return (data as any) ?? []
 }
 
 export async function upsertSacCode(sac: Partial<SacCode> & { id?: number }): Promise<SacCode | null> {
   const { data, error } = await supabase
     .from('sac_codes')
-    .upsert(sac)
+    .upsert(sac as any)
     .select()
     .single()
   if (error) { console.error('upsertSacCode:', error); return null }
-  return data
+  return data as any
 }
 
 export async function deactivateSacCode(id: number): Promise<void> {

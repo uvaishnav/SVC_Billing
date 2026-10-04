@@ -84,20 +84,46 @@ export function Field({
   )
 }
 
-export function PrimaryButton({ children, onClick, disabled, type = 'button' }: {
-  children: React.ReactNode; onClick?: () => void; disabled?: boolean; type?: 'button' | 'submit'
+export function PrimaryButton({
+  children, onClick, disabled, type = 'button', style, className,
+}: {
+  children: React.ReactNode
+  onClick?: () => void
+  disabled?: boolean
+  type?: 'button' | 'submit'
+  style?: React.CSSProperties
+  className?: string
 }) {
+  const baseDisabledStyle: React.CSSProperties = {
+    minHeight: '48px',
+    padding: '14px 20px',
+    background: 'var(--color-text-faint)',
+    color: 'var(--color-bg)',
+    fontWeight: 600,
+    fontSize: '15px',
+    borderRadius: '12px',
+    border: 'none',
+    cursor: 'not-allowed',
+    fontFamily: 'Work Sans, sans-serif',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxSizing: 'border-box',
+    ...style,
+  }
+
+  const baseActiveStyle: React.CSSProperties = {
+    boxSizing: 'border-box',
+    ...style,
+  }
+
   return (
     <button
-      type={type} onClick={onClick} disabled={disabled}
-      className={disabled ? undefined : 'btn-primary'}
-      style={disabled ? {
-        width: '100%', minHeight: '50px', padding: '14px 20px',
-        background: 'var(--color-text-faint)',
-        color: 'var(--color-bg)', fontWeight: 600, fontSize: '15px',
-        borderRadius: '10px', border: 'none', cursor: 'not-allowed',
-        fontFamily: 'Work Sans, sans-serif',
-      } : undefined}
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      className={className ? `${className} ${disabled ? '' : 'btn-primary'}` : (disabled ? undefined : 'btn-primary')}
+      style={disabled ? baseDisabledStyle : baseActiveStyle}
     >
       {children}
     </button>

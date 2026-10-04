@@ -74,7 +74,33 @@ export default function WorkOrderDetailSheet({ workOrder: wo, onClose, onEdit }:
               </div>
               <h2 style={{ color: 'var(--color-bg)', fontSize: '18px', fontFamily: 'Playfair Display, serif', lineHeight: 1.3 }}>{wo.subject}</h2>
             </div>
-            <button type="button" onClick={onClose} style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.15)', color: 'var(--color-bg)', fontSize: '18px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => onEdit(wo)}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '8px',
+                  background: 'var(--color-accent)',
+                  color: 'var(--color-primary)',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontFamily: 'Work Sans, sans-serif',
+                }}
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close"
+                style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.15)', color: 'var(--color-bg)', fontSize: '18px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+              >
+                ✕
+              </button>
+            </div>
           </div>
         </div>
 
@@ -197,19 +223,92 @@ export default function WorkOrderDetailSheet({ workOrder: wo, onClose, onEdit }:
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '16px 20px', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface)', flexShrink: 0, display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+        <div style={{
+          padding: '16px 20px calc(16px + env(safe-area-inset-bottom, 0px))',
+          borderTop: '1px solid var(--color-border)',
+          background: 'var(--color-surface)',
+          flexShrink: 0,
+          display: 'flex',
+          gap: '12px',
+          alignItems: 'center',
+          boxSizing: 'border-box',
+          position: 'sticky',
+          bottom: 0,
+          zIndex: 10,
+        }}>
           {wo.original_pdf_url && (
             <button
               type="button"
               onClick={handleViewPdf}
               disabled={pdfLoading}
-              style={{ flex: 1, minWidth: '120px', padding: '16px', background: 'var(--color-surface-offset)', color: pdfLoading ? 'var(--color-text-faint)' : 'var(--color-text-muted)', fontWeight: 600, fontSize: '15px', borderRadius: '12px', border: '1px solid var(--color-border)', cursor: pdfLoading ? 'default' : 'pointer', fontFamily: 'Work Sans, sans-serif' }}
+              style={{
+                flex: 1,
+                minHeight: '48px',
+                padding: '14px 16px',
+                background: 'var(--color-surface-offset)',
+                color: pdfLoading ? 'var(--color-text-faint)' : 'var(--color-text-muted)',
+                fontWeight: 600,
+                fontSize: '14px',
+                borderRadius: '12px',
+                border: '1px solid var(--color-border)',
+                cursor: pdfLoading ? 'default' : 'pointer',
+                fontFamily: 'Work Sans, sans-serif',
+                boxSizing: 'border-box',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
             >
-              {pdfLoading ? 'Opening…' : '📎 View PDF'}
+              {pdfLoading ? 'Opening…' : '📎 PDF'}
             </button>
           )}
-          <button type="button" onClick={onClose} style={{ flex: 1, minWidth: '80px', padding: '16px', background: 'var(--color-surface-offset)', color: 'var(--color-text-muted)', fontWeight: 600, fontSize: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontFamily: 'Work Sans, sans-serif' }}>Close</button>
-          <button type="button" onClick={() => onEdit(wo)} style={{ flex: 1, minWidth: '80px', padding: '16px', background: 'var(--color-accent)', color: 'var(--color-primary)', fontWeight: 700, fontSize: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontFamily: 'Work Sans, sans-serif' }}>Edit</button>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              flex: 1,
+              minHeight: '48px',
+              padding: '14px 16px',
+              background: 'var(--color-surface-offset)',
+              color: 'var(--color-text-muted)',
+              fontWeight: 600,
+              fontSize: '15px',
+              borderRadius: '12px',
+              border: '1px solid var(--color-border)',
+              cursor: 'pointer',
+              fontFamily: 'Work Sans, sans-serif',
+              boxSizing: 'border-box',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            onClick={() => onEdit(wo)}
+            style={{
+              flex: 2,
+              minHeight: '48px',
+              padding: '14px 20px',
+              background: 'var(--color-primary)',
+              color: 'var(--color-bg)',
+              fontWeight: 700,
+              fontSize: '15px',
+              borderRadius: '12px',
+              border: 'none',
+              cursor: 'pointer',
+              fontFamily: 'Work Sans, sans-serif',
+              boxSizing: 'border-box',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 2px 6px rgba(59,42,31,0.2)',
+            }}
+          >
+            Edit Work Order
+          </button>
         </div>
       </div>
     </div>

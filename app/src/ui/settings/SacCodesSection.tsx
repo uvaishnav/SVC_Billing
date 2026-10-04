@@ -5,7 +5,7 @@ import { Field, PrimaryButton, cardStyle, sectionTitleStyle } from './_component
 
 interface Props { settings: Settings | null; onSettingsUpdate: (s: Settings) => void }
 
-const EMPTY: Omit<SacCode, 'id'> = { nickname: '', sac_code: '', description: '', is_active: true }
+const EMPTY: Omit<SacCode, 'id'> = { nickname: '', sac_code: '', description: '', is_active: true, applicable_billing_type: 'both' }
 
 export default function SacCodesSection({ settings, onSettingsUpdate }: Props) {
   const [codes, setCodes] = useState<SacCode[]>([])
@@ -81,9 +81,41 @@ export default function SacCodesSection({ settings, onSettingsUpdate }: Props) {
           <Field label="Nickname" value={editing.nickname ?? ''} onChange={v => setEditing(p => ({ ...p, nickname: v }))} placeholder="e.g. Equipment Rental" required />
           <Field label="SAC Code" value={editing.sac_code ?? ''} onChange={v => setEditing(p => ({ ...p, sac_code: v }))} placeholder="997319" required />
           <Field label="Description (optional)" value={editing.description ?? ''} onChange={v => setEditing(p => ({ ...p, description: v }))} placeholder="Brief GST description" />
-          <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-            <PrimaryButton onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save SAC Code'}</PrimaryButton>
-            <button onClick={() => setEditing(null)} style={{ flex: 1, padding: '16px', background: 'var(--color-surface-offset)', color: 'var(--color-text-muted)', fontWeight: 600, fontSize: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer' }}>Cancel</button>
+          <div style={{ display: 'flex', gap: '12px', marginTop: '14px', alignItems: 'center' }}>
+            <button
+              type="button"
+              onClick={() => setEditing(null)}
+              style={{
+                flex: 1,
+                minHeight: '48px',
+                padding: '14px 16px',
+                background: 'var(--color-surface-offset)',
+                color: 'var(--color-text-muted)',
+                fontWeight: 600,
+                fontSize: '15px',
+                borderRadius: '12px',
+                border: '1px solid var(--color-border)',
+                cursor: 'pointer',
+                fontFamily: 'Work Sans, sans-serif',
+                boxSizing: 'border-box',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              Cancel
+            </button>
+            <PrimaryButton
+              onClick={handleSave}
+              disabled={saving}
+              style={{
+                flex: 2,
+                minHeight: '48px',
+                boxSizing: 'border-box',
+              }}
+            >
+              {saving ? 'Saving…' : 'Save SAC Code'}
+            </PrimaryButton>
           </div>
         </div>
       ) : (
