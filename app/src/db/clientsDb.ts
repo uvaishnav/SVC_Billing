@@ -24,7 +24,7 @@ export async function getClientById(id: number): Promise<ClientWithGstins | null
 }
 
 export async function upsertClient(
-  client: Partial<Client> & { id?: number }
+  client: Partial<Client> & { name: string }
 ): Promise<Client | null> {
   const { data, error } = await supabase
     .from('clients')
@@ -46,7 +46,7 @@ export async function deactivateClient(id: number): Promise<void> {
 // ── Client GSTINs ─────────────────────────────────────────
 
 export async function upsertClientGstin(
-  gstin: Partial<ClientGstin> & { client_id: number; gstin: string }
+  gstin: Partial<ClientGstin> & { client_id: number; gstin: string; state: string; state_code: string }
 ): Promise<ClientGstin | null> {
   const { data, error } = await supabase
     .from('client_gstins')

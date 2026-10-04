@@ -54,7 +54,7 @@ export async function upsertWorkOrder(
     .select()
     .single()
   if (error) { console.error('upsertWorkOrder:', error); return null }
-  return data
+  return data as unknown as WorkOrder
 }
 
 export async function closeWorkOrder(id: number): Promise<void> {
