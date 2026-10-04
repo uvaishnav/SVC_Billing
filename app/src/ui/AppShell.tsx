@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, type ReactNode } from 'react'
 import DashboardPage from './dashboard/DashboardPage'
 import SettingsPage from './settings/SettingsPage'
 import ClientsPage from './clients/ClientsPage'
@@ -11,7 +11,7 @@ type Tab = 'home' | 'invoices' | 'clients' | 'vehicles' | 'workorders' | 'projec
 
 // ─── SVG Icons (inline — no CDN dependency, consistent across iOS versions) ───
 
-const Icons: Record<Tab, JSX.Element> = {
+const Icons: Record<Tab, ReactNode> = {
   home: (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/>
@@ -83,6 +83,21 @@ export default function AppShell() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--color-bg)' }}>
+
+      {/* Pinned iOS status bar backdrop — ensures the top notch / status bar area is always solid brand color */}
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 'var(--safe-top)',
+          background: 'var(--color-primary)',
+          zIndex: 99,
+          pointerEvents: 'none',
+        }}
+        aria-hidden="true"
+      />
 
       {/* Scrollable content — padding-bottom matches nav height (incl. safe area) */}
       <div className="scroll-area">

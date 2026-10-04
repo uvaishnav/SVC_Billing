@@ -500,6 +500,89 @@ export type Database = {
           },
         ]
       }
+      payment_allocations: {
+        Row: {
+          allocated_amount: number
+          created_at: string
+          id: number
+          invoice_id: number
+          payment_id: number
+        }
+        Insert: {
+          allocated_amount: number
+          created_at?: string
+          id?: number
+          invoice_id: number
+          payment_id: number
+        }
+        Update: {
+          allocated_amount?: number
+          created_at?: string
+          id?: number
+          invoice_id?: number
+          payment_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_allocations_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_allocations_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          amount: number
+          client_id: number
+          created_at: string
+          id: number
+          notes: string | null
+          payment_date: string
+          payment_mode: string | null
+          reference_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          client_id: number
+          created_at?: string
+          id?: number
+          notes?: string | null
+          payment_date?: string
+          payment_mode?: string | null
+          reference_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          client_id?: number
+          created_at?: string
+          id?: number
+          notes?: string | null
+          payment_date?: string
+          payment_mode?: string | null
+          reference_number?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           client_id: number | null

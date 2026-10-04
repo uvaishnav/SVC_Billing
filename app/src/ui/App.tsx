@@ -21,8 +21,36 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F5F1E8] flex items-center justify-center">
-        <p className="text-[#7A6A58]">Loading…</p>
+      <div style={{ minHeight: '100dvh', background: 'var(--color-bg)', display: 'flex', flexDirection: 'column' }}>
+        {/* Safe-area dark header skeleton prevents white glare during launch */}
+        <div style={{
+          background: 'var(--color-primary)',
+          paddingTop: 'calc(var(--sp-4, 16px) + var(--safe-top, 0px))',
+          paddingBottom: 'var(--sp-4, 16px)',
+          paddingLeft: 'var(--sp-5, 20px)',
+          paddingRight: 'var(--sp-5, 20px)',
+          boxShadow: '0 1px 0 rgba(200,169,106,0.12)',
+        }}>
+          <div style={{ height: '24px', width: '120px', background: 'rgba(200,169,106,0.2)', borderRadius: '6px' }} />
+        </div>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '16px',
+              background: 'var(--color-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+              boxShadow: 'var(--shadow-sm)',
+            }}>
+              <span style={{ color: 'var(--color-accent)', fontSize: '24px', fontWeight: 700, fontFamily: 'Playfair Display, serif' }}>S</span>
+            </div>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '14px', fontWeight: 500 }}>Loading…</p>
+          </div>
+        </div>
       </div>
     )
   }

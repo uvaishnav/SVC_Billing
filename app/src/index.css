@@ -75,6 +75,7 @@
 }
 
 html {
+  background-color: var(--color-primary);
   -webkit-text-size-adjust: none;
   text-size-adjust: none;
   scroll-behavior: smooth;
@@ -83,7 +84,7 @@ html {
 html, body {
   margin: 0;
   padding: 0;
-  background: var(--color-bg);
+  background-color: var(--color-primary);
   color: var(--color-text);
   font-family: 'Work Sans', system-ui, -apple-system, sans-serif;
   font-size: 16px;
@@ -100,6 +101,7 @@ html, body {
   display: flex;
   flex-direction: column;
   text-align: left;
+  background-color: var(--color-bg);
 }
 
 h1, h2, h3 {
@@ -166,12 +168,12 @@ input, textarea, select {
    PAGE ENTER ANIMATION — tab switch
    ═══════════════════════════════════════════════════════════════════ */
 @keyframes page-enter {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0);   }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 .page-enter {
-  animation: page-enter 220ms var(--ease-spring) both;
+  animation: page-enter 180ms ease-out both;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
