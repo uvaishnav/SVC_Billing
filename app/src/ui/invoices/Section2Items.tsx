@@ -192,7 +192,7 @@ function Section2Quantity({
         <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
           Enter the total amount you want to bill. Quantities will be back-calculated
           {selectedCount > 1
-            ? ` by splitting ₹ equally across ${selectedCount} selected item(s).`
+            ? ` by splitting the amount equally across ${selectedCount} selected item(s).`
             : ' from the rate of the selected item.'
           }
         </p>

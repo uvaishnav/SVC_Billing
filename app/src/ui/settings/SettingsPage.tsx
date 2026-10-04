@@ -26,14 +26,14 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100dvh', color: 'var(--color-text-muted)', fontSize: 15, fontFamily: 'Work Sans, sans-serif' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '60px 0', minHeight: '200px', color: 'var(--color-text-muted)', fontSize: 15, fontFamily: 'Work Sans, sans-serif' }}>
         Loading settings…
       </div>
     )
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', background: 'var(--color-bg)', overflow: 'hidden' }}>
+    <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
 
       {/* Page header */}
       <div className="page-header" style={{
@@ -42,7 +42,6 @@ export default function SettingsPage() {
         paddingBottom: '0',
         paddingLeft: '20px',
         paddingRight: '20px',
-        flexShrink: 0,
       }}>
         <h1 style={{ color: 'var(--color-bg)', fontSize: '24px', fontFamily: 'Playfair Display, serif', marginBottom: '16px' }}>Settings</h1>
 
@@ -87,7 +86,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Tab content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+      <div style={{ padding: '20px' }}>
         {TABS.map(tab => (
           <div
             key={tab.id}

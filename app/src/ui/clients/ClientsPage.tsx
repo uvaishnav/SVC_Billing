@@ -46,7 +46,7 @@ export default function ClientsPage() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', background: 'var(--color-bg)', overflow: 'hidden' }}>
+    <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
 
       {/* Page header */}
       <div className="page-header" style={{
@@ -55,7 +55,6 @@ export default function ClientsPage() {
         paddingBottom: '16px',
         paddingLeft: '20px',
         paddingRight: '20px',
-        flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
           <h1 style={{ color: 'var(--color-bg)', fontSize: '24px', fontFamily: 'Playfair Display, serif' }}>Clients</h1>
@@ -86,7 +85,7 @@ export default function ClientsPage() {
       </div>
 
       {/* List */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 32px' }}>
+      <div style={{ padding: '16px' }}>
         {loading ? (
           <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', marginTop: '40px', fontFamily: 'Work Sans, sans-serif' }}>Loading…</p>
         ) : filtered.length === 0 ? (

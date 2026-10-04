@@ -79,11 +79,16 @@ html {
   -webkit-text-size-adjust: none;
   text-size-adjust: none;
   scroll-behavior: smooth;
+  height: 100%;
 }
 
 html, body {
   margin: 0;
   padding: 0;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
   background-color: var(--color-primary);
   color: var(--color-text);
   font-family: 'Work Sans', system-ui, -apple-system, sans-serif;
@@ -97,7 +102,9 @@ html, body {
 /* Dynamic viewport height — correct on iOS Safari with keyboard */
 #root {
   width: 100%;
-  min-height: 100dvh;
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   text-align: left;
@@ -424,12 +431,15 @@ input, textarea, select {
    ═══════════════════════════════════════════════════════════════════ */
 .scroll-area {
   flex: 1;
+  min-height: 0;
+  width: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
   /* Smooth momentum scrolling on iOS */
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
-  /* Bottom padding = nav height so content doesn't hide behind tab bar */
-  padding-bottom: var(--nav-height);
+  /* Bottom padding ensures content is never hidden behind tab bar */
+  padding-bottom: calc(var(--nav-height) + 16px);
 }
 
 /* Custom scrollbar (desktop only — invisible on mobile) */

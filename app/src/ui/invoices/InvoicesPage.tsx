@@ -543,7 +543,7 @@ export default function InvoicesPage() {
   }
 
   return (
-    <div style={{ minHeight: '100%', background: 'var(--color-bg)', paddingBottom: 'calc(var(--nav-height, 60px) + 24px)' }}>
+    <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
       {/* ─── Minimal, Premium Sticky Header ─── */}
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>

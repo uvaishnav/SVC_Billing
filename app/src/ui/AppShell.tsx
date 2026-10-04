@@ -82,7 +82,7 @@ export default function AppShell() {
   }, [activeTab])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', background: 'var(--color-bg)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', overflow: 'hidden', background: 'var(--color-bg)', position: 'relative' }}>
 
       {/* Pinned iOS status bar backdrop — ensures the top notch / status bar area is always solid brand color */}
       <div

@@ -463,7 +463,7 @@ function ClientOutstandingSection({
             Client Outstanding Dues
           </div>
           <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
-            Total pending: <b style={{ color: 'var(--color-warning)' }}>₹{fmt(totalPending)}</b> across {pendingDues.length} client{pendingDues.length === 1 ? '' : 's'}
+            Total pending: <b style={{ color: 'var(--color-warning)' }}>{fmt(totalPending)}</b> across {pendingDues.length} client{pendingDues.length === 1 ? '' : 's'}
           </div>
         </div>
         <button
@@ -515,7 +515,7 @@ function ClientOutstandingSection({
                   {d.pending_invoices_count} pending bill{d.pending_invoices_count === 1 ? '' : 's'}
                   {d.unallocated_advance > 0.01 && (
                     <span style={{ color: 'var(--color-primary)', marginLeft: 6, fontWeight: 600 }}>
-                      · Adv: ₹{fmt(d.unallocated_advance)}
+                      · Adv: {fmt(d.unallocated_advance)}
                     </span>
                   )}
                 </div>
@@ -524,7 +524,7 @@ function ClientOutstandingSection({
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ textAlign: 'right', marginRight: 4 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-warning)', fontVariantNumeric: 'tabular-nums' }}>
-                    ₹{fmt(d.total_pending)}
+                    {fmt(d.total_pending)}
                   </div>
                 </div>
 
