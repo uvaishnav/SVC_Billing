@@ -5,7 +5,7 @@ import { upsertWorkOrder, upsertWorkOrderItems, getWorkOrderItems } from '../../
 import { linkProjectsToWorkOrder, getProjectsByWorkOrder } from '../../db/projectsDb'
 import { supabase } from '../../db/supabaseClient'
 import { uploadWorkOrderPdf } from '../../utils/uploadWorkOrderPdf'
-import { Field, PrimaryButton, sectionTitleStyle } from '../settings/_components'
+import { Field, sectionTitleStyle } from '../settings/_components'
 
 interface Props {
   workOrder?: WorkOrderWithClient | null
@@ -241,16 +241,17 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile: propPd
                 onClick={handleSave}
                 disabled={isBusy}
                 style={{
-                  padding: '6px 14px',
-                  borderRadius: '8px',
+                  padding: '7px 16px',
+                  borderRadius: '10px',
                   background: 'var(--color-accent)',
                   color: 'var(--color-primary)',
-                  fontSize: '13px',
+                  fontSize: '14px',
                   fontWeight: 700,
                   border: 'none',
                   cursor: isBusy ? 'not-allowed' : 'pointer',
                   opacity: isBusy ? 0.7 : 1,
                   fontFamily: 'Work Sans, sans-serif',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
                 }}
               >
                 {isBusy ? 'Saving…' : 'Save'}
@@ -259,7 +260,7 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile: propPd
                 type="button"
                 onClick={onClose}
                 aria-label="Close"
-                style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.15)', color: 'var(--color-bg)', fontSize: '18px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                style={{ width: '34px', height: '34px', borderRadius: '50%', background: 'rgba(255,255,255,0.15)', color: 'var(--color-bg)', fontSize: '18px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
                 ✕
               </button>
@@ -268,7 +269,7 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile: propPd
         </div>
 
         {/* Body */}
-        <div style={{ overflowY: 'auto', flex: 1, padding: '24px 20px' }}>
+        <div style={{ overflowY: 'auto', flex: 1, padding: '24px 20px calc(48px + env(safe-area-inset-bottom, 0px))' }}>
 
           {hasPrefill && (
             <div style={{ background: 'rgba(212,167,90,0.1)', border: '1px solid var(--color-accent)', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '16px', lineHeight: 1.5 }}>
@@ -503,56 +504,6 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile: propPd
           </div>
 
         </div>{/* end body */}
-
-        {/* Footer */}
-        <div style={{
-          padding: '16px 20px calc(16px + env(safe-area-inset-bottom, 0px))',
-          borderTop: '1px solid var(--color-border)',
-          background: 'var(--color-surface)',
-          flexShrink: 0,
-          display: 'flex',
-          gap: '12px',
-          alignItems: 'center',
-          boxSizing: 'border-box',
-          position: 'sticky',
-          bottom: 0,
-          zIndex: 10,
-        }}>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              flex: 1,
-              minHeight: '48px',
-              padding: '14px 16px',
-              background: 'var(--color-surface-offset)',
-              color: 'var(--color-text-muted)',
-              fontWeight: 600,
-              fontSize: '15px',
-              borderRadius: '12px',
-              border: '1px solid var(--color-border)',
-              cursor: 'pointer',
-              fontFamily: 'Work Sans, sans-serif',
-              boxSizing: 'border-box',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            Cancel
-          </button>
-          <PrimaryButton
-            onClick={handleSave}
-            disabled={isBusy}
-            style={{
-              flex: 2,
-              minHeight: '48px',
-              boxSizing: 'border-box',
-            }}
-          >
-            {saveLabel}
-          </PrimaryButton>
-        </div>
       </div>
     </div>
   )

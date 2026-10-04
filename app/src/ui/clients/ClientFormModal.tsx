@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { ClientWithGstins } from '../../db/types'
 import { upsertClient, upsertClientGstin, deleteClientGstin, setPrimaryGstin } from '../../db/clientsDb'
-import { Field, PrimaryButton, cardStyle, sectionTitleStyle, inputStyle, labelStyle } from '../settings/_components'
+import { Field, cardStyle, sectionTitleStyle, inputStyle, labelStyle } from '../settings/_components'
 
 const STATES = [
   { name: 'Andhra Pradesh', code: '37' },
@@ -150,16 +150,17 @@ export default function ClientFormModal({ client, onClose, onSaved }: Props) {
                 onClick={handleSave}
                 disabled={saving}
                 style={{
-                  padding: '6px 14px',
-                  borderRadius: '8px',
+                  padding: '7px 16px',
+                  borderRadius: '10px',
                   background: 'var(--color-accent)',
                   color: 'var(--color-primary)',
-                  fontSize: '13px',
+                  fontSize: '14px',
                   fontWeight: 700,
                   border: 'none',
                   cursor: saving ? 'not-allowed' : 'pointer',
                   opacity: saving ? 0.7 : 1,
                   fontFamily: 'Work Sans, sans-serif',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                 }}
               >
                 {saving ? 'Saving…' : 'Save'}
@@ -168,7 +169,7 @@ export default function ClientFormModal({ client, onClose, onSaved }: Props) {
                 type="button"
                 onClick={onClose}
                 aria-label="Close"
-                style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.15)', color: 'var(--color-bg)', fontSize: '18px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                style={{ width: '34px', height: '34px', borderRadius: '50%', background: 'rgba(255,255,255,0.15)', color: 'var(--color-bg)', fontSize: '18px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
                 ✕
               </button>
@@ -177,7 +178,7 @@ export default function ClientFormModal({ client, onClose, onSaved }: Props) {
         </div>
 
         {/* Body */}
-        <div style={{ overflowY: 'auto', flex: 1, padding: '24px 20px' }}>
+        <div style={{ overflowY: 'auto', flex: 1, padding: '24px 20px calc(48px + env(safe-area-inset-bottom, 0px))' }}>
 
           {error && (
             <div style={{ background: 'rgba(139,46,46,0.08)', border: '1px solid var(--color-error)', color: 'var(--color-error)', borderRadius: '10px', padding: '10px 14px', fontSize: '14px', marginBottom: '16px' }}>
@@ -245,56 +246,6 @@ export default function ClientFormModal({ client, onClose, onSaved }: Props) {
               + Add This Registration
             </button>
           </div>
-        </div>
-
-        {/* Footer */}
-        <div style={{
-          padding: '16px 20px calc(16px + env(safe-area-inset-bottom, 0px))',
-          borderTop: '1px solid var(--color-border)',
-          background: 'var(--color-surface)',
-          flexShrink: 0,
-          display: 'flex',
-          gap: '12px',
-          alignItems: 'center',
-          boxSizing: 'border-box',
-          position: 'sticky',
-          bottom: 0,
-          zIndex: 10,
-        }}>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              flex: 1,
-              minHeight: '48px',
-              padding: '14px 16px',
-              background: 'var(--color-surface-offset)',
-              color: 'var(--color-text-muted)',
-              fontWeight: 600,
-              fontSize: '15px',
-              borderRadius: '12px',
-              border: '1px solid var(--color-border)',
-              cursor: 'pointer',
-              fontFamily: 'Work Sans, sans-serif',
-              boxSizing: 'border-box',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            Cancel
-          </button>
-          <PrimaryButton
-            onClick={handleSave}
-            disabled={saving}
-            style={{
-              flex: 2,
-              minHeight: '48px',
-              boxSizing: 'border-box',
-            }}
-          >
-            {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Client'}
-          </PrimaryButton>
         </div>
       </div>
     </div>
