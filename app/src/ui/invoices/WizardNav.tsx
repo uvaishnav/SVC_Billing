@@ -27,9 +27,7 @@ export default function WizardNav({
     <div style={{
       display: 'flex',
       background: 'var(--color-surface)',
-      borderBottom: '1.5px solid var(--color-border)',
-      position: 'sticky', top: 0, zIndex: 50,
-      paddingTop: 'var(--safe-top)',
+      borderTop: '1px solid rgba(59, 42, 31, 0.08)',
     }}>
       {SECTIONS.map(sec => {
         const isActive   = activeSection === sec.id

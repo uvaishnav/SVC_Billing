@@ -1,12 +1,20 @@
 // Main Invoice Wizard — orchestrates all 4 sections
-import React from 'react'
+import React, { useRef, useEffect } from 'react'
 import type { InvoiceDraft, InvoiceStatus, InvoiceRentalItemDraft, InvoiceItemDistributionDraft } from '../../db/types'
 import { useInvoiceDraft, recomputeTotals } from './useInvoiceDraft'
+import type { WizardSection } from './useInvoiceDraft'
 import WizardNav from './WizardNav'
 import Section1Header from './Section1Header'
 import Section2Items from './Section2Items'
 import Section3Description from './Section3Description'
 import Section4Review from './Section4Review'
+
+const SECTION_NAMES: Record<WizardSection, string> = {
+  1: 'Header',
+  2: 'Line Items',
+  3: 'Description',
+  4: 'Review & Finalize',
+}
 
 export default function InvoiceWizard({
   initialDraft,
@@ -14,12 +22,14 @@ export default function InvoiceWizard({
   existingInvoiceId,
   onComplete,
   onSaveDraft,
+  onCancel,
 }: {
   initialDraft?: InvoiceDraft
   existingStatus?: InvoiceStatus
   existingInvoiceId?: number | null
   onComplete: () => void
   onSaveDraft?: () => void
+  onCancel?: () => void
 }) {
   const {
     draft, patch, patchLineItem,
@@ -29,6 +39,16 @@ export default function InvoiceWizard({
     saving, saveDraft,
     savedInvoiceId,
   } = useInvoiceDraft(initialDraft, existingInvoiceId)
+
+  const wizardRootRef = useRef<HTMLDivElement>(null)
+
+  // Scroll smoothly to top whenever section changes
+  useEffect(() => {
+    const scrollParent = wizardRootRef.current?.closest('.scroll-area')
+    if (scrollParent) {
+      scrollParent.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }, [activeSection])
 
   function handleSetRentalItems(items: InvoiceRentalItemDraft[]) {
     const updatedDraft = { ...draft, rental_items: items }
@@ -65,7 +85,11 @@ export default function InvoiceWizard({
   }
 
   function advanceSection() {
-    if (activeSection < 4) goToSection((activeSection + 1) as 2 | 3 | 4)
+    if (activeSection < 4) goToSection((activeSection + 1) as WizardSection)
+  }
+
+  function prevSection() {
+    if (activeSection > 1) goToSection((activeSection - 1) as WizardSection)
   }
 
   // Whether we are editing a previously-finalised invoice.
@@ -74,7 +98,7 @@ export default function InvoiceWizard({
   const isEditingFinal = existingStatus === 'final'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%', background: 'var(--color-bg)' }}>
+    <div ref={wizardRootRef} style={{ display: 'flex', flexDirection: 'column', minHeight: '100%', background: 'var(--color-bg)' }}>
       {toast && (
         <>
           <style>{`
@@ -120,14 +144,153 @@ export default function InvoiceWizard({
           </div>
         </>
       )}
-      <WizardNav
-        draft={draft}
-        activeSection={activeSection}
-        visitedSections={visitedSections}
-        onSelect={goToSection}
-      />
 
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      {/* ─── Apple HIG Top Header & Stepper (Sticky at Top) ─── */}
+      <div style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 50,
+        background: 'var(--color-bg)',
+        borderBottom: '1px solid var(--color-border)',
+        boxShadow: '0 2px 8px rgba(59,42,31,0.06)',
+      }}>
+        {/* Row 1: Back, Title & Top Action Controls */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingTop: 'calc(max(var(--safe-top), 8px) + 6px)',
+          paddingBottom: '8px',
+          paddingLeft: '12px',
+          paddingRight: '12px',
+          gap: '8px',
+        }}>
+          {/* Back button */}
+          <button
+            type="button"
+            onClick={onCancel}
+            aria-label="Back to Invoices"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              background: 'none',
+              border: 'none',
+              color: 'var(--color-primary)',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              padding: '6px 4px',
+              borderRadius: '8px',
+              fontFamily: 'Work Sans, sans-serif',
+              flexShrink: 0,
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+            <span>Invoices</span>
+          </button>
+
+          {/* Title & Step Context */}
+          <div style={{ textAlign: 'center', flex: 1, minWidth: 0, padding: '0 4px' }}>
+            <div style={{
+              fontSize: '14px',
+              fontWeight: 700,
+              color: 'var(--color-primary)',
+              fontFamily: 'Playfair Display, Georgia, serif',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}>
+              {draft.invoice_number ? `Invoice #${draft.invoice_number}` : 'New Invoice'}
+            </div>
+            <div style={{
+              fontSize: '11px',
+              color: 'var(--color-text-muted)',
+              fontFamily: 'Work Sans, sans-serif',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}>
+              Step {activeSection} of 4 • {SECTION_NAMES[activeSection]}
+            </div>
+          </div>
+
+          {/* Top Quick Actions: Save Draft and Next */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+            {!isEditingFinal && (
+              <button
+                type="button"
+                onClick={handleSaveDraft}
+                disabled={saving}
+                title="Save draft"
+                aria-label="Save draft"
+                style={{
+                  height: '32px',
+                  padding: '0 9px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-surface)',
+                  color: 'var(--color-text)',
+                  fontWeight: 600,
+                  fontSize: '12px',
+                  cursor: saving ? 'wait' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontFamily: 'Work Sans, sans-serif',
+                  transition: 'all 150ms ease',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <span style={{ fontSize: '13px' }}>{saving ? '…' : '💾'}</span>
+                <span>{saving ? 'Saving' : 'Draft'}</span>
+              </button>
+            )}
+
+            {activeSection < 4 && (
+              <button
+                type="button"
+                onClick={advanceSection}
+                aria-label="Next step"
+                style={{
+                  height: '32px',
+                  padding: '0 12px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: 'var(--color-accent)',
+                  color: 'var(--color-primary)',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                  fontFamily: 'Work Sans, sans-serif',
+                  boxShadow: '0 1px 3px rgba(59,42,31,0.15)',
+                  transition: 'all 150ms ease',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <span>Next</span>
+                <span style={{ fontSize: '13px' }}>→</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Row 2: WizardNav Stepper Tabs */}
+        <WizardNav
+          draft={draft}
+          activeSection={activeSection}
+          visitedSections={visitedSections}
+          onSelect={goToSection}
+        />
+      </div>
+
+      {/* Main Content Area */}
+      <div style={{ flex: 1 }}>
         {activeSection === 1 && (
           <Section1Header draft={draft} patch={patch} />
         )}
@@ -153,45 +316,98 @@ export default function InvoiceWizard({
             existingInvoiceId={savedInvoiceId}
           />
         )}
-      </div>
 
-      {/* Bottom action bar — visible on sections 1-3 only.
-          Save Draft is hidden when editing a final invoice (would demote it to draft).
-          Next → is ALWAYS shown so the user can navigate through all sections. */}
-      {activeSection < 4 && (
-        <div style={{
-          position: 'sticky', bottom: 64, left: 0, right: 0,
-          padding: '10px 16px',
-          background: 'var(--color-bg)',
-          borderTop: '1px solid var(--color-border)',
-          display: 'flex', gap: 10, zIndex: 30,
-        }}>
-          {!isEditingFinal && (
-            <button
-              type="button" onClick={handleSaveDraft} disabled={saving}
-              style={{
-                flex: 1, padding: '13px', borderRadius: 12,
-                border: '1.5px solid var(--color-border)',
-                background: 'transparent', color: 'var(--color-text-muted)',
-                fontWeight: 600, fontSize: 14, cursor: 'pointer',
-              }}
-            >
-              {saving ? 'Saving…' : '💾 Save Draft'}
-            </button>
-          )}
-          <button
-            type="button" onClick={advanceSection}
-            style={{
-              flex: 2, padding: '13px', borderRadius: 12,
-              border: 'none', background: 'var(--color-accent)',
-              color: 'var(--color-primary)', fontWeight: 700, fontSize: 15,
-              cursor: 'pointer',
-            }}
-          >
-            Next →
-          </button>
-        </div>
-      )}
+        {/* In-Flow Bottom Navigation (visible on sections 1-3 only, non-sticky, safe above footer) */}
+        {activeSection < 4 && (
+          <div style={{ padding: '0 16px', paddingBottom: '32px' }}>
+            <div style={{
+              marginTop: '20px',
+              padding: '16px',
+              background: 'var(--color-surface)',
+              borderRadius: '16px',
+              border: '1px solid var(--color-border)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+              boxShadow: 'var(--shadow-sm)',
+            }}>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                {activeSection > 1 && (
+                  <button
+                    type="button"
+                    onClick={prevSection}
+                    style={{
+                      flex: 1,
+                      padding: '13px',
+                      borderRadius: '12px',
+                      border: '1.5px solid var(--color-border)',
+                      background: 'transparent',
+                      color: 'var(--color-text)',
+                      fontWeight: 600,
+                      fontSize: '14px',
+                      cursor: 'pointer',
+                      fontFamily: 'Work Sans, sans-serif',
+                    }}
+                  >
+                    ← {SECTION_NAMES[(activeSection - 1) as WizardSection]}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={advanceSection}
+                  style={{
+                    flex: activeSection > 1 ? 2 : 1,
+                    padding: '14px',
+                    borderRadius: '12px',
+                    border: 'none',
+                    background: 'var(--color-accent)',
+                    color: 'var(--color-primary)',
+                    fontWeight: 700,
+                    fontSize: '15px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 6px rgba(59,42,31,0.15)',
+                    fontFamily: 'Work Sans, sans-serif',
+                  }}
+                >
+                  <span>Next: {SECTION_NAMES[(activeSection + 1) as WizardSection]}</span>
+                  <span style={{ fontSize: '16px' }}>→</span>
+                </button>
+              </div>
+
+              {!isEditingFinal && (
+                <button
+                  type="button"
+                  onClick={handleSaveDraft}
+                  disabled={saving}
+                  style={{
+                    width: '100%',
+                    padding: '11px',
+                    borderRadius: '10px',
+                    border: '1px solid var(--color-border)',
+                    background: 'transparent',
+                    color: 'var(--color-text-muted)',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    cursor: saving ? 'wait' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    fontFamily: 'Work Sans, sans-serif',
+                  }}
+                >
+                  <span>💾</span>
+                  <span>{saving ? 'Saving Draft…' : 'Save Draft'}</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

@@ -162,7 +162,7 @@ function Section2Quantity({
   if (loading) return <LoadingState />
 
   return (
-    <div style={{ padding: '16px', paddingBottom: 80 }}>
+    <div style={{ padding: '16px', paddingBottom: 16 }}>
       <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginBottom: 16 }}>
         Select items to bill and enter quantities.
       </p>
@@ -347,7 +347,7 @@ function Section2Quantity({
       })}
 
       {draft.line_items.length > 0 && (
-        <FloatingSubtotal
+        <SubtotalBanner
           label={`${filledCount} item(s) • Subtotal`}
           amount={subtotal}
         />
@@ -499,7 +499,7 @@ function Section2Rental({
   if (loading) return <LoadingState />
 
   return (
-    <div style={{ padding: '16px', paddingBottom: 100 }}>
+    <div style={{ padding: '16px', paddingBottom: 16 }}>
 
       {/* ── Vehicle Rental Rows ── */}
       <SectionLabel>Vehicle Rental Charges</SectionLabel>
@@ -649,9 +649,9 @@ function Section2Rental({
         </>
       )}
 
-      {/* Floating total bar */}
+      {/* In-flow subtotal banner */}
       {rentalTotal > 0 && (
-        <FloatingSubtotal
+        <SubtotalBanner
           label={`${draft.rental_items.length} vehicle(s) • Rental Total`}
           amount={rentalTotal}
         />
@@ -894,16 +894,22 @@ function SectionLabel({ children, style }: { children: React.ReactNode; style?: 
   )
 }
 
-function FloatingSubtotal({ label, amount }: { label: string; amount: number }) {
+function SubtotalBanner({ label, amount }: { label: string; amount: number }) {
   return (
     <div style={{
-      position: 'fixed', bottom: 64, left: 0, right: 0,
-      background: 'var(--color-primary)', color: 'var(--color-accent)',
-      padding: '12px 20px', display: 'flex', justifyContent: 'space-between',
-      alignItems: 'center', zIndex: 40,
+      background: 'var(--color-primary)',
+      color: 'var(--color-bg)',
+      padding: '14px 18px',
+      borderRadius: '12px',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: '16px',
+      marginBottom: '8px',
+      boxShadow: '0 2px 8px rgba(59,42,31,0.12)',
     }}>
       <span style={{ fontSize: 13, fontWeight: 600 }}>{label}</span>
-      <span className="tabular" style={{ fontSize: 17, fontWeight: 700 }}>₹{fmt(amount)}</span>
+      <span className="tabular" style={{ fontSize: 17, fontWeight: 700, color: 'var(--color-accent)' }}>₹{fmt(amount)}</span>
     </div>
   )
 }

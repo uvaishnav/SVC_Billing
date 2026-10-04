@@ -395,7 +395,7 @@ export default function Section1Header({
   )
 
   return (
-    <div style={{ paddingBottom: 120 }}>
+    <div style={{ paddingBottom: 16 }}>
 
       {/* Invoice number banner */}
       <div style={{

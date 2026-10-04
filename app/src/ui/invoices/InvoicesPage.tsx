@@ -552,6 +552,7 @@ export default function InvoicesPage() {
         existingStatus={editStatus}
         existingInvoiceId={editInvoiceId ?? undefined}
         onComplete={() => { setShowWizard(false); setEditDraft(undefined); setEditStatus(undefined); setEditInvoiceId(null); load() }}
+        onCancel={() => { setShowWizard(false); setEditDraft(undefined); setEditStatus(undefined); setEditInvoiceId(null); }}
       />
     )
   }
