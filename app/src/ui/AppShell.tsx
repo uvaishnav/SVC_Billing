@@ -9,89 +9,107 @@ import InvoicesPage from './invoices/InvoicesPage'
 import MoreHubView from './more/MoreHubView'
 
 type Tab = 'home' | 'invoices' | 'workorders' | 'clients' | 'more' | 'vehicles' | 'projects' | 'settings'
-type PrimaryTab = 'home' | 'invoices' | 'workorders' | 'clients' | 'more'
+type PrimaryTab = 'home' | 'invoices' | 'clients' | 'more'
 
-// ─── SVG Icons (Apple HIG 22x22 outline icons) ───
+// ─── SVG Icons (Apple HIG inspired active & inactive icons) ───
 
-const Icons: Record<PrimaryTab, ReactNode> = {
-  home: (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/>
-      <path d="M9 21V12h6v9"/>
+function TabIcon({ id, active }: { id: PrimaryTab; active: boolean }) {
+  if (id === 'home') {
+    return active ? (
+      <svg width="23" height="23" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M11.26 2.45a1 1 0 0 1 1.48 0l8.5 7.65A1 1 0 0 1 21.5 11v9a1.5 1.5 0 0 1-1.5 1.5h-4a1 1 0 0 1-1-1v-6h-6v6a1 1 0 0 1-1 1H4A1.5 1.5 0 0 1 2.5 20v-9a1 1 0 0 1 .26-.68l8.5-7.87z" />
+      </svg>
+    ) : (
+      <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 10.2L12 3l9 7.2V20a1.5 1.5 0 0 1-1.5 1.5H4.5A1.5 1.5 0 0 1 3 20V10.2z" />
+        <path d="M9 21.5V12h6v9.5" />
+      </svg>
+    )
+  }
+
+  if (id === 'invoices') {
+    return active ? (
+      <svg width="23" height="23" viewBox="0 0 24 24" fill="none">
+        <rect x="4" y="2.5" width="16" height="19" rx="2.5" fill="currentColor" fillOpacity="0.14" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" />
+        <line x1="8" y1="8" x2="16" y2="8" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" />
+        <line x1="8" y1="12" x2="16" y2="12" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" />
+        <line x1="8" y1="16" x2="13" y2="16" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" />
+      </svg>
+    ) : (
+      <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="4" y="2.5" width="16" height="19" rx="2.5" />
+        <line x1="8" y1="8" x2="16" y2="8" />
+        <line x1="8" y1="12" x2="16" y2="12" />
+        <line x1="8" y1="16" x2="13" y2="16" />
+      </svg>
+    )
+  }
+
+  if (id === 'clients') {
+    return active ? (
+      <svg width="23" height="23" viewBox="0 0 24 24" fill="currentColor">
+        <circle cx="12" cy="7.5" r="4.2" />
+        <path d="M12 13.5c-4.4 0-8 2.4-8 6.2 0 .7.58 1.3 1.3 1.3h13.4c.72 0 1.3-.6 1.3-1.3 0-3.8-3.6-6.2-8-6.2z" />
+      </svg>
+    ) : (
+      <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="7.5" r="4" />
+        <path d="M4 20.5c0-4 3.58-6.5 8-6.5s8 2.5 8 6.5" />
+      </svg>
+    )
+  }
+
+  // more
+  return active ? (
+    <svg width="23" height="23" viewBox="0 0 24 24" fill="currentColor">
+      <circle cx="5" cy="12" r="2.2" />
+      <circle cx="12" cy="12" r="2.2" />
+      <circle cx="19" cy="12" r="2.2" />
     </svg>
-  ),
-  invoices: (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="4" y="2" width="16" height="20" rx="2"/>
-      <line x1="8" y1="8" x2="16" y2="8"/>
-      <line x1="8" y1="12" x2="16" y2="12"/>
-      <line x1="8" y1="16" x2="12" y2="16"/>
+  ) : (
+    <svg width="23" height="23" viewBox="0 0 24 24" fill="currentColor">
+      <circle cx="5" cy="12" r="1.8" />
+      <circle cx="12" cy="12" r="1.8" />
+      <circle cx="19" cy="12" r="1.8" />
     </svg>
-  ),
-  workorders: (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="8" y="2" width="8" height="4" rx="1"/>
-      <path d="M8 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2h-2"/>
-      <line x1="8" y1="10" x2="16" y2="10"/>
-      <line x1="8" y1="14" x2="14" y2="14"/>
-    </svg>
-  ),
-  clients: (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="8" r="4"/>
-      <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-    </svg>
-  ),
-  more: (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="1.5"/>
-      <circle cx="19" cy="12" r="1.5"/>
-      <circle cx="5" cy="12" r="1.5"/>
-    </svg>
-  ),
+  )
 }
 
 const PRIMARY_TABS: { id: PrimaryTab; label: string }[] = [
-  { id: 'home',       label: 'Home'     },
-  { id: 'invoices',   label: 'Invoices' },
-  { id: 'workorders', label: 'Orders'   },
-  { id: 'clients',    label: 'Clients'  },
-  { id: 'more',       label: 'More'     },
+  { id: 'home',     label: 'Home'     },
+  { id: 'invoices', label: 'Invoices' },
+  { id: 'clients',  label: 'Clients'  },
+  { id: 'more',     label: 'More'     },
 ]
 
 export default function AppShell() {
   const [activeTab, setActiveTab] = useState<Tab>('home')
-  const [navigatedFromMore, setNavigatedFromMore] = useState(false)
   const [animKey, setAnimKey] = useState(0)
 
+  const isSubTab = activeTab === 'vehicles' || activeTab === 'projects' || activeTab === 'settings' || activeTab === 'workorders'
+  const effectivePrimaryTab: PrimaryTab = isSubTab ? 'more' : (activeTab as PrimaryTab)
+
   const handleTabChange = useCallback((id: PrimaryTab) => {
-    // If tapping "more" while already in a sub-view (vehicles, projects, settings, or workorders from more), return to more hub
-    if (id === 'more' && (activeTab === 'vehicles' || activeTab === 'projects' || activeTab === 'settings' || (activeTab === 'workorders' && navigatedFromMore))) {
+    // If tapping "more" while already in a sub-view (vehicles, projects, settings, workorders), return to more hub
+    if (id === 'more' && isSubTab) {
       setActiveTab('more')
-      setNavigatedFromMore(false)
       setAnimKey(k => k + 1)
       return
     }
-    setNavigatedFromMore(false)
     if (id === activeTab) return
     setActiveTab(id)
     setAnimKey(k => k + 1)
-  }, [activeTab, navigatedFromMore])
+  }, [activeTab, isSubTab])
 
   const handleNavigateSubTab = useCallback((sub: 'workorders' | 'vehicles' | 'projects' | 'settings') => {
     setActiveTab(sub)
-    setNavigatedFromMore(true)
     setAnimKey(k => k + 1)
   }, [])
 
   const handleBackToMore = useCallback(() => {
     setActiveTab('more')
-    setNavigatedFromMore(false)
     setAnimKey(k => k + 1)
   }, [])
-
-  const isSubTab = activeTab === 'vehicles' || activeTab === 'projects' || activeTab === 'settings' || (activeTab === 'workorders' && navigatedFromMore)
-  const effectivePrimaryTab: PrimaryTab = isSubTab ? 'more' : (activeTab as PrimaryTab)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', overflow: 'hidden', background: 'var(--color-bg)', position: 'relative' }}>
@@ -101,7 +119,7 @@ export default function AppShell() {
         <div key={animKey} className="page-enter">
           {activeTab === 'home'       && <DashboardPage />}
           {activeTab === 'invoices'   && <InvoicesPage />}
-          {activeTab === 'workorders' && <WorkOrdersPage onBack={navigatedFromMore ? handleBackToMore : undefined} />}
+          {activeTab === 'workorders' && <WorkOrdersPage onBack={handleBackToMore} />}
           {activeTab === 'clients'    && <ClientsPage />}
           {activeTab === 'more'       && <MoreHubView onNavigate={handleNavigateSubTab} />}
           {activeTab === 'vehicles'   && <VehiclesPage onBack={handleBackToMore} />}
@@ -110,12 +128,12 @@ export default function AppShell() {
         </div>
       </div>
 
-      {/* ─── Apple HIG Frosted Glass Bottom Tab Bar (5 items) ─────────────────── */}
+      {/* ─── Apple HIG iOS Bottom Tab Bar (4 items: Home, Invoices, Clients, More) ─── */}
       <nav className="tab-bar" role="tablist" aria-label="Main navigation">
         {PRIMARY_TABS.map(tab => {
           const isActive = effectivePrimaryTab === tab.id
-          const activeColor   = 'var(--color-primary)'   // Deep espresso
-          const inactiveColor = 'var(--color-text-muted)' // Warm muted slate
+          const activeColor   = 'var(--color-primary)'    // Deep espresso
+          const inactiveColor = 'var(--color-text-muted)'  // Warm muted slate
 
           return (
             <button
@@ -126,12 +144,12 @@ export default function AppShell() {
               onClick={() => handleTabChange(tab.id)}
               className={`tab-btn${isActive ? ' active' : ''}`}
             >
-              {/* Icon */}
+              {/* Icon with comfortable breathing room */}
               <span
                 className="tab-icon"
                 style={{ color: isActive ? activeColor : inactiveColor }}
               >
-                {Icons[tab.id]}
+                <TabIcon id={tab.id} active={isActive} />
               </span>
 
               {/* Label */}
@@ -146,16 +164,13 @@ export default function AppShell() {
               </span>
 
               {/* Refined Gold Active Pip — fixed slot prevents height jitter / label jumping */}
-              <span style={{
-                width: '4px',
-                height: '4px',
-                borderRadius: '50%',
-                background: 'var(--color-accent)',
-                marginTop: '1px',
-                boxShadow: '0 0 3px rgba(200, 169, 106, 0.6)',
-                opacity: isActive ? 1 : 0,
-                transition: 'opacity 150ms ease',
-              }} />
+              <span
+                className="tab-pip"
+                style={{
+                  opacity: isActive ? 1 : 0,
+                  transform: isActive ? 'scale(1)' : 'scale(0.4)',
+                }}
+              />
             </button>
           )
         })}

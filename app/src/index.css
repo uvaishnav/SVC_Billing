@@ -37,8 +37,8 @@
   --safe-right:  env(safe-area-inset-right,  0px);
 
   /* ─── Nav ────────────────────────────────────────────────────── */
-  --nav-height-base: 48px;
-  --nav-safe-bottom: max(calc(env(safe-area-inset-bottom, 0px) - 20px), 4px);
+  --nav-height-base: 56px;
+  --nav-safe-bottom: max(calc(env(safe-area-inset-bottom, 0px) - 8px), 0px);
   --nav-height: calc(var(--nav-height-base) + var(--nav-safe-bottom));
 
   /* ─── Motion — spring-inspired cubic-bezier ──────────────────── */
@@ -204,7 +204,7 @@ input, textarea, select {
 .overlay-enter { animation: overlay-in 200ms ease both; }
 
 /* ═══════════════════════════════════════════════════════════════════
-   BOTTOM TAB BAR (Compact, sleek, perfectly positioned at screen bottom)
+   BOTTOM TAB BAR (Apple HIG Style — spacious, elegant, comfortable)
    ═══════════════════════════════════════════════════════════════════ */
 .tab-bar {
   position: fixed;
@@ -213,7 +213,7 @@ input, textarea, select {
   background: var(--color-bg);
   border-top: 1px solid rgba(59, 42, 31, 0.08);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-around;
   z-index: 100;
   padding-bottom: var(--nav-safe-bottom);
@@ -222,17 +222,15 @@ input, textarea, select {
 
 .tab-btn {
   flex: 1;
-  height: 100%;
-  max-height: var(--nav-height-base);
+  height: var(--nav-height-base);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
   border: none;
   background: transparent;
   cursor: pointer;
-  padding: 2px 2px;
+  padding: 6px 4px 4px;
   position: relative;
   -webkit-user-select: none;
   user-select: none;
@@ -240,39 +238,47 @@ input, textarea, select {
 }
 
 .tab-btn:active {
-  opacity: 0.65;
-  transform: scale(0.96);
+  opacity: 0.6;
+  transform: scale(0.95);
 }
 
 .tab-icon {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
-  transition:
-    transform  200ms var(--ease-spring),
-    color      200ms var(--ease-spring);
+  transition: transform 200ms var(--ease-spring), color 150ms ease;
   position: relative;
   z-index: 1;
 }
 
 .tab-btn.active .tab-icon {
-  transform: scale(1.06) translateY(-0.5px);
+  transform: scale(1.05);
 }
 
 .tab-icon svg {
-  transition: stroke 200ms var(--ease-spring);
+  transition: transform 200ms var(--ease-spring), stroke 200ms var(--ease-spring);
 }
 
 .tab-label {
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 500;
-  letter-spacing: -0.1px;
-  font-family: 'Work Sans', -apple-system, sans-serif;
-  transition: color 200ms var(--ease-spring), font-weight 200ms;
-  line-height: 1.1;
+  letter-spacing: -0.15px;
+  font-family: 'Work Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  transition: color 150ms ease, font-weight 150ms ease;
+  line-height: 1.15;
+  margin-top: 3px;
+}
+
+.tab-pip {
+  width: 3.5px;
+  height: 3.5px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  margin-top: 3px;
+  box-shadow: 0 0 3px rgba(200, 169, 106, 0.7);
+  transition: opacity 150ms ease, transform 150ms ease;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -440,7 +446,7 @@ input, textarea, select {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
   /* Bottom padding ensures content is never hidden behind tab bar */
-  padding-bottom: calc(var(--nav-height) + 12px);
+  padding-bottom: calc(var(--nav-height) + 16px);
 }
 
 /* Custom scrollbar (desktop only — invisible on mobile) */
