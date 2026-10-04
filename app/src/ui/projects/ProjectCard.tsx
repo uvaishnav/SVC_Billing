@@ -16,6 +16,9 @@ export default function ProjectCard({ project: p, onEdit, onDeactivate }: Props)
           {p.site_location && (
             <p style={{ fontSize: '13px', color: 'var(--color-accent)', margin: '0 0 4px', fontWeight: 500 }}>📍 {p.site_location}</p>
           )}
+          {p.work_order_reference && (
+            <p style={{ fontSize: '13px', color: 'var(--color-primary)', margin: '0 0 4px', fontWeight: 600 }}>📄 WO: {p.work_order_reference}</p>
+          )}
           {p.client_name && (
             <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', margin: 0 }}>👤 {p.client_name}</p>
           )}

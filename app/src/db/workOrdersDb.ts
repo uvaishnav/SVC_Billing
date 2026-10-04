@@ -17,32 +17,86 @@ export function computeWOStatus(wo: WorkOrder): WorkOrder['status'] {
 export async function getWorkOrders(): Promise<WorkOrderWithClient[]> {
   const { data, error } = await supabase
     .from('work_orders')
-    .select('*, clients(name), projects(name)')
+    .select('*, clients(name)')
     .order('issue_date', { ascending: false })
   if (error) { console.error('getWorkOrders:', error); return [] }
-  return (data ?? []).map((row: any) => ({
-    ...row,
-    client_name: row.clients?.name ?? null,
-    project_name: row.projects?.name ?? null,
-    clients: undefined,
-    projects: undefined,
-  }))
+
+  const woIds = (data ?? []).map((w: any) => w.id)
+  const projectsByWo = new Map<number, { id: number; name: string; site_location: string | null }[]>()
+  if (woIds.length > 0) {
+    try {
+      const { data: projs } = await supabase
+        .from('projects')
+        .select('id, name, site_location, work_order_id')
+        .in('work_order_id', woIds)
+      if (projs) {
+        for (const p of projs) {
+          if (p.work_order_id) {
+            const list = projectsByWo.get(p.work_order_id) ?? []
+            list.push({ id: p.id, name: p.name, site_location: p.site_location })
+            projectsByWo.set(p.work_order_id, list)
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Projects by WO query notice:', err)
+    }
+  }
+
+  return (data ?? []).map((row: any) => {
+    const linkedProjects = projectsByWo.get(row.id) ?? []
+    const projectNames = linkedProjects.map(p => p.name).join(', ')
+    return {
+      ...row,
+      client_name: row.clients?.name ?? null,
+      project_name: projectNames || null,
+      projects: linkedProjects,
+      clients: undefined,
+    }
+  })
 }
 
 export async function getWorkOrdersByClient(clientId: number): Promise<WorkOrderWithClient[]> {
   const { data, error } = await supabase
     .from('work_orders')
-    .select('*, clients(name), projects(name)')
+    .select('*, clients(name)')
     .eq('client_id', clientId)
     .order('issue_date', { ascending: false })
   if (error) { console.error('getWorkOrdersByClient:', error); return [] }
-  return (data ?? []).map((row: any) => ({
-    ...row,
-    client_name: row.clients?.name ?? null,
-    project_name: row.projects?.name ?? null,
-    clients: undefined,
-    projects: undefined,
-  }))
+
+  const woIds = (data ?? []).map((w: any) => w.id)
+  const projectsByWo = new Map<number, { id: number; name: string; site_location: string | null }[]>()
+  if (woIds.length > 0) {
+    try {
+      const { data: projs } = await supabase
+        .from('projects')
+        .select('id, name, site_location, work_order_id')
+        .in('work_order_id', woIds)
+      if (projs) {
+        for (const p of projs) {
+          if (p.work_order_id) {
+            const list = projectsByWo.get(p.work_order_id) ?? []
+            list.push({ id: p.id, name: p.name, site_location: p.site_location })
+            projectsByWo.set(p.work_order_id, list)
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Projects by WO query notice:', err)
+    }
+  }
+
+  return (data ?? []).map((row: any) => {
+    const linkedProjects = projectsByWo.get(row.id) ?? []
+    const projectNames = linkedProjects.map(p => p.name).join(', ')
+    return {
+      ...row,
+      client_name: row.clients?.name ?? null,
+      project_name: projectNames || null,
+      projects: linkedProjects,
+      clients: undefined,
+    }
+  })
 }
 
 export async function upsertWorkOrder(

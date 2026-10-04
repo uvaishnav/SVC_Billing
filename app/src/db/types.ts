@@ -92,6 +92,7 @@ export interface Project {
   full_subject: string | null
   site_location: string | null
   client_id: number | null
+  work_order_id: number | null
   place_of_supply: string
   state_code: string
   is_active: boolean
@@ -101,6 +102,8 @@ export interface Project {
 
 export interface ProjectWithClient extends Project {
   client_name: string | null
+  work_order_reference?: string | null
+  work_order_subject?: string | null
 }
 
 // ─── Work Orders ─────────────────────────────────────────────
@@ -131,6 +134,7 @@ export interface WorkOrder {
 export interface WorkOrderWithClient extends WorkOrder {
   client_name: string | null
   project_name: string | null
+  projects?: { id: number; name: string; site_location: string | null }[]
 }
 
 // ─── Work Order Items ─────────────────────────────────────────
@@ -164,6 +168,7 @@ export interface Invoice {
   client_id: number | null
   client_gstin_id: number | null
   work_order_id: number | null
+  project_id: number | null
 
   tax_mode: TaxMode
   place_of_supply: string
@@ -329,6 +334,8 @@ export interface InvoiceWithDetails extends Invoice {
   client_gstin: string | null
   client_address: string | null
   work_order_reference: string | null
+  project_name: string | null
+  site_location: string | null
   // Quantity invoice children
   line_items: InvoiceLineItem[]
   vehicles: (InvoiceVehicle & { reg_number: string; vehicle_type: string | null })[]
@@ -371,6 +378,9 @@ export interface InvoiceDraft {
   client_id: number | null
   client_gstin_id: number | null
   work_order_id: number | null
+  project_id: number | null
+  project_name?: string | null
+  site_location?: string | null
   sac_id: number | null
   bank_account_id: number | null
   tax_mode: TaxMode

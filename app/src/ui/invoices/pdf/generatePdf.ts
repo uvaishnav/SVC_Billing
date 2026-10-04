@@ -218,6 +218,7 @@ export async function generatePdf(draft: InvoiceDraft): Promise<Blob> {
     ['Invoice Date', fmtDate(draft.invoice_date)],
     ['Billing Period', `${fmtDate(draft.billing_from)} to ${fmtDate(draft.billing_to)}`],
   ]
+  if (draft.site_location) metaLeft.push(['Site Location', draft.site_location])
   if (woRef) metaLeft.push(['W.O. Ref.', woRef])
 
   const taxLabel = 'Tax Mode'

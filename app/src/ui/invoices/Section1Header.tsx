@@ -2,9 +2,10 @@
 // Invoice number is NOT generated here.
 // It is assigned at finalize time in Section4Review / invoicesDb.
 import React, { useEffect, useState } from 'react'
-import type { InvoiceDraft, ClientWithGstins, WorkOrder, SacCode, BankAccount, TaxMode, InvoiceBillingType } from '../../db/types'
+import type { InvoiceDraft, ClientWithGstins, WorkOrder, SacCode, BankAccount, TaxMode, InvoiceBillingType, ProjectWithClient } from '../../db/types'
 import { getClients } from '../../db/clientsDb'
 import { getWorkOrders } from '../../db/workOrdersDb'
+import { getProjects } from '../../db/projectsDb'
 import { getSettings, getSacCodes, getBankAccounts } from '../../db/settingsDb'
 import { inputStyle, labelStyle } from '../settings/_components'
 import { prevMonthRange } from './useInvoiceDraft'
@@ -206,6 +207,7 @@ export default function Section1Header({
   patch: (u: Partial<InvoiceDraft>) => void
 }) {
   const [clients, setClients]           = useState<ClientWithGstins[]>([])
+  const [projects, setProjects]         = useState<ProjectWithClient[]>([])
   const [workOrders, setWorkOrders]     = useState<WorkOrder[]>([])
   // allSacCodes holds every active SAC loaded from DB.
   // filteredSacCodes is derived from allSacCodes + current billing type — never persisted.
@@ -256,9 +258,14 @@ export default function Section1Header({
   }, [])
 
   useEffect(() => {
-    if (!draft.client_id) { setWorkOrders([]); return }
-    getWorkOrders().then(wos => {
+    if (!draft.client_id) {
+      setWorkOrders([])
+      setProjects([])
+      return
+    }
+    Promise.all([getWorkOrders(), getProjects()]).then(([wos, projs]) => {
       setWorkOrders(wos.filter(wo => wo.client_id === draft.client_id && wo.status !== 'closed'))
+      setProjects(projs.filter(p => p.client_id === draft.client_id && p.is_active))
     })
     const client = clients.find(c => c.id === draft.client_id)
     const gstin  = client?.gstins.find(g => g.id === draft.client_gstin_id)
@@ -271,6 +278,29 @@ export default function Section1Header({
       })
     }
   }, [draft.client_id, draft.client_gstin_id, clients, myStateCode])
+
+  function handleProjectSelect(projIdStr: string) {
+    const pid = Number(projIdStr) || null
+    if (!pid) {
+      patch({ project_id: null, project_name: '', site_location: '' })
+      return
+    }
+    const selectedProj = projects.find(p => p.id === pid)
+    if (!selectedProj) return
+
+    const linkedWoId = selectedProj.work_order_id ?? draft.work_order_id
+
+    patch({
+      project_id:    selectedProj.id,
+      project_name:  selectedProj.name,
+      site_location: selectedProj.site_location ?? '',
+      work_order_id: linkedWoId,
+      ...(selectedProj.place_of_supply ? {
+        place_of_supply: selectedProj.place_of_supply,
+        place_of_supply_code: selectedProj.state_code,
+      } : {}),
+    })
+  }
 
   // FIX (Bug 2): When a work order is selected/deselected, apply its tds_applicable
   // flag to override the global setting. If the WO marks TDS as applicable, use the
@@ -398,7 +428,7 @@ export default function Section1Header({
         <FieldWrap label="Client" required>
           <StyledSelect
             value={String(draft.client_id ?? '')}
-            onChange={v => patch({ client_id: Number(v) || null, client_gstin_id: null, work_order_id: null })}
+            onChange={v => patch({ client_id: Number(v) || null, client_gstin_id: null, project_id: null, project_name: '', site_location: '', work_order_id: null })}
           >
             <option value="">Select client…</option>
             {clients.filter(c => c.is_active).map(c => (
@@ -471,10 +501,43 @@ export default function Section1Header({
 
         <Divider />
 
-        {/* ───── WORK ORDER ───── */}
-        <SectionLabel>Work Order (Optional)</SectionLabel>
+        {/* ───── PROJECT / SITE LOCATION & WORK ORDER ───── */}
+        <SectionLabel>Project / Site Location & Work Order</SectionLabel>
 
-        <FieldWrap label="Linked Work Order">
+        <FieldWrap label="Project / Site Location">
+          <StyledSelect
+            value={String(draft.project_id ?? '')}
+            onChange={handleProjectSelect}
+            disabled={!draft.client_id}
+          >
+            <option value="">Select Project / Site Location…</option>
+            {projects.map(p => (
+              <option key={p.id} value={p.id}>
+                {p.name}{p.site_location ? ` — 📍 ${p.site_location}` : ''}
+              </option>
+            ))}
+          </StyledSelect>
+          {!draft.client_id ? (
+            <p style={{ fontSize: 12, color: 'var(--color-text-faint)', marginTop: 6 }}>
+              Select a client first to see their projects and sites.
+            </p>
+          ) : projects.length === 0 ? (
+            <p style={{ fontSize: 12, color: 'var(--color-warning)', marginTop: 6 }}>
+              ℹ No projects found for this client. You can create one in More → Projects & Sites, or link a Work Order directly below.
+            </p>
+          ) : null}
+
+          {draft.site_location && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6, marginTop: 8,
+              fontSize: 12.5, color: 'var(--color-accent)', fontWeight: 600,
+            }}>
+              📍 Site Location: <span>{draft.site_location}</span>
+            </div>
+          )}
+        </FieldWrap>
+
+        <FieldWrap label="Linked Work Order (Contract)">
           <StyledSelect
             value={String(draft.work_order_id ?? '')}
             onChange={v => patch({ work_order_id: Number(v) || null })}
@@ -487,12 +550,11 @@ export default function Section1Header({
               </option>
             ))}
           </StyledSelect>
-          {!draft.client_id && (
-            <p style={{ fontSize: 12, color: 'var(--color-text-faint)', marginTop: 6 }}>
-              Select a client first to see their work orders.
+          {draft.project_id && draft.work_order_id && (
+            <p style={{ fontSize: 12, color: 'var(--color-success)', marginTop: 6 }}>
+              ✓ Auto-linked from selected Project / Site
             </p>
           )}
-          {/* Show TDS hint when a WO is linked so the user knows TDS was set from the WO */}
           {draft.work_order_id && (
             <p style={{ fontSize: 12, marginTop: 6,
               color: draft.tds_rate > 0 ? 'var(--color-success)' : 'var(--color-text-faint)' }}>

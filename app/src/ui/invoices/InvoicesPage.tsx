@@ -295,6 +295,9 @@ function InvoiceCard({
         {(inv.billing_from || inv.billing_to) && (
           <span> &bull; {inv.billing_from} → {inv.billing_to}</span>
         )}
+        {inv.site_location && (
+          <span style={{ color: 'var(--color-accent)' }}> &bull; 📍 {inv.site_location}</span>
+        )}
         {inv.work_order_reference && (
           <span style={{ color: 'var(--color-text-faint)' }}> &bull; WO: {inv.work_order_reference}</span>
         )}
@@ -509,6 +512,8 @@ export default function InvoicesPage() {
       const searchOk  = !term ||
         (inv.invoice_number ?? '').toLowerCase().includes(term) ||
         (inv.client_name   ?? '').toLowerCase().includes(term) ||
+        (inv.project_name  ?? '').toLowerCase().includes(term) ||
+        (inv.site_location ?? '').toLowerCase().includes(term) ||
         (inv.work_order_reference ?? '').toLowerCase().includes(term)
       return statusOk && paymentOk && searchOk
     })

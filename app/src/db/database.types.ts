@@ -395,6 +395,7 @@ export type Database = {
           total_taxable: number
           updated_at: string
           work_order_id: number | null
+          project_id: number | null
         }
         Insert: {
           amount_in_words?: string | null
@@ -428,6 +429,7 @@ export type Database = {
           total_taxable?: number
           updated_at?: string
           work_order_id?: number | null
+          project_id?: number | null
         }
         Update: {
           amount_in_words?: string | null
@@ -461,6 +463,7 @@ export type Database = {
           total_taxable?: number
           updated_at?: string
           work_order_id?: number | null
+          project_id?: number | null
         }
         Relationships: [
           {
@@ -595,6 +598,7 @@ export type Database = {
           place_of_supply: string | null
           site_location: string | null
           state_code: string | null
+          work_order_id: number | null
         }
         Insert: {
           client_id?: number | null
@@ -607,6 +611,7 @@ export type Database = {
           place_of_supply?: string | null
           site_location?: string | null
           state_code?: string | null
+          work_order_id?: number | null
         }
         Update: {
           client_id?: number | null
@@ -619,6 +624,7 @@ export type Database = {
           place_of_supply?: string | null
           site_location?: string | null
           state_code?: string | null
+          work_order_id?: number | null
         }
         Relationships: [
           {

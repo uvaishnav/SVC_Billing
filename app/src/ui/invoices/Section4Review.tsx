@@ -323,6 +323,34 @@ export default function Section4Review({
 
       <h2 style={{ fontSize: 18, marginBottom: 20 }}>Review & Finalise</h2>
 
+      {/* Invoice Details Card */}
+      {(draft.site_location || draft.project_name) && (
+        <div style={{
+          background: 'var(--color-surface)',
+          borderRadius: 12,
+          padding: '12px 14px',
+          marginBottom: 20,
+          border: '1px solid var(--color-border)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+          fontSize: 13,
+        }}>
+          {draft.site_location && (
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: 'var(--color-text-muted)' }}>Site Location</span>
+              <span style={{ fontWeight: 600, color: 'var(--color-accent)' }}>📍 {draft.site_location}</span>
+            </div>
+          )}
+          {draft.project_name && (
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: 'var(--color-text-muted)' }}>Project</span>
+              <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>{draft.project_name}</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Items summary */}
       {draft.line_item_billing_type === 'rental'
         ? <RentalItemsSummary draft={draft} />

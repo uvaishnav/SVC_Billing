@@ -23,11 +23,13 @@ interface Props {
 export default function ProjectFormModal({ project, onClose, onSaved }: Props) {
   const isEdit = !!project
 
-  const [clients,       setClients]       = useState<Client[]>([])
+  const [clients,       setClients]       = useState<{ id: number; name: string }[]>([])
+  const [workOrders,    setWorkOrders]    = useState<{ id: number; wo_reference: string | null; subject: string }[]>([])
   const [name,          setName]          = useState(project?.name ?? '')
   const [fullSubject,   setFullSubject]   = useState(project?.full_subject ?? '')
   const [siteLocation,  setSiteLocation]  = useState(project?.site_location ?? '')
   const [clientId,      setClientId]      = useState<string>(project?.client_id?.toString() ?? '')
+  const [workOrderId,   setWorkOrderId]   = useState<string>(project?.work_order_id?.toString() ?? '')
   const [placeOfSupply, setPlaceOfSupply] = useState(project?.place_of_supply ?? 'Andhra Pradesh')
   const [stateCode,     setStateCode]     = useState(project?.state_code ?? '37')
   const [notes,         setNotes]         = useState(project?.notes ?? '')
@@ -38,6 +40,21 @@ export default function ProjectFormModal({ project, onClose, onSaved }: Props) {
     supabase.from('clients').select('id, name').eq('is_active', true).order('name')
       .then(({ data }) => setClients(data ?? []))
   }, [])
+
+  useEffect(() => {
+    if (!clientId) {
+      setWorkOrders([])
+      setWorkOrderId('')
+      return
+    }
+    supabase.from('work_orders')
+      .select('id, wo_reference, subject')
+      .eq('client_id', parseInt(clientId))
+      .order('issue_date', { ascending: false })
+      .then(({ data }) => {
+        setWorkOrders(data ?? [])
+      })
+  }, [clientId])
 
   function handleStateChange(stateName: string) {
     setPlaceOfSupply(stateName)
@@ -56,6 +73,7 @@ export default function ProjectFormModal({ project, onClose, onSaved }: Props) {
       full_subject:   fullSubject.trim() || null,
       site_location:  siteLocation.trim() || null,
       client_id:      clientId ? parseInt(clientId) : null,
+      work_order_id:  workOrderId ? parseInt(workOrderId) : null,
       place_of_supply: placeOfSupply.trim(),
       state_code:     stateCode.trim(),
       notes:          notes.trim() || null,
@@ -106,6 +124,35 @@ export default function ProjectFormModal({ project, onClose, onSaved }: Props) {
               <option value="">— No client linked —</option>
               {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
+          </div>
+
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)', fontFamily: 'Work Sans, sans-serif', display: 'block', marginBottom: '6px' }}>Parent Work Order (optional)</label>
+            <select
+              value={workOrderId}
+              onChange={e => {
+                const wid = e.target.value
+                setWorkOrderId(wid)
+                if (wid && !fullSubject) {
+                  const selectedWo = workOrders.find(w => w.id === parseInt(wid))
+                  if (selectedWo) setFullSubject(selectedWo.subject)
+                }
+              }}
+              disabled={!clientId}
+              style={{ ...inputStyle, opacity: !clientId ? 0.6 : 1 }}
+            >
+              <option value="">— No work order linked —</option>
+              {workOrders.map(wo => (
+                <option key={wo.id} value={wo.id}>
+                  {wo.wo_reference ? `${wo.wo_reference} — ` : ''}{wo.subject.slice(0, 45)}
+                </option>
+              ))}
+            </select>
+            {!clientId && (
+              <p style={{ fontSize: '12px', color: 'var(--color-text-faint)', marginTop: '4px' }}>
+                Select a client first to link this project to their work order.
+              </p>
+            )}
           </div>
 
           <p style={{ ...sectionTitleStyle, marginTop: '8px' }}>GST Location</p>

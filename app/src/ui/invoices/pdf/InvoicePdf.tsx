@@ -734,7 +734,7 @@ function TwoColumnMeta({ props }: { props: InvoicePdfProps }) {
   const {
     invoice_number, invoice_date, billing_from, billing_to,
     place_of_supply, supplier_state_code,
-    reverse_charge, work_order_reference, recipient,
+    reverse_charge, work_order_reference, project_name, site_location, recipient,
   } = props;
   return (
     <View style={s.twoCol}>
@@ -772,6 +772,13 @@ function TwoColumnMeta({ props }: { props: InvoicePdfProps }) {
           <Text style={s.metaLabel}>Place of Supply</Text>
           <Text style={s.metaValue}>{place_of_supply}</Text>
         </View>
+
+        {site_location ? (
+          <View style={s.metaRow}>
+            <Text style={s.metaLabel}>Site Location</Text>
+            <Text style={s.metaValue}>{site_location}</Text>
+          </View>
+        ) : null}
 
         {work_order_reference ? (
           <View style={s.metaRow}>

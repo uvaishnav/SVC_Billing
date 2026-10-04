@@ -78,6 +78,8 @@ export interface InvoicePdfProps {
   supplier_state_code: string;   // always = settings.state_code — shown as "State Code" in Invoice Details
   reverse_charge: boolean;
   work_order_reference?: string | null;
+  project_name?: string | null;
+  site_location?: string | null;
 
   // Recipient
   recipient: PdfRecipient | null;

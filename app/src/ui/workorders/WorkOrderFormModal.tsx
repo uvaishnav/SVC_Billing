@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import type { WorkOrderWithClient, Client, Project } from '../../db/types'
 import type { ParsedWorkOrder } from '../../utils/parseWorkOrder'
 import { upsertWorkOrder, upsertWorkOrderItems, getWorkOrderItems } from '../../db/workOrdersDb'
+import { linkProjectsToWorkOrder, getProjectsByWorkOrder } from '../../db/projectsDb'
 import { supabase } from '../../db/supabaseClient'
 import { uploadWorkOrderPdf } from '../../utils/uploadWorkOrderPdf'
 import { Field, PrimaryButton, sectionTitleStyle } from '../settings/_components'
@@ -26,13 +27,13 @@ function computeValidTo(issueDate: string, durationMonths: number): string {
 export default function WorkOrderFormModal({ workOrder, prefill, pdfFile: propPdfFile, onClose, onSaved }: Props) {
   const isEdit = !!workOrder
 
-  const [clients,  setClients]  = useState<Client[]>([])
+  const [clients,  setClients]  = useState<{ id: number; name: string }[]>([])
   const [projects, setProjects] = useState<Project[]>([])
+  const [selectedProjectIds, setSelectedProjectIds] = useState<number[]>([])
 
   const p = prefill
   const [woRef,          setWoRef]          = useState(p?.wo_reference    ?? workOrder?.wo_reference    ?? '')
   const [clientId,       setClientId]       = useState<string>(workOrder?.client_id?.toString() ?? '')
-  const [projectId,      setProjectId]      = useState<string>(workOrder?.project_id?.toString() ?? '')
   const [subject,        setSubject]        = useState(p?.subject          ?? workOrder?.subject          ?? '')
   const [issueDate,      setIssueDate]      = useState(p?.issue_date       ?? workOrder?.issue_date       ?? '')
   const [durationMonths, setDurationMonths] = useState(
@@ -80,8 +81,7 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile: propPd
   useEffect(() => {
     supabase.from('clients').select('id, name').eq('is_active', true).order('name')
       .then(({ data }) => setClients(data ?? []))
-    supabase.from('projects').select('id, name').eq('is_active', true).order('name')
-      .then(({ data }) => setProjects(data ?? []))
+
     if (isEdit && workOrder && !p) {
       getWorkOrderItems(workOrder.id).then(rows => {
         setItems(rows.map(r => ({
@@ -95,6 +95,21 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile: propPd
       })
     }
   }, [])
+
+  useEffect(() => {
+    // Load projects for this client
+    let query = supabase.from('projects').select('id, name, site_location, work_order_id').eq('is_active', true).order('name')
+    if (clientId) {
+      query = query.eq('client_id', parseInt(clientId))
+    }
+    query.then(({ data }) => setProjects((data as any) ?? []))
+
+    if (workOrder?.id) {
+      getProjectsByWorkOrder(workOrder.id).then(projs => {
+        setSelectedProjectIds(projs.map(pr => pr.id))
+      })
+    }
+  }, [clientId, workOrder?.id])
 
   // ── Inline edit helpers ────────────────────────────────────────
   function startEditItem(index: number) { setEditingIndex(index); setEditDraft({ ...items[index] }) }
@@ -130,7 +145,7 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile: propPd
       id:              workOrder?.id,
       wo_reference:    woRef.trim()      || null,
       client_id:       clientId          ? parseInt(clientId)  : null,
-      project_id:      projectId         ? parseInt(projectId) : null,
+      project_id:      selectedProjectIds[0] ?? null,
       subject:         subject.trim(),
       issue_date:      issueDate,
       duration_months: duration,
@@ -145,6 +160,9 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile: propPd
     })
 
     if (!saved) { setError('Failed to save work order. Please try again.'); setSaving(false); return }
+
+    // Link the selected projects to this work order
+    await linkProjectsToWorkOrder(saved.id, selectedProjectIds)
 
     await upsertWorkOrderItems(saved.id, items.map((it, i) => ({
       sl_no:                 i + 1,
@@ -247,11 +265,44 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile: propPd
           </div>
 
           <div style={{ marginBottom: '16px' }}>
-            <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)', fontFamily: 'Work Sans, sans-serif', display: 'block', marginBottom: '6px' }}>Project (optional)</label>
-            <select value={projectId} onChange={e => setProjectId(e.target.value)} style={inputStyle}>
-              <option value="">— No project —</option>
-              {projects.map(proj => <option key={proj.id} value={proj.id}>{proj.name}</option>)}
-            </select>
+            <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)', fontFamily: 'Work Sans, sans-serif', display: 'block', marginBottom: '6px' }}>
+              Linked Projects / Sites (one or more)
+            </label>
+            {projects.length === 0 ? (
+              <p style={{ fontSize: '13px', color: 'var(--color-text-faint)', fontStyle: 'italic', margin: 0 }}>
+                {clientId ? 'No projects created for this client yet. You can add them later in Projects & Sites.' : 'Select a client first to see available projects.'}
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '160px', overflowY: 'auto', padding: '10px', border: '1.5px solid var(--color-border)', borderRadius: '10px', background: 'var(--color-surface)' }}>
+                {projects.map(proj => {
+                  const checked = selectedProjectIds.includes(proj.id)
+                  return (
+                    <label key={proj.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13.5px', cursor: 'pointer', padding: '6px 8px', borderRadius: '6px', background: checked ? 'var(--color-primary-highlight)' : 'transparent', transition: 'background 0.15s' }}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={e => {
+                          if (e.target.checked) {
+                            setSelectedProjectIds(prev => [...prev, proj.id])
+                          } else {
+                            setSelectedProjectIds(prev => prev.filter(id => id !== proj.id))
+                          }
+                        }}
+                        style={{ accentColor: 'var(--color-primary)', width: '16px', height: '16px', cursor: 'pointer' }}
+                      />
+                      <span style={{ fontWeight: checked ? 600 : 400, color: 'var(--color-text)', flex: 1 }}>
+                        {proj.name}
+                        {proj.site_location && (
+                          <span style={{ color: 'var(--color-accent)', marginLeft: 8, fontSize: '12px' }}>
+                            📍 {proj.site_location}
+                          </span>
+                        )}
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           <div style={{ marginBottom: '16px' }}>
@@ -269,7 +320,7 @@ export default function WorkOrderFormModal({ workOrder, prefill, pdfFile: propPd
 
           <div style={{ marginBottom: '16px' }}>
             <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)', fontFamily: 'Work Sans, sans-serif', display: 'block', marginBottom: '6px' }}>Billing Type</label>
-            <select value={billingType} onChange={e => setBillingType(e.target.value)} style={inputStyle}>
+            <select value={billingType} onChange={e => setBillingType(e.target.value as any)} style={inputStyle}>
               <option value="monthly_ra">Monthly RA Bills</option>
               <option value="milestone">Milestone</option>
               <option value="adhoc">Ad-hoc</option>

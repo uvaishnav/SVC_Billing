@@ -26,7 +26,8 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
       client_gstins(gstin, address, state, state_code),
       sac_codes(sac_code),
       bank_accounts(bank_name, account_name, account_number, ifsc, branch),
-      work_orders(wo_reference)
+      work_orders(wo_reference),
+      projects(name, site_location)
     `)
     .eq('id', invoiceId)
     .single();
@@ -155,6 +156,8 @@ export async function buildInvoicePayload(invoiceId: number): Promise<InvoicePdf
     supplier_state_code:  settings.state_code,
     reverse_charge:       inv.reverse_charge ?? false,
     work_order_reference: (inv as any).work_orders?.wo_reference ?? null,
+    project_name:         (inv as any).projects?.name ?? null,
+    site_location:        (inv as any).projects?.site_location ?? null,
     recipient: (inv as any).client_gstins
       ? {
           name:       (inv as any).clients?.name ?? 'Unknown',

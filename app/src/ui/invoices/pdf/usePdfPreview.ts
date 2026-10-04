@@ -159,6 +159,8 @@ function buildProps(
     supplier_state_code:   settings.state_code,
     reverse_charge:        draft.reverse_charge,
     work_order_reference:  woRef,
+    project_name:          draft.project_name ?? null,
+    site_location:         draft.site_location ?? null,
     billing_type:          draft.line_item_billing_type,
     tax_mode:              draft.tax_mode,
     sac_code:              sacCode,

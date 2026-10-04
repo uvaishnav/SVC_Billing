@@ -105,6 +105,23 @@ export default function WorkOrderDetailSheet({ workOrder: wo, onClose, onEdit }:
             ))}
           </div>
 
+          {/* Linked Sites / Projects */}
+          {wo.projects && wo.projects.length > 0 && (
+            <div style={{ marginBottom: '20px', background: 'var(--color-surface)', borderRadius: '10px', padding: '12px 14px', border: '1px solid var(--color-border)' }}>
+              <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px', fontFamily: 'Work Sans, sans-serif' }}>
+                Linked Sites / Projects ({wo.projects.length})
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {wo.projects.map(p => (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px' }}>
+                    <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>{p.name}</span>
+                    {p.site_location && <span style={{ color: 'var(--color-accent)' }}>📍 {p.site_location}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Terms */}
           <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '12px', padding: '4px 12px', borderRadius: '20px', background: wo.rates_firm ? 'var(--color-warning-highlight)' : 'var(--color-surface-offset)', color: wo.rates_firm ? 'var(--color-warning)' : 'var(--color-text-muted)', fontWeight: 600 }}>
