@@ -151,8 +151,8 @@ export default function AppShell() {
                 height: '4px',
                 borderRadius: '50%',
                 background: 'var(--color-accent)',
-                marginTop: '2px',
-                boxShadow: '0 0 4px rgba(200, 169, 106, 0.6)',
+                marginTop: '1px',
+                boxShadow: '0 0 3px rgba(200, 169, 106, 0.6)',
                 opacity: isActive ? 1 : 0,
                 transition: 'opacity 150ms ease',
               }} />

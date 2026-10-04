@@ -22,11 +22,9 @@ export default function App() {
   if (loading) {
     return (
       <div style={{ minHeight: '100dvh', background: 'var(--color-bg)', display: 'flex', flexDirection: 'column' }}>
-        {/* Safe-area frosted header skeleton seamlessly blends on launch */}
+        {/* Safe-area solid header skeleton matches page-header */}
         <div style={{
-          background: 'rgba(245, 241, 232, 0.94)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
+          background: 'var(--color-bg)',
           paddingTop: 'calc(max(var(--safe-top, 0px), 10px) + 6px)',
           paddingBottom: '10px',
           paddingLeft: '16px',
