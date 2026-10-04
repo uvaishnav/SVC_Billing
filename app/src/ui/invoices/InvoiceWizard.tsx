@@ -217,67 +217,8 @@ export default function InvoiceWizard({
             </div>
           </div>
 
-          {/* Top Quick Actions: Save Draft and Next */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-            {!isEditingFinal && (
-              <button
-                type="button"
-                onClick={handleSaveDraft}
-                disabled={saving}
-                title="Save draft"
-                aria-label="Save draft"
-                style={{
-                  height: '32px',
-                  padding: '0 9px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--color-border)',
-                  background: 'var(--color-surface)',
-                  color: 'var(--color-text)',
-                  fontWeight: 600,
-                  fontSize: '12px',
-                  cursor: saving ? 'wait' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  fontFamily: 'Work Sans, sans-serif',
-                  transition: 'all 150ms ease',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <span style={{ fontSize: '13px' }}>{saving ? '…' : '💾'}</span>
-                <span>{saving ? 'Saving' : 'Draft'}</span>
-              </button>
-            )}
-
-            {activeSection < 4 && (
-              <button
-                type="button"
-                onClick={advanceSection}
-                aria-label="Next step"
-                style={{
-                  height: '32px',
-                  padding: '0 12px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  background: 'var(--color-accent)',
-                  color: 'var(--color-primary)',
-                  fontWeight: 700,
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '3px',
-                  fontFamily: 'Work Sans, sans-serif',
-                  boxShadow: '0 1px 3px rgba(59,42,31,0.15)',
-                  transition: 'all 150ms ease',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <span>Next</span>
-                <span style={{ fontSize: '13px' }}>→</span>
-              </button>
-            )}
-          </div>
+          {/* Right spacer to balance the back button and keep title centered */}
+          <div style={{ width: '68px', flexShrink: 0 }} />
         </div>
 
         {/* Row 2: WizardNav Stepper Tabs */}
