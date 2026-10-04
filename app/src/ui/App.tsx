@@ -22,16 +22,18 @@ export default function App() {
   if (loading) {
     return (
       <div style={{ minHeight: '100dvh', background: 'var(--color-bg)', display: 'flex', flexDirection: 'column' }}>
-        {/* Safe-area dark header skeleton prevents white glare during launch */}
+        {/* Safe-area frosted header skeleton seamlessly blends on launch */}
         <div style={{
-          background: 'var(--color-primary)',
+          background: 'rgba(245, 241, 232, 0.94)',
+          backdropFilter: 'blur(24px) saturate(190%)',
+          WebkitBackdropFilter: 'blur(24px) saturate(190%)',
           paddingTop: 'calc(var(--sp-4, 16px) + var(--safe-top, 0px))',
           paddingBottom: 'var(--sp-4, 16px)',
           paddingLeft: 'var(--sp-5, 20px)',
           paddingRight: 'var(--sp-5, 20px)',
-          boxShadow: '0 1px 0 rgba(200,169,106,0.12)',
+          borderBottom: '1px solid rgba(59, 42, 31, 0.08)',
         }}>
-          <div style={{ height: '24px', width: '120px', background: 'rgba(200,169,106,0.2)', borderRadius: '6px' }} />
+          <div style={{ height: '24px', width: '120px', background: 'rgba(59,42,31,0.08)', borderRadius: '6px' }} />
         </div>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ textAlign: 'center' }}>

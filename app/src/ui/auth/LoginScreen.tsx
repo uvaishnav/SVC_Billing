@@ -18,17 +18,6 @@ export default function LoginScreen() {
 
   return (
     <div style={{ minHeight: '100svh', background: 'var(--color-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', position: 'relative' }}>
-      {/* Pinned iOS status bar backdrop prevents white glare and keeps icons readable */}
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: 'var(--safe-top)',
-        background: 'var(--color-primary)',
-        zIndex: 10,
-        pointerEvents: 'none',
-      }} aria-hidden="true" />
       <div style={{ width: '100%', maxWidth: '400px', background: 'var(--color-surface-2)', borderRadius: '20px', boxShadow: '0 4px 32px rgba(59,42,31,0.12)', padding: '40px 32px' }}>
 
         {/* Brand header */}

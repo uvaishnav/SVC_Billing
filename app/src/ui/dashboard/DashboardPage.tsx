@@ -671,15 +671,15 @@ export default function DashboardPage() {
 
   return (
     <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
-      {/* ─── Sticky header — safe-area-aware ─── */}
-      <div className="page-header" style={{ paddingTop: 'calc(20px + var(--safe-top, 0px))' }}>
+      {/* ─── Apple HIG Frosted Sticky Header ─── */}
+      <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <h1 style={{
-              fontSize: 20, color: 'var(--color-accent)', margin: 0, lineHeight: 1.2,
-              fontFamily: 'Playfair Display, serif',
+              fontSize: 22, fontWeight: 700, color: 'var(--color-primary)', margin: 0, lineHeight: 1.2,
+              fontFamily: 'Playfair Display, Georgia, serif',
             }}>Dashboard</h1>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 2, letterSpacing: '0.2px' }}>{currentMonthLabel()}</div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2, letterSpacing: '0.2px', fontFamily: 'Work Sans, sans-serif' }}>{currentMonthLabel()}</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {activeUnbilled > 0 && !loading && (
@@ -689,14 +689,14 @@ export default function DashboardPage() {
                 padding: '4px 10px', letterSpacing: '0.3px',
               }}>{activeUnbilled} unbilled</div>
             )}
-            <button type="button" onClick={loadAll} style={{
-              background: 'rgba(200,169,106,0.18)',
-              border: '1px solid rgba(200,169,106,0.35)',
-              borderRadius: 8, color: 'var(--color-accent)',
+            <button type="button" onClick={loadAll} aria-label="Refresh dashboard" style={{
+              background: 'rgba(200,169,106,0.15)',
+              border: '1px solid rgba(200,169,106,0.45)',
+              borderRadius: 10, color: 'var(--color-primary)',
               fontSize: 18, width: 36, height: 36,
               cursor: 'pointer', display: 'flex',
               alignItems: 'center', justifyContent: 'center',
-              transition: 'opacity 150ms',
+              transition: 'all 150ms ease',
             }}>↺</button>
           </div>
         </div>

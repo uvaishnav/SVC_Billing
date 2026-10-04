@@ -36,20 +36,22 @@ export default function SettingsPage() {
     <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
 
       {/* Page header */}
-      <div className="page-header" style={{
-        background: 'var(--color-primary)',
-        paddingTop: 'calc(20px + var(--safe-top, 0px))',
-        paddingBottom: '0',
-        paddingLeft: '20px',
-        paddingRight: '20px',
-      }}>
-        <h1 style={{ color: 'var(--color-bg)', fontSize: '24px', fontFamily: 'Playfair Display, serif', marginBottom: '16px' }}>Settings</h1>
+      <div className="page-header">
+        <h1 style={{ color: 'var(--color-primary)', fontSize: '22px', fontWeight: 700, fontFamily: 'Playfair Display, Georgia, serif', margin: 0, marginBottom: '14px' }}>Settings</h1>
 
         {/* Pill tabs */}
         <div
           role="tablist"
           aria-label="Settings sections"
-          style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '14px', scrollbarWidth: 'none' }}
+          style={{
+            display: 'flex',
+            gap: '4px',
+            overflowX: 'auto',
+            padding: '3px',
+            background: 'rgba(237, 233, 222, 0.75)',
+            borderRadius: '12px',
+            scrollbarWidth: 'none',
+          }}
         >
           {TABS.map(tab => {
             const isActive = activeTab === tab.id
@@ -64,17 +66,19 @@ export default function SettingsPage() {
                 tabIndex={isActive ? 0 : -1}
                 onClick={() => setActiveTab(tab.id)}
                 style={{
-                  padding: '7px 18px',
-                  borderRadius: '999px',
+                  padding: '6px 14px',
+                  borderRadius: '9px',
                   border: 'none',
                   cursor: 'pointer',
-                  fontSize: '14px',
+                  fontSize: '13px',
                   fontFamily: 'Work Sans, sans-serif',
-                  fontWeight: 600,
+                  fontWeight: isActive ? 600 : 500,
                   whiteSpace: 'nowrap',
-                  flexShrink: 0,
-                  background: isActive ? 'rgba(255,255,255,0.22)' : 'transparent',
-                  color: isActive ? '#fff' : 'rgba(255,255,255,0.60)',
+                  flex: 1,
+                  textAlign: 'center',
+                  background: isActive ? '#FFFFFF' : 'transparent',
+                  color: isActive ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                  boxShadow: isActive ? '0 1px 4px rgba(59,42,31,0.08)' : 'none',
                   transition: 'background 0.18s, color 0.18s',
                 }}
               >

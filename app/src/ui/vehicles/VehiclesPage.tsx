@@ -48,39 +48,47 @@ export default function VehiclesPage() {
     <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
 
       {/* Page header */}
-      <div className="page-header" style={{
-        background: 'var(--color-primary)',
-        paddingTop: 'calc(20px + var(--safe-top, 0px))',
-        paddingBottom: '16px',
-        paddingLeft: '20px',
-        paddingRight: '20px',
-      }}>
+      <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-          <h1 style={{ color: 'var(--color-bg)', fontSize: '24px', fontFamily: 'Playfair Display, serif' }}>Vehicles</h1>
+          <div>
+            <h1 style={{ color: 'var(--color-primary)', fontSize: '22px', fontWeight: 700, fontFamily: 'Playfair Display, Georgia, serif', margin: 0 }}>Vehicles</h1>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '12px', marginTop: '2px', fontFamily: 'Work Sans, sans-serif' }}>
+              {vehicles.length} registered vehicle{vehicles.length !== 1 ? 's' : ''}
+            </p>
+          </div>
           <button
             type="button"
             aria-label="Add new vehicle"
             onClick={() => { setEditingVehicle(null); setModalOpen(true) }}
             style={{
-              width: '36px', height: '36px', borderRadius: '50%',
-              background: 'rgba(255,255,255,0.18)', border: 'none',
-              color: '#fff', fontSize: '22px', cursor: 'pointer',
+              width: '36px', height: '36px', borderRadius: '10px',
+              background: 'var(--color-primary)', border: 'none',
+              color: 'var(--color-bg)', fontSize: '22px', cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 2px 6px rgba(59,42,31,0.18)',
+              transition: 'all 150ms ease',
             }}
           >+</button>
         </div>
-        <input
-          type="search"
-          placeholder="Search by registration or type…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{
-            width: '100%', padding: '10px 14px', borderRadius: '12px',
-            border: 'none', background: 'rgba(255,255,255,0.14)',
-            color: '#fff', fontSize: '15px', fontFamily: 'Work Sans, sans-serif',
-            outline: 'none', boxSizing: 'border-box',
-          }}
-        />
+        <div style={{ position: 'relative' }}>
+          <svg style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', pointerEvents: 'none' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            type="search"
+            placeholder="Search by registration or type…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{
+              width: '100%', padding: '10px 14px 10px 36px', borderRadius: '12px',
+              border: '1px solid rgba(59,42,31,0.12)', background: 'rgba(255,255,255,0.85)',
+              color: 'var(--color-text)', fontSize: '13px', fontFamily: 'Work Sans, sans-serif',
+              outline: 'none', boxSizing: 'border-box',
+              boxShadow: '0 1px 3px rgba(59,42,31,0.03)',
+            }}
+          />
+        </div>
       </div>
 
       {/* List */}

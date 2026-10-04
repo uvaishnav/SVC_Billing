@@ -37,8 +37,9 @@
   --safe-right:  env(safe-area-inset-right,  0px);
 
   /* ─── Nav ────────────────────────────────────────────────────── */
-  --nav-height-base: 60px;
-  --nav-height: calc(var(--nav-height-base) + var(--safe-bottom));
+  --nav-height-base: 56px;
+  --nav-safe-bottom: max(var(--safe-bottom), 16px);
+  --nav-height: calc(var(--nav-height-base) + var(--nav-safe-bottom));
 
   /* ─── Motion — spring-inspired cubic-bezier ──────────────────── */
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
@@ -75,7 +76,7 @@
 }
 
 html {
-  background-color: var(--color-primary);
+  background-color: var(--color-bg);
   -webkit-text-size-adjust: none;
   text-size-adjust: none;
   scroll-behavior: smooth;
@@ -89,7 +90,7 @@ html, body {
   height: 100%;
   height: 100dvh;
   overflow: hidden;
-  background-color: var(--color-primary);
+  background-color: var(--color-bg);
   color: var(--color-text);
   font-family: 'Work Sans', system-ui, -apple-system, sans-serif;
   font-size: 16px;
@@ -203,26 +204,27 @@ input, textarea, select {
 .overlay-enter { animation: overlay-in 200ms ease both; }
 
 /* ═══════════════════════════════════════════════════════════════════
-   BOTTOM TAB BAR
+   BOTTOM TAB BAR (Apple HIG Frosted Glass Style)
    ═══════════════════════════════════════════════════════════════════ */
 .tab-bar {
   position: fixed;
   bottom: 0; left: 0; right: 0;
   height: var(--nav-height);
-  background: var(--color-primary);
-  border-top: 1px solid rgba(200,169,106,0.15);
+  background: rgba(245, 241, 232, 0.92);
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
+  border-top: 1px solid rgba(59, 42, 31, 0.08);
   display: flex;
   z-index: 100;
-  /* iOS: extend background into home indicator area */
-  padding-bottom: var(--safe-bottom);
-  /* Soft glass above solid color */
-  backdrop-filter: saturate(180%) blur(0px);
+  /* iOS: extend background into home indicator area with proper breathing room */
+  padding-bottom: var(--nav-safe-bottom);
+  box-shadow: 0 -4px 20px rgba(59, 42, 31, 0.04);
 }
 
 .tab-btn {
   flex: 1;
-  min-width: 44px;
-  min-height: 44px;
+  min-width: 48px;
+  min-height: 48px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -231,33 +233,33 @@ input, textarea, select {
   border: none;
   background: transparent;
   cursor: pointer;
-  padding: 8px 2px 6px;
+  padding: 6px 4px 2px;
   position: relative;
   -webkit-user-select: none;
   user-select: none;
-  transition: opacity 100ms var(--ease-snappy);
+  transition: opacity 120ms var(--ease-snappy), transform 120ms var(--ease-snappy);
 }
 
 .tab-btn:active {
-  opacity: 0.6;
+  opacity: 0.65;
+  transform: scale(0.96);
 }
 
 .tab-icon {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 8px;
   transition:
-    background 200ms var(--ease-spring),
-    transform  200ms var(--ease-spring);
+    transform  200ms var(--ease-spring),
+    color      200ms var(--ease-spring);
   position: relative;
   z-index: 1;
 }
 
 .tab-btn.active .tab-icon {
-  background: rgba(200,169,106,0.18);
   transform: scale(1.08) translateY(-1px);
 }
 
@@ -266,27 +268,30 @@ input, textarea, select {
 }
 
 .tab-label {
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 500;
-  letter-spacing: 0.1px;
-  font-family: 'Work Sans', sans-serif;
+  letter-spacing: -0.1px;
+  font-family: 'Work Sans', -apple-system, sans-serif;
   transition: color 200ms var(--ease-spring), font-weight 200ms;
-  line-height: 1;
+  line-height: 1.1;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   PAGE HEADER (sticky, safe-area-aware)
+   PAGE HEADER (Apple HIG Frosted Translucent, safe-area-aware)
    ═══════════════════════════════════════════════════════════════════ */
 .page-header {
-  background: var(--color-primary);
+  background: rgba(245, 241, 232, 0.92);
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
   padding-top: calc(var(--sp-4) + var(--safe-top));
-  padding-bottom: var(--sp-4);
-  padding-left: var(--sp-5);
-  padding-right: var(--sp-5);
+  padding-bottom: var(--sp-3);
+  padding-left: var(--sp-4);
+  padding-right: var(--sp-4);
   position: sticky;
   top: 0;
   z-index: 10;
-  box-shadow: 0 1px 0 rgba(200,169,106,0.12), 0 2px 12px rgba(59,42,31,0.12);
+  border-bottom: 1px solid rgba(59, 42, 31, 0.08);
+  box-shadow: 0 1px 8px rgba(59, 42, 31, 0.03);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -439,7 +444,7 @@ input, textarea, select {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
   /* Bottom padding ensures content is never hidden behind tab bar */
-  padding-bottom: calc(var(--nav-height) + 16px);
+  padding-bottom: calc(var(--nav-height) + 36px);
 }
 
 /* Custom scrollbar (desktop only — invisible on mobile) */

@@ -190,11 +190,11 @@ export default function WorkOrdersPage() {
       />
 
       {/* Sticky header */}
-      <div className="page-header" style={{ background: 'var(--color-primary)', position: 'sticky', top: 0, zIndex: 10 }}>
+      <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
           <div>
-            <h1 style={{ color: 'var(--color-bg)', fontSize: '22px', fontFamily: 'Playfair Display, serif', marginBottom: '2px' }}>Work Orders</h1>
-            <p style={{ color: 'var(--color-accent)', fontSize: '13px', opacity: 0.85 }}>
+            <h1 style={{ color: 'var(--color-primary)', fontSize: '22px', fontWeight: 700, fontFamily: 'Playfair Display, Georgia, serif', margin: 0, marginBottom: '2px' }}>Work Orders</h1>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '12px', fontFamily: 'Work Sans, sans-serif' }}>
               {workOrders.filter(wo => wo.status === 'active').length} active · {workOrders.filter(wo => wo.status === 'expiring_soon').length} expiring
             </p>
           </div>
@@ -202,25 +202,32 @@ export default function WorkOrdersPage() {
             <button
               type="button"
               onClick={handleUploadClick}
-              style={{ minWidth: '44px', height: '44px', borderRadius: '999px', background: 'rgba(255,255,255,0.12)', color: 'var(--color-accent)', fontSize: '14px', fontWeight: 600, border: '1px solid rgba(255,255,255,0.18)', cursor: 'pointer', padding: '0 14px', fontFamily: 'Work Sans, sans-serif' }}
+              style={{ height: '38px', borderRadius: '10px', background: 'rgba(200,169,106,0.12)', color: 'var(--color-primary)', fontSize: '13px', fontWeight: 600, border: '1px solid rgba(200,169,106,0.5)', cursor: 'pointer', padding: '0 14px', fontFamily: 'Work Sans, sans-serif', transition: 'all 150ms ease' }}
             >
               Upload PDF
             </button>
             <button
               onClick={handleAdd}
-              style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--color-accent)', color: 'var(--color-primary)', fontSize: '24px', fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.25)', flexShrink: 0 }}
+              aria-label="Add work order"
+              style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'var(--color-primary)', color: 'var(--color-bg)', fontSize: '22px', fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(59,42,31,0.18)', flexShrink: 0, transition: 'all 150ms ease' }}
             >+</button>
           </div>
         </div>
 
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search by WO ref, subject, client, or project…"
-          style={{ width: '100%', padding: '11px 16px', borderRadius: '10px', border: 'none', background: 'rgba(255,255,255,0.12)', color: 'var(--color-bg)', fontSize: '15px', outline: 'none', fontFamily: 'Work Sans, sans-serif', boxSizing: 'border-box', marginBottom: '12px' }}
-        />
+        <div style={{ position: 'relative', marginBottom: '12px' }}>
+          <svg style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', pointerEvents: 'none' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by WO ref, subject, client, or project…"
+            style={{ width: '100%', padding: '10px 14px 10px 36px', borderRadius: '12px', border: '1px solid rgba(59,42,31,0.12)', background: 'rgba(255,255,255,0.85)', color: 'var(--color-text)', fontSize: '13px', outline: 'none', fontFamily: 'Work Sans, sans-serif', boxSizing: 'border-box', boxShadow: '0 1px 3px rgba(59,42,31,0.03)' }}
+          />
+        </div>
 
-        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '12px' }}>
+        <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px', scrollbarWidth: 'none' }}>
           {statusFilters.map(filter => {
             const active = filterStatus === filter.id
             return (
@@ -230,16 +237,18 @@ export default function WorkOrdersPage() {
                 onClick={() => setFilterStatus(filter.id)}
                 style={{
                   whiteSpace: 'nowrap',
-                  padding: '8px 12px',
-                  borderRadius: '999px',
-                  border: '1px solid rgba(255,255,255,0.18)',
-                  background: active ? 'var(--color-accent)' : 'rgba(255,255,255,0.08)',
-                  color: active ? 'var(--color-primary)' : 'var(--color-bg)',
-                  fontSize: '13px',
-                  fontWeight: 600,
+                  padding: '5px 12px',
+                  borderRadius: '20px',
+                  border: active ? '1px solid var(--color-primary)' : '1px solid rgba(59,42,31,0.12)',
+                  background: active ? 'var(--color-primary)' : 'rgba(255,255,255,0.7)',
+                  color: active ? 'var(--color-surface)' : 'var(--color-text-muted)',
+                  fontSize: '12px',
+                  fontWeight: active ? 600 : 500,
                   cursor: 'pointer',
                   fontFamily: 'Work Sans, sans-serif',
                   flexShrink: 0,
+                  boxShadow: active ? '0 1px 4px rgba(59,42,31,0.15)' : 'none',
+                  transition: 'all 150ms ease',
                 }}
               >
                 {filter.label}

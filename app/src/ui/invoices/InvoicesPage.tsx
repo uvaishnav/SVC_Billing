@@ -210,18 +210,18 @@ function InvoiceCard({
 
   return (
     <div style={{
-      background: 'var(--color-surface, #FAF8F3)',
-      borderRadius: 14,
+      background: 'var(--color-surface-2, #FFFFFF)',
+      borderRadius: 16,
       padding: '16px',
-      border: '1px solid var(--color-border)',
-      boxShadow: '0 1px 4px rgba(43,31,21,0.04)',
+      border: '1px solid rgba(217, 211, 197, 0.75)',
+      boxShadow: '0 2px 10px rgba(59,42,31,0.04)',
       position: 'relative',
       overflow: 'hidden',
       opacity: loadingEdit === inv.id || isCancelled ? (isCancelled ? 0.72 : 0.6) : 1,
       transition: 'opacity 150ms',
       display: 'flex',
       flexDirection: 'column',
-      gap: 10,
+      gap: 12,
     }}>
       {isCancelled && <VoidStamp />}
 
@@ -229,10 +229,10 @@ function InvoiceCard({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{
-            fontSize: 16,
+            fontSize: 17,
             fontWeight: 700,
             color: 'var(--color-primary)',
-            fontFamily: 'Playfair Display, serif',
+            fontFamily: 'Playfair Display, Georgia, serif',
             letterSpacing: '0.2px',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
@@ -305,9 +305,10 @@ function InvoiceCard({
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        background: 'var(--color-surface-offset)',
-        borderRadius: 8,
-        padding: '8px 12px',
+        background: 'var(--color-surface, #FAF8F3)',
+        borderRadius: 10,
+        padding: '10px 14px',
+        border: '1px solid rgba(217, 211, 197, 0.45)',
         fontSize: 13,
       }}>
         <div>
@@ -341,11 +342,11 @@ function InvoiceCard({
           tabIndex={0}
           aria-label={`Edit draft invoice ${inv.invoice_number}`}
           style={{
-            padding: '8px 12px',
-            borderRadius: 8,
+            padding: '10px 14px',
+            borderRadius: 10,
             border: '1px solid var(--color-border)',
-            background: 'transparent',
-            fontSize: 12,
+            background: 'var(--color-surface, #FAF8F3)',
+            fontSize: 13,
             fontWeight: 600,
             color: 'var(--color-primary)',
             display: 'flex',
@@ -370,18 +371,25 @@ function InvoiceCard({
               aria-label={`Mark received for ${inv.invoice_number}`}
               style={{
                 width: '100%',
-                padding: '8px 0',
-                borderRadius: 8,
-                border: '1px solid var(--color-accent)',
-                background: 'rgba(200,169,106,0.14)',
-                color: 'var(--color-primary)',
+                padding: '11px 0',
+                borderRadius: 10,
+                border: 'none',
+                background: 'linear-gradient(135deg, #D4AF37 0%, #C8A96A 100%)',
+                color: '#2A1F15',
                 fontSize: 13,
                 fontWeight: 700,
                 cursor: 'pointer',
-                transition: 'background 150ms',
+                boxShadow: '0 2px 8px rgba(200, 169, 106, 0.35)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                transition: 'opacity 120ms ease, transform 120ms ease',
               }}
             >
-              Record Payment &bull; Due: ₹{fmt(balanceDue)}
+              <span>Record Payment</span>
+              <span style={{ opacity: 0.6 }}>•</span>
+              <span>Due: ₹{fmt(balanceDue)}</span>
             </button>
           )}
 
@@ -395,16 +403,17 @@ function InvoiceCard({
               onClick={() => onOpen(inv)}
               aria-label={`Edit invoice ${inv.invoice_number}`}
               style={{
-                padding: '8px 16px',
-                borderRadius: 8,
-                border: '1px solid var(--color-primary)',
-                background: 'transparent',
+                padding: '10px 18px',
+                borderRadius: 10,
+                border: '1px solid rgba(59,42,31,0.22)',
+                background: 'var(--color-surface-2, #FFFFFF)',
                 color: 'var(--color-primary)',
                 fontSize: 13,
                 fontWeight: 600,
                 cursor: 'pointer',
                 transition: 'all 150ms',
                 opacity: loadingEdit === inv.id ? 0.6 : 1,
+                boxShadow: '0 1px 3px rgba(59,42,31,0.04)',
               }}
             >
               {loadingEdit === inv.id ? '…' : 'Edit'}
@@ -544,26 +553,33 @@ export default function InvoicesPage() {
 
   return (
     <div style={{ minHeight: '100%', background: 'var(--color-bg)' }}>
-      {/* ─── Minimal, Premium Sticky Header ─── */}
+      {/* ─── Apple HIG Frosted Glass Sticky Header ─── */}
       <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <h1 style={{ fontSize: 20, color: 'var(--color-accent)', margin: 0, fontFamily: 'Playfair Display, serif' }}>
-            Invoices
-          </h1>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-primary)', margin: 0, fontFamily: 'Playfair Display, Georgia, serif' }}>
+              Invoices
+            </h1>
+            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2, fontFamily: 'Work Sans, sans-serif' }}>
+              FY {selectedFY} • {filtered.length} invoice{filtered.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button
               type="button"
               onClick={() => setShowStatementModal(true)}
               style={{
-                background: 'rgba(200,169,106,0.15)',
-                color: 'var(--color-accent)',
-                border: '1px solid rgba(200,169,106,0.4)',
-                borderRadius: 8,
-                padding: '8px 12px',
+                background: 'rgba(200,169,106,0.12)',
+                color: 'var(--color-primary)',
+                border: '1px solid rgba(200,169,106,0.5)',
+                borderRadius: 10,
+                padding: '7px 13px',
                 fontSize: 12,
                 fontWeight: 600,
                 cursor: 'pointer',
                 fontFamily: 'Work Sans, sans-serif',
+                transition: 'all 150ms ease',
               }}
             >
               Statement
@@ -572,16 +588,17 @@ export default function InvoicesPage() {
               type="button"
               onClick={() => { setEditDraft(undefined); setEditStatus(undefined); setEditInvoiceId(null); setShowWizard(true) }}
               style={{
-                background: 'var(--color-accent)',
-                color: 'var(--color-primary)',
+                background: 'var(--color-primary)',
+                color: 'var(--color-bg)',
                 border: 'none',
-                borderRadius: 8,
-                padding: '8px 14px',
+                borderRadius: 10,
+                padding: '8px 15px',
                 fontSize: 13,
-                fontWeight: 700,
+                fontWeight: 600,
                 cursor: 'pointer',
                 fontFamily: 'Work Sans, sans-serif',
-                boxShadow: '0 2px 6px rgba(200,169,106,0.25)',
+                boxShadow: '0 2px 8px rgba(59,42,31,0.2)',
+                transition: 'all 150ms ease',
               }}
             >
               + New Invoice
@@ -589,108 +606,135 @@ export default function InvoicesPage() {
           </div>
         </div>
 
-        {/* Search Input */}
-        <input
-          type="search"
-          placeholder="Search invoice # or client…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{
-            width: '100%',
-            boxSizing: 'border-box',
-            padding: '9px 12px',
-            borderRadius: 8,
-            border: '1px solid rgba(200, 169, 106, 0.25)',
-            background: 'rgba(255, 255, 255, 0.08)',
-            color: '#fff',
-            fontSize: 13,
-            fontFamily: 'Work Sans, sans-serif',
-            outline: 'none',
-            marginBottom: 10,
-          }}
-        />
-
-        {/* FY Tabs */}
-        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 2 }}>
-          {availableFYs.map(fy => (
-            <button
-              key={fy}
-              type="button"
-              onClick={() => setSelectedFY(fy)}
-              style={{
-                flexShrink: 0,
-                fontSize: 11,
-                padding: '4px 12px',
-                borderRadius: 16,
-                border: `1px solid ${selectedFY === fy ? 'var(--color-accent)' : 'rgba(255,255,255,0.15)'}`,
-                background: selectedFY === fy ? 'var(--color-accent)' : 'transparent',
-                color: selectedFY === fy ? 'var(--color-primary)' : 'rgba(255,255,255,0.6)',
-                fontWeight: selectedFY === fy ? 600 : 400,
-                cursor: 'pointer',
-                fontFamily: 'Work Sans, sans-serif',
-              }}
-            >
-              FY {fy}
-            </button>
-          ))}
+        {/* Search Input with SVG search icon */}
+        <div style={{ position: 'relative', marginBottom: 10 }}>
+          <svg style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', pointerEvents: 'none' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            type="search"
+            placeholder="Search invoice # or client…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              padding: '10px 12px 10px 36px',
+              borderRadius: 12,
+              border: '1px solid rgba(59,42,31,0.12)',
+              background: 'rgba(255, 255, 255, 0.85)',
+              color: 'var(--color-text)',
+              fontSize: 13,
+              fontFamily: 'Work Sans, sans-serif',
+              outline: 'none',
+              boxShadow: '0 1px 3px rgba(59,42,31,0.03)',
+            }}
+          />
         </div>
 
-        {/* Status Filter Tabs */}
-        <div style={{ display: 'flex', gap: 6, marginTop: 8, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 2 }}>
-          {(['final', 'draft', 'cancelled', 'all'] as FilterStatus[]).map(s => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => setStatusFilter(s)}
-              style={{
-                flexShrink: 0,
-                fontSize: 11,
-                padding: '4px 12px',
-                borderRadius: 16,
-                border: `1px solid ${statusFilter === s ? (STATUS_COLOR[s] ?? 'var(--color-accent)') : 'rgba(255,255,255,0.15)'}`,
-                background: statusFilter === s ? (STATUS_BG[s] ?? 'rgba(200,169,106,0.15)') : 'transparent',
-                color: statusFilter === s ? (STATUS_COLOR[s] ?? 'var(--color-accent)') : 'rgba(255,255,255,0.6)',
-                fontWeight: statusFilter === s ? 600 : 400,
-                cursor: 'pointer',
-                fontFamily: 'Work Sans, sans-serif',
-                textTransform: 'capitalize',
-              }}
-            >
-              {s === 'all' ? 'All' : s}
-            </button>
-          ))}
+        {/* FY Tabs */}
+        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 2, scrollbarWidth: 'none' }}>
+          {availableFYs.map(fy => {
+            const isSelected = selectedFY === fy
+            return (
+              <button
+                key={fy}
+                type="button"
+                onClick={() => setSelectedFY(fy)}
+                style={{
+                  flexShrink: 0,
+                  fontSize: 11,
+                  padding: '5px 12px',
+                  borderRadius: 20,
+                  border: isSelected ? '1px solid var(--color-primary)' : '1px solid rgba(59,42,31,0.12)',
+                  background: isSelected ? 'var(--color-primary)' : 'rgba(255,255,255,0.7)',
+                  color: isSelected ? 'var(--color-surface)' : 'var(--color-text-muted)',
+                  fontWeight: isSelected ? 600 : 500,
+                  cursor: 'pointer',
+                  fontFamily: 'Work Sans, sans-serif',
+                  boxShadow: isSelected ? '0 1px 4px rgba(59,42,31,0.15)' : 'none',
+                  transition: 'all 150ms ease',
+                }}
+              >
+                FY {fy}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Status Filter Tabs (iOS Segmented Control) */}
+        <div style={{
+          display: 'flex',
+          background: 'rgba(237, 233, 222, 0.75)',
+          padding: '3px',
+          borderRadius: 12,
+          marginTop: 8,
+          gap: 3,
+        }}>
+          {(['final', 'draft', 'cancelled', 'all'] as FilterStatus[]).map(s => {
+            const active = statusFilter === s
+            return (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setStatusFilter(s)}
+                style={{
+                  flex: 1,
+                  fontSize: 12,
+                  padding: '5px 0',
+                  borderRadius: 9,
+                  border: 'none',
+                  background: active ? 'var(--color-surface-2, #FFFFFF)' : 'transparent',
+                  color: active ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                  fontWeight: active ? 600 : 500,
+                  cursor: 'pointer',
+                  fontFamily: 'Work Sans, sans-serif',
+                  textTransform: 'capitalize',
+                  boxShadow: active ? '0 1px 4px rgba(59,42,31,0.08)' : 'none',
+                  transition: 'all 180ms ease',
+                }}
+              >
+                {s === 'all' ? 'All' : s}
+              </button>
+            )
+          })}
         </div>
 
         {/* Payment Sub-filters */}
         {(statusFilter === 'final' || statusFilter === 'all') && (
-          <div style={{ display: 'flex', gap: 6, marginTop: 8, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 2, alignItems: 'center' }}>
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Payment:</span>
+          <div style={{ display: 'flex', gap: 6, marginTop: 8, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 2, alignItems: 'center', scrollbarWidth: 'none' }}>
+            <span style={{ fontSize: 10, color: 'var(--color-text-faint)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Payment:</span>
             {[
               { id: 'all', label: 'All' },
               { id: 'uncleared', label: 'Uncleared' },
               { id: 'partially_cleared', label: 'Partial' },
               { id: 'cleared', label: 'Cleared' },
-            ].map(p => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setPaymentFilter(p.id as PaymentFilter)}
-                style={{
-                  flexShrink: 0,
-                  fontSize: 11,
-                  padding: '3px 10px',
-                  borderRadius: 14,
-                  border: `1px solid ${paymentFilter === p.id ? 'var(--color-accent)' : 'rgba(255,255,255,0.12)'}`,
-                  background: paymentFilter === p.id ? 'rgba(200, 169, 106, 0.2)' : 'transparent',
-                  color: paymentFilter === p.id ? 'var(--color-accent)' : 'rgba(255,255,255,0.5)',
-                  fontWeight: paymentFilter === p.id ? 600 : 400,
-                  cursor: 'pointer',
-                  fontFamily: 'Work Sans, sans-serif',
-                }}
-              >
-                {p.label}
-              </button>
-            ))}
+            ].map(p => {
+              const active = paymentFilter === p.id
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setPaymentFilter(p.id as PaymentFilter)}
+                  style={{
+                    flexShrink: 0,
+                    fontSize: 11,
+                    padding: '4px 10px',
+                    borderRadius: 16,
+                    border: active ? '1px solid rgba(200,169,106,0.8)' : '1px solid rgba(59,42,31,0.1)',
+                    background: active ? 'rgba(200, 169, 106, 0.2)' : 'rgba(255,255,255,0.6)',
+                    color: active ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                    fontWeight: active ? 600 : 400,
+                    cursor: 'pointer',
+                    fontFamily: 'Work Sans, sans-serif',
+                    transition: 'all 150ms ease',
+                  }}
+                >
+                  {p.label}
+                </button>
+              )
+            })}
           </div>
         )}
       </div>

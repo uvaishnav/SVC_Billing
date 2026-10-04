@@ -81,19 +81,22 @@ export function InvoiceActions({ invoiceId, invoiceNumber, status }: Props) {
           alignItems: 'center',
           gap: 6,
           background: 'var(--color-primary)',
-          color: '#fff',
+          color: 'var(--color-bg)',
           border: 'none',
-          borderRadius: 8,
-          padding: '8px 16px',
+          borderRadius: 10,
+          padding: '10px 16px',
           fontSize: 13,
           fontWeight: 600,
           cursor: 'pointer',
           fontFamily: 'Work Sans, sans-serif',
           width: '100%',
           justifyContent: 'center',
+          boxShadow: '0 2px 6px rgba(59,42,31,0.14)',
+          transition: 'opacity 120ms ease, transform 120ms ease',
         }}
       >
-        📄 View / Download PDF
+        <span>📄</span>
+        <span>View / Download PDF</span>
       </button>
 
       {showPreview && (
