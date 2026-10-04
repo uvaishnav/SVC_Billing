@@ -25,12 +25,12 @@ export default function App() {
         {/* Safe-area frosted header skeleton seamlessly blends on launch */}
         <div style={{
           background: 'rgba(245, 241, 232, 0.94)',
-          backdropFilter: 'blur(24px) saturate(190%)',
-          WebkitBackdropFilter: 'blur(24px) saturate(190%)',
-          paddingTop: 'calc(var(--sp-4, 16px) + var(--safe-top, 0px))',
-          paddingBottom: 'var(--sp-4, 16px)',
-          paddingLeft: 'var(--sp-5, 20px)',
-          paddingRight: 'var(--sp-5, 20px)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          paddingTop: 'calc(max(var(--safe-top, 0px), 10px) + 6px)',
+          paddingBottom: '10px',
+          paddingLeft: '16px',
+          paddingRight: '16px',
           borderBottom: '1px solid rgba(59, 42, 31, 0.08)',
         }}>
           <div style={{ height: '24px', width: '120px', background: 'rgba(59,42,31,0.08)', borderRadius: '6px' }} />

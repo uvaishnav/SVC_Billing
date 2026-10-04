@@ -4,7 +4,7 @@ import ErrorBoundary from '../common/ErrorBoundary'
 import { supabase } from '../../db/supabaseClient'
 
 interface MoreHubViewProps {
-  onNavigate: (tab: 'vehicles' | 'projects' | 'settings') => void
+  onNavigate: (tab: 'workorders' | 'vehicles' | 'projects' | 'settings') => void
 }
 
 interface MenuRowProps {
@@ -15,9 +15,10 @@ interface MenuRowProps {
   subtitle: string
   onClick: () => void
   isDanger?: boolean
+  isLast?: boolean
 }
 
-function MenuRow({ icon, iconBg, iconColor, title, subtitle, onClick, isDanger }: MenuRowProps) {
+function MenuRow({ icon, iconBg, iconColor, title, subtitle, onClick, isDanger, isLast }: MenuRowProps) {
   return (
     <button
       type="button"
@@ -29,7 +30,7 @@ function MenuRow({ icon, iconBg, iconColor, title, subtitle, onClick, isDanger }
         padding: '14px 16px',
         background: 'transparent',
         border: 'none',
-        borderBottom: '1px solid rgba(217, 211, 197, 0.45)',
+        borderBottom: isLast ? 'none' : '1px solid rgba(217, 211, 197, 0.45)',
         cursor: 'pointer',
         textAlign: 'left',
         gap: '14px',
@@ -186,6 +187,22 @@ export default function MoreHubView({ onNavigate }: MoreHubViewProps) {
             overflow: 'hidden',
           }}>
             <MenuRow
+              title="Work Orders & Deployments"
+              subtitle="Service orders, monthly billing rates & equipment"
+              icon={
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="8" y="2" width="8" height="4" rx="1"/>
+                  <path d="M8 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2h-2"/>
+                  <line x1="8" y1="10" x2="16" y2="10"/>
+                  <line x1="8" y1="14" x2="14" y2="14"/>
+                </svg>
+              }
+              iconBg="rgba(200, 169, 106, 0.18)"
+              iconColor="#8C6527"
+              onClick={() => onNavigate('workorders')}
+            />
+
+            <MenuRow
               title="Vehicles & Machinery"
               subtitle="Fleet registration, equipment types & capacity"
               icon={
@@ -212,6 +229,7 @@ export default function MoreHubView({ onNavigate }: MoreHubViewProps) {
               iconBg="rgba(140, 74, 50, 0.12)"
               iconColor="#8C4A32"
               onClick={() => onNavigate('projects')}
+              isLast
             />
           </div>
         </div>
@@ -252,6 +270,7 @@ export default function MoreHubView({ onNavigate }: MoreHubViewProps) {
               iconBg="rgba(200, 169, 106, 0.2)"
               iconColor="#8C6527"
               onClick={() => setShowStatementModal(true)}
+              isLast
             />
           </div>
         </div>
@@ -289,6 +308,7 @@ export default function MoreHubView({ onNavigate }: MoreHubViewProps) {
               iconBg="rgba(90, 122, 46, 0.12)"
               iconColor="#5A7A2E"
               onClick={() => onNavigate('settings')}
+              isLast
             />
           </div>
         </div>
@@ -316,6 +336,7 @@ export default function MoreHubView({ onNavigate }: MoreHubViewProps) {
               iconColor="var(--color-error)"
               isDanger
               onClick={handleSignOut}
+              isLast
             />
           </div>
         </div>

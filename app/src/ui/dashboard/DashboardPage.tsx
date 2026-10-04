@@ -241,8 +241,12 @@ function MonthlyTrendChart({ data }: { data: MonthlyTrend[] }) {
             fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 20,
             background: momDiff >= 0 ? 'rgba(67,122,34,0.12)' : 'rgba(160,92,26,0.12)',
             color: momDiff >= 0 ? 'var(--color-success)' : 'var(--color-warning)',
+            display: 'inline-flex', alignItems: 'center', gap: 4,
           }}>
-            {momDiff >= 0 ? '▲' : '▼'} {Math.abs(momDiff).toFixed(1)}% vs last month
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ transform: momDiff >= 0 ? 'rotate(180deg)' : 'none' }}>
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+            <span>{Math.abs(momDiff).toFixed(1)}% vs last month</span>
           </span>
         )}
       </div>
@@ -394,7 +398,7 @@ function KpiStrip({ kpis }: { kpis: KpiData | null }) {
     {
       label: currentFyLabel(),
       value: kpis ? fmt(kpis.thisFyCollected) : '…',
-      sub: `FY Collected (Billed ${kpis ? fmt(kpis.thisFyRevenue) : '…'})`,
+      sub: `FY Collected · Billed ${kpis ? fmt(kpis.thisFyRevenue) : '…'}`,
     },
   ]
 
@@ -405,9 +409,13 @@ function KpiStrip({ kpis }: { kpis: KpiData | null }) {
           position: 'relative',
           background: 'var(--color-surface)',
           borderRadius: 12,
-          padding: '14px 14px 12px',
+          padding: '12px 12px 10px',
           border: '1px solid rgba(217,211,197,0.5)',
           boxShadow: '0 1px 3px rgba(43,31,21,0.06), 0 4px 16px rgba(43,31,21,0.04)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          minHeight: 88,
         }}>
           {/* Pill badge — only shown for flagged cards */}
           {item.accentColor && (
@@ -418,15 +426,38 @@ function KpiStrip({ kpis }: { kpis: KpiData | null }) {
               boxShadow: `0 0 0 2px rgba(255,255,255,0.8)`,
             }} />
           )}
-          <div style={{ fontSize: 10, color: 'var(--color-text-faint)', marginBottom: 3, letterSpacing: '0.3px', lineHeight: 1.3 }}>{item.label}</div>
+          <div>
+            <div style={{
+              fontSize: 10,
+              color: 'var(--color-text-faint)',
+              marginBottom: 3,
+              letterSpacing: '0.3px',
+              lineHeight: 1.25,
+              paddingRight: item.accentColor ? 14 : 0,
+            }}>
+              {item.label}
+            </div>
+            <div style={{
+              fontSize: 19,
+              fontWeight: 700,
+              color: item.accentColor ?? 'var(--color-primary)',
+              fontFamily: 'Work Sans, sans-serif',
+              fontVariantNumeric: 'tabular-nums',
+              lineHeight: 1.15,
+            }}>
+              {item.value}
+            </div>
+          </div>
           <div style={{
-            fontSize: 20, fontWeight: 700,
-            color: item.accentColor ?? 'var(--color-primary)',
-            fontFamily: 'Work Sans, sans-serif',
-            fontVariantNumeric: 'tabular-nums',
-            lineHeight: 1.15,
-          }}>{item.value}</div>
-          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 3 }}>{item.sub}</div>
+            fontSize: 10.5,
+            color: 'var(--color-text-muted)',
+            marginTop: 4,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}>
+            {item.sub}
+          </div>
         </div>
       ))}
     </div>
@@ -480,11 +511,15 @@ function ClientOutstandingSection({
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: 4,
+            gap: 5,
             boxShadow: '0 2px 6px rgba(200,169,106,0.25)',
           }}
         >
-          <span>💰</span> Add Payment
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          <span>Add Payment</span>
         </button>
       </div>
 
@@ -505,10 +540,20 @@ function ClientOutstandingSection({
                 background: 'var(--color-surface-offset)',
                 borderRadius: 10,
                 border: '1px solid var(--color-border)',
+                gap: 8,
               }}
             >
-              <div style={{ minWidth: 0, flex: 1, marginRight: 8 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: 'var(--color-text)',
+                  lineHeight: 1.3,
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                }}>
                   {d.client_name}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
@@ -521,8 +566,8 @@ function ClientOutstandingSection({
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ textAlign: 'right', marginRight: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-warning)', fontVariantNumeric: 'tabular-nums' }}>
                     {fmt(d.total_pending)}
                   </div>
@@ -533,10 +578,10 @@ function ClientOutstandingSection({
                   title="View Statement PDF"
                   onClick={() => onOpenStatement(d.client_id)}
                   style={{
-                    background: 'transparent',
+                    background: 'var(--color-surface)',
                     border: '1px solid var(--color-border)',
                     borderRadius: 6,
-                    padding: '5px 10px',
+                    padding: '5px 9px',
                     fontSize: 11,
                     fontWeight: 600,
                     color: 'var(--color-text-muted)',
@@ -546,7 +591,11 @@ function ClientOutstandingSection({
                     gap: 4,
                   }}
                 >
-                  <span>📄</span> Report
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                  </svg>
+                  <span>Report</span>
                 </button>
               </div>
             </div>
@@ -693,11 +742,16 @@ export default function DashboardPage() {
               background: 'rgba(200,169,106,0.15)',
               border: '1px solid rgba(200,169,106,0.45)',
               borderRadius: 10, color: 'var(--color-primary)',
-              fontSize: 18, width: 36, height: 36,
+              width: 36, height: 36,
               cursor: 'pointer', display: 'flex',
               alignItems: 'center', justifyContent: 'center',
               transition: 'all 150ms ease',
-            }}>↺</button>
+            }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
+            </button>
           </div>
         </div>
       </div>

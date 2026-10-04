@@ -5,7 +5,7 @@ import VehicleCard from './VehicleCard'
 import VehicleFormModal from './VehicleFormModal'
 import VehicleDetailSheet from './VehicleDetailSheet'
 
-export default function VehiclesPage() {
+export default function VehiclesPage({ onBack }: { onBack?: () => void } = {}) {
   const [vehicles,       setVehicles]       = useState<Vehicle[]>([])
   const [loading,        setLoading]        = useState(true)
   const [search,         setSearch]         = useState('')
@@ -50,11 +50,33 @@ export default function VehiclesPage() {
       {/* Page header */}
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-          <div>
-            <h1 style={{ color: 'var(--color-primary)', fontSize: '22px', fontWeight: 700, fontFamily: 'Playfair Display, Georgia, serif', margin: 0 }}>Vehicles</h1>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: '12px', marginTop: '2px', fontFamily: 'Work Sans, sans-serif' }}>
-              {vehicles.length} registered vehicle{vehicles.length !== 1 ? 's' : ''}
-            </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                aria-label="Back to More"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: '4px',
+                  color: 'var(--color-primary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+              </button>
+            )}
+            <div>
+              <h1 style={{ color: 'var(--color-primary)', fontSize: '22px', fontWeight: 700, fontFamily: 'Playfair Display, Georgia, serif', margin: 0 }}>Vehicles</h1>
+              <p style={{ color: 'var(--color-text-muted)', fontSize: '12px', marginTop: '2px', fontFamily: 'Work Sans, sans-serif' }}>
+                {vehicles.length} registered vehicle{vehicles.length !== 1 ? 's' : ''}
+              </p>
+            </div>
           </div>
           <button
             type="button"

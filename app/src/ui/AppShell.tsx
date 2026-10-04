@@ -61,101 +61,52 @@ const PRIMARY_TABS: { id: PrimaryTab; label: string }[] = [
 
 export default function AppShell() {
   const [activeTab, setActiveTab] = useState<Tab>('home')
+  const [navigatedFromMore, setNavigatedFromMore] = useState(false)
   const [animKey, setAnimKey] = useState(0)
 
   const handleTabChange = useCallback((id: PrimaryTab) => {
-    // If tapping "more" while already in a sub-view (vehicles, projects, settings), return to more hub
-    if (id === 'more' && (activeTab === 'vehicles' || activeTab === 'projects' || activeTab === 'settings')) {
+    // If tapping "more" while already in a sub-view (vehicles, projects, settings, or workorders from more), return to more hub
+    if (id === 'more' && (activeTab === 'vehicles' || activeTab === 'projects' || activeTab === 'settings' || (activeTab === 'workorders' && navigatedFromMore))) {
       setActiveTab('more')
+      setNavigatedFromMore(false)
       setAnimKey(k => k + 1)
       return
     }
+    setNavigatedFromMore(false)
     if (id === activeTab) return
     setActiveTab(id)
     setAnimKey(k => k + 1)
-  }, [activeTab])
+  }, [activeTab, navigatedFromMore])
 
-  const handleNavigateSubTab = useCallback((sub: 'vehicles' | 'projects' | 'settings') => {
+  const handleNavigateSubTab = useCallback((sub: 'workorders' | 'vehicles' | 'projects' | 'settings') => {
     setActiveTab(sub)
+    setNavigatedFromMore(true)
     setAnimKey(k => k + 1)
   }, [])
 
-  const isSubTab = activeTab === 'vehicles' || activeTab === 'projects' || activeTab === 'settings'
+  const handleBackToMore = useCallback(() => {
+    setActiveTab('more')
+    setNavigatedFromMore(false)
+    setAnimKey(k => k + 1)
+  }, [])
+
+  const isSubTab = activeTab === 'vehicles' || activeTab === 'projects' || activeTab === 'settings' || (activeTab === 'workorders' && navigatedFromMore)
   const effectivePrimaryTab: PrimaryTab = isSubTab ? 'more' : (activeTab as PrimaryTab)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', overflow: 'hidden', background: 'var(--color-bg)', position: 'relative' }}>
-
-      {/* Pinned iOS status bar backdrop — blends with frosted header seamlessly, no white glare */}
-      <div
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 'var(--safe-top)',
-          background: 'rgba(245, 241, 232, 0.94)',
-          backdropFilter: 'blur(24px) saturate(190%)',
-          WebkitBackdropFilter: 'blur(24px) saturate(190%)',
-          zIndex: 99,
-          pointerEvents: 'none',
-        }}
-        aria-hidden="true"
-      />
-
-      {/* Sub-tab Navigation Banner (when inside Vehicles, Projects, or Settings from More) */}
-      {isSubTab && (
-        <div style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 25,
-          background: 'rgba(245, 241, 232, 0.95)',
-          backdropFilter: 'blur(24px) saturate(190%)',
-          WebkitBackdropFilter: 'blur(24px) saturate(190%)',
-          paddingTop: 'calc(var(--safe-top) + 6px)',
-          paddingBottom: '8px',
-          paddingLeft: '16px',
-          paddingRight: '16px',
-          borderBottom: '1px solid rgba(59, 42, 31, 0.08)',
-          display: 'flex',
-          alignItems: 'center',
-        }}>
-          <button
-            type="button"
-            onClick={() => { setActiveTab('more'); setAnimKey(k => k + 1) }}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--color-primary)',
-              fontSize: '14px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              padding: '4px 8px 4px 0',
-              fontFamily: 'Work Sans, -apple-system, sans-serif',
-            }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-            <span>Back to More</span>
-          </button>
-        </div>
-      )}
 
       {/* Scrollable content */}
       <div className="scroll-area">
         <div key={animKey} className="page-enter">
           {activeTab === 'home'       && <DashboardPage />}
           {activeTab === 'invoices'   && <InvoicesPage />}
-          {activeTab === 'workorders' && <WorkOrdersPage />}
+          {activeTab === 'workorders' && <WorkOrdersPage onBack={navigatedFromMore ? handleBackToMore : undefined} />}
           {activeTab === 'clients'    && <ClientsPage />}
           {activeTab === 'more'       && <MoreHubView onNavigate={handleNavigateSubTab} />}
-          {activeTab === 'vehicles'   && <VehiclesPage />}
-          {activeTab === 'projects'   && <ProjectsPage />}
-          {activeTab === 'settings'   && <SettingsPage />}
+          {activeTab === 'vehicles'   && <VehiclesPage onBack={handleBackToMore} />}
+          {activeTab === 'projects'   && <ProjectsPage onBack={handleBackToMore} />}
+          {activeTab === 'settings'   && <SettingsPage onBack={handleBackToMore} />}
         </div>
       </div>
 
@@ -194,17 +145,17 @@ export default function AppShell() {
                 {tab.label}
               </span>
 
-              {/* Refined Gold Active Pip */}
-              {isActive && (
-                <span style={{
-                  width: '4px',
-                  height: '4px',
-                  borderRadius: '50%',
-                  background: 'var(--color-accent)',
-                  marginTop: '1px',
-                  boxShadow: '0 0 4px rgba(200, 169, 106, 0.6)',
-                }} />
-              )}
+              {/* Refined Gold Active Pip — fixed slot prevents height jitter / label jumping */}
+              <span style={{
+                width: '4px',
+                height: '4px',
+                borderRadius: '50%',
+                background: 'var(--color-accent)',
+                marginTop: '2px',
+                boxShadow: '0 0 4px rgba(200, 169, 106, 0.6)',
+                opacity: isActive ? 1 : 0,
+                transition: 'opacity 150ms ease',
+              }} />
             </button>
           )
         })}
