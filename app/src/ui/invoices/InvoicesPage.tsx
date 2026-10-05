@@ -46,6 +46,80 @@ function sortByNumberDesc(arr: InvoiceWithDetails[]): InvoiceWithDetails[] {
   })
 }
 
+// ── Date and Billing Month Formatters ─────────────────────────────────────────
+
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const MONTH_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+
+function parseYMD(str?: string | null): { year: number; month: number; day: number } | null {
+  if (!str) return null
+  const clean = str.trim().split('T')[0]
+  const parts = clean.split(/[-/]/)
+  if (parts.length < 3) return null
+  const y = parseInt(parts[0], 10)
+  const m = parseInt(parts[1], 10)
+  const d = parseInt(parts[2], 10)
+  if (isNaN(y) || isNaN(m) || isNaN(d)) return null
+  return { year: y, month: m, day: d }
+}
+
+function formatDisplayDate(dateStr?: string | null): string {
+  if (!dateStr) return ''
+  const p = parseYMD(dateStr)
+  if (!p) return dateStr
+  const day = String(p.day).padStart(2, '0')
+  const month = MONTH_SHORT[p.month - 1]
+  return `${day} ${month} ${p.year}`
+}
+
+function formatBillingMonths(
+  fromStr?: string | null,
+  toStr?: string | null,
+  fallbackDateStr?: string | null
+): string {
+  const from = parseYMD(fromStr)
+  const to = parseYMD(toStr)
+
+  if (!from && !to) {
+    const fallback = parseYMD(fallbackDateStr)
+    if (!fallback) return ''
+    return `${MONTH_FULL[fallback.month - 1]} ${fallback.year}`
+  }
+
+  const start = from ?? to!
+  const end = to ?? from!
+
+  const months: { month: number; year: number }[] = []
+  let curY = start.year
+  let curM = start.month
+
+  let guard = 0
+  while (guard < 36) {
+    guard++
+    months.push({ month: curM, year: curY })
+    if (curY === end.year && curM === end.month) break
+    if (curY > end.year || (curY === end.year && curM > end.month)) break
+    curM++
+    if (curM > 12) {
+      curM = 1
+      curY++
+    }
+  }
+
+  if (months.length === 0) return ''
+  if (months.length === 1) {
+    return `${MONTH_FULL[months[0].month - 1]} ${months[0].year}`
+  }
+
+  const allSameYear = months.every(item => item.year === months[0].year)
+  if (allSameYear) {
+    const names = months.map(item => MONTH_SHORT[item.month - 1]).join(', ')
+    return `${names} ${months[0].year}`
+  }
+
+  return months.map(item => `${MONTH_SHORT[item.month - 1]} ${item.year}`).join(', ')
+}
+
 // ── Status badge colours ──────────────────────────────────────────────────────
 
 const STATUS_COLOR: Record<string, string> = {
@@ -140,8 +214,20 @@ function CancelInvoiceButton({ invoiceId, onCancelled }: { invoiceId: number; on
 
   if (confirming) {
     return (
-      <div onClick={e => e.stopPropagation()} style={{ marginTop: 8, padding: '10px 12px', borderRadius: 8, background: 'var(--color-error-highlight, rgba(139,46,46,0.08))', border: '1px solid var(--color-error)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <p style={{ fontSize: 12, color: 'var(--color-error)', fontWeight: 600, margin: 0 }}>This will void the invoice and reverse billed quantities.</p>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: '100%',
+        marginTop: 4,
+        padding: '10px 12px',
+        borderRadius: 8,
+        background: 'var(--color-error-highlight, rgba(139,46,46,0.08))',
+        border: '1px solid var(--color-error)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+      }}>
+        <p style={{ fontSize: 12, color: 'var(--color-error)', fontWeight: 600, margin: 0 }}>
+          This will void the invoice and reverse billed quantities.
+        </p>
         <div style={{ display: 'flex', gap: 8 }}>
           <button type="button" onClick={handleConfirm} disabled={cancelling}
             style={{ flex: 1, padding: '7px 0', borderRadius: 6, border: 'none', background: 'var(--color-error)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
@@ -157,23 +243,35 @@ function CancelInvoiceButton({ invoiceId, onCancelled }: { invoiceId: number; on
 
   return (
     <button type="button" onClick={e => { e.stopPropagation(); setConfirming(true) }}
-      aria-label="Cancel invoice"
+      aria-label="Void invoice"
       style={{
-        background: 'none',
-        border: 'none',
-        padding: '2px 0',
-        color: 'var(--color-text-faint)',
-        fontSize: 12,
+        flex: '0 0 auto',
+        padding: '8px 12px',
+        borderRadius: 8,
+        border: '1px solid rgba(139,46,46,0.24)',
+        background: 'transparent',
+        color: 'var(--color-error)',
+        fontSize: 12.5,
         fontWeight: 500,
         cursor: 'pointer',
-        textAlign: 'center',
-        transition: 'color 150ms',
-        alignSelf: 'center',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 4,
+        minHeight: 36,
+        transition: 'all 150ms ease',
       }}
-      onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-error)' }}
-      onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-faint)' }}
+      onMouseEnter={e => {
+        e.currentTarget.style.background = 'rgba(139,46,46,0.06)'
+        e.currentTarget.style.borderColor = 'var(--color-error)'
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.background = 'transparent'
+        e.currentTarget.style.borderColor = 'rgba(139,46,46,0.24)'
+      }}
     >
-      Void Invoice
+      <span>✕</span>
+      <span>Void</span>
     </button>
   )
 }
@@ -190,6 +288,7 @@ function VoidStamp() {
 
 function InvoiceCard({
   inv, onOpen, onDeleted, onCancelled, onMarkReceived, loadingEdit,
+  showStatusBadge = true, showPaymentBadge = true,
 }: {
   inv: InvoiceWithDetails
   onOpen: (inv: InvoiceWithDetails) => void
@@ -197,6 +296,8 @@ function InvoiceCard({
   onCancelled: (id: number) => void
   onMarkReceived: (inv: InvoiceWithDetails) => void
   loadingEdit: number | null
+  showStatusBadge?: boolean
+  showPaymentBadge?: boolean
 }) {
   const isDraft     = inv.status === 'draft'
   const isFinal     = inv.status === 'final'
@@ -207,6 +308,7 @@ function InvoiceCard({
 
   const netReceivable = Number(inv.net_receivable ?? 0)
   const balanceDue    = Number(inv.balance_due ?? netReceivable)
+  const billingMonth  = formatBillingMonths(inv.billing_from, inv.billing_to, inv.invoice_date)
 
   return (
     <div style={{
@@ -225,53 +327,54 @@ function InvoiceCard({
     }}>
       {isCancelled && <VoidStamp />}
 
-      {/* Top Row: Invoice Number, Client, & Badges */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{
-            fontSize: 17,
+      {/* Top Row: P1 Invoice Number + P2 Invoice Date (less visual prominence) & P3 Badges */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <div style={{ minWidth: 0, flex: 1, display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
+          <span style={{
+            fontSize: 16.5,
             fontWeight: 700,
             color: 'var(--color-primary)',
             fontFamily: 'Playfair Display, Georgia, serif',
             letterSpacing: '0.2px',
             whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
           }}>
             {inv.invoice_number}
-          </div>
-          <div style={{
-            fontSize: 13,
-            color: 'var(--color-text-muted)',
-            marginTop: 2,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}>
-            {inv.client_name ?? '—'}
-          </div>
+          </span>
+          {inv.invoice_date && (
+            <span style={{
+              fontSize: 12,
+              color: 'var(--color-text-muted)',
+              fontWeight: 500,
+              whiteSpace: 'nowrap',
+            }}>
+              <span style={{ opacity: 0.35, margin: '0 4px 0 1px' }}>•</span>
+              {formatDisplayDate(inv.invoice_date)}
+            </span>
+          )}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-          {/* Status Badge */}
-          <span style={{
-            fontSize: 11,
-            fontWeight: 600,
-            padding: '3px 8px',
-            borderRadius: 999,
-            color: STATUS_COLOR[st] ?? 'var(--color-text-muted)',
-            background: STATUS_BG[st] ?? 'transparent',
-            textTransform: 'capitalize',
-          }}>
-            {st}
-          </span>
-
-          {/* Payment Status Badge (Final Invoices Only) */}
-          {isFinal && (
+          {/* P3 Status Badge: only shown when filter includes multiple types (e.g. statusFilter='all') */}
+          {showStatusBadge && (
             <span style={{
               fontSize: 11,
               fontWeight: 600,
-              padding: '3px 8px',
+              padding: '2px 8px',
+              borderRadius: 999,
+              color: STATUS_COLOR[st] ?? 'var(--color-text-muted)',
+              background: STATUS_BG[st] ?? 'transparent',
+              textTransform: 'capitalize',
+            }}>
+              {st}
+            </span>
+          )}
+
+          {/* P3 Payment Status Badge: only shown for final invoices when paymentFilter='all' */}
+          {isFinal && showPaymentBadge && (
+            <span style={{
+              fontSize: 11,
+              fontWeight: 600,
+              padding: '2px 8px',
               borderRadius: 999,
               color: pConfig.color,
               background: pConfig.bg,
@@ -289,50 +392,108 @@ function InvoiceCard({
         </div>
       </div>
 
-      {/* Date & Period metadata (clean, no excessive icons) */}
-      <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-        <span>{inv.invoice_date}</span>
-        {(inv.billing_from || inv.billing_to) && (
-          <span> &bull; {inv.billing_from} → {inv.billing_to}</span>
-        )}
-        {inv.site_location && (
-          <span style={{ color: 'var(--color-accent)' }}> &bull; 📍 {inv.site_location}</span>
-        )}
-        {inv.work_order_reference && (
-          <span style={{ color: 'var(--color-text-faint)' }}> &bull; WO: {inv.work_order_reference}</span>
+      {/* Row 2: P1 Client Name */}
+      <div style={{
+        fontSize: 14.5,
+        fontWeight: 600,
+        color: 'var(--color-text)',
+        letterSpacing: '-0.1px',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        marginTop: -4,
+      }}>
+        {inv.client_name ?? '—'}
+      </div>
+
+      {/* Row 3: P1 Site Location beside P1 Billing Month (with greater visual prominence) */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          minWidth: 0,
+          flex: 1,
+          fontSize: 12.5,
+          color: 'var(--color-text-muted)',
+        }}>
+          {inv.site_location ? (
+            <span style={{
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              color: 'var(--color-text-muted)',
+            }}>
+              📍 <span style={{ color: 'var(--color-text)', fontWeight: 500 }}>{inv.site_location}</span>
+            </span>
+          ) : (
+            <span style={{ color: 'var(--color-text-faint)', fontStyle: 'italic', fontSize: 12 }}>
+              📍 No site specified
+            </span>
+          )}
+        </div>
+
+        {billingMonth && (
+          <span style={{
+            flexShrink: 0,
+            fontSize: 11.5,
+            fontWeight: 700,
+            letterSpacing: '0.02em',
+            padding: '3px 10px',
+            borderRadius: 8,
+            background: 'linear-gradient(135deg, rgba(200,169,106,0.22) 0%, rgba(200,169,106,0.12) 100%)',
+            border: '1px solid rgba(200, 169, 106, 0.55)',
+            color: 'var(--color-primary)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            boxShadow: '0 1px 3px rgba(59,42,31,0.06)',
+          }}>
+            <span style={{ fontSize: 11 }}>🗓️</span>
+            <span>{billingMonth}</span>
+          </span>
         )}
       </div>
 
-      {/* Financial row */}
+      {/* Financial row (P1 Net Bill & Balance Due) */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         background: 'var(--color-surface, #FAF8F3)',
-        borderRadius: 10,
+        borderRadius: 12,
         padding: '10px 14px',
-        border: '1px solid rgba(217, 211, 197, 0.45)',
-        fontSize: 13,
+        border: '1px solid rgba(217, 211, 197, 0.5)',
       }}>
         <div>
-          <span style={{ fontSize: 11, color: 'var(--color-text-faint)' }}>Net Bill: </span>
-          <span style={{ fontWeight: 600, color: isCancelled ? 'var(--color-text-faint)' : 'var(--color-text)', fontVariantNumeric: 'tabular-nums' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-faint)' }}>
+            Net Bill
+          </div>
+          <div style={{
+            fontSize: 15,
+            fontWeight: 700,
+            color: isCancelled ? 'var(--color-text-faint)' : 'var(--color-text)',
+            fontVariantNumeric: 'tabular-nums',
+            marginTop: 2,
+          }}>
             ₹{fmt(netReceivable)}
-          </span>
+          </div>
         </div>
 
         {isFinal && (
           <div style={{ textAlign: 'right' }}>
-            <span style={{ fontSize: 11, color: 'var(--color-text-faint)' }}>
-              {balanceDue <= 0.01 ? 'Status: ' : 'Due: '}
-            </span>
-            <span style={{
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-faint)' }}>
+              {balanceDue <= 0.01 ? 'Status' : 'Balance Due'}
+            </div>
+            <div style={{
+              fontSize: 15,
               fontWeight: 700,
               color: balanceDue <= 0.01 ? 'var(--color-success)' : 'var(--color-warning)',
               fontVariantNumeric: 'tabular-nums',
+              marginTop: 2,
             }}>
               {balanceDue <= 0.01 ? 'Fully Cleared' : `₹${fmt(balanceDue)}`}
-            </span>
+            </div>
           </div>
         )}
       </div>
@@ -355,75 +516,82 @@ function InvoiceCard({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            gap: 6,
             cursor: 'pointer',
             transition: 'background 150ms',
           }}
         >
-          Continue Editing Draft
+          <span>✏️</span>
+          <span>Continue Editing Draft</span>
         </div>
       )}
 
-      {/* Final: Action Toolbar */}
+      {/* Final: Option A Action Toolbar (Hero PDF + Secondary Actions Dock) */}
       {isFinal && (
         <div onClick={e => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {/* Mark Received Button (shown if invoice has pending balance) */}
-          {balanceDue > 0.01 && (
-            <button
-              type="button"
-              onClick={() => onMarkReceived(inv)}
-              aria-label={`Mark received for ${inv.invoice_number}`}
-              style={{
-                width: '100%',
-                padding: '11px 0',
-                borderRadius: 10,
-                border: 'none',
-                background: 'linear-gradient(135deg, #D4AF37 0%, #C8A96A 100%)',
-                color: '#2A1F15',
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(200, 169, 106, 0.35)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-                transition: 'opacity 120ms ease, transform 120ms ease',
-              }}
-            >
-              <span>Record Payment</span>
-              <span style={{ opacity: 0.6 }}>•</span>
-              <span>Due: ₹{fmt(balanceDue)}</span>
-            </button>
-          )}
+          {/* HERO ACTION: View / Download PDF */}
+          <InvoiceActions invoiceId={inv.id} invoiceNumber={inv.invoice_number} status={inv.status} />
 
-          <div style={{ display: 'flex', gap: 8 }}>
-            <div style={{ flex: 1 }}>
-              <InvoiceActions invoiceId={inv.id} invoiceNumber={inv.invoice_number} status={inv.status} />
-            </div>
+          {/* SECONDARY ACTIONS DOCK: Dedicated Intentional Actions */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {balanceDue > 0.01 && (
+              <button
+                type="button"
+                onClick={() => onMarkReceived(inv)}
+                aria-label={`Record payment for ${inv.invoice_number}`}
+                style={{
+                  flex: '1 1 auto',
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: '1px solid rgba(200, 169, 106, 0.65)',
+                  background: 'rgba(200, 169, 106, 0.12)',
+                  color: 'var(--color-primary)',
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  transition: 'all 120ms ease',
+                  minHeight: 36,
+                }}
+              >
+                <span>💳</span>
+                <span>Record Payment</span>
+              </button>
+            )}
+
             <button
               type="button"
               disabled={loadingEdit === inv.id}
               onClick={() => onOpen(inv)}
               aria-label={`Edit invoice ${inv.invoice_number}`}
               style={{
-                padding: '10px 18px',
-                borderRadius: 10,
-                border: '1px solid rgba(59,42,31,0.22)',
+                flex: '1 1 auto',
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: '1px solid rgba(59,42,31,0.18)',
                 background: 'var(--color-surface-2, #FFFFFF)',
                 color: 'var(--color-primary)',
-                fontSize: 13,
+                fontSize: 12.5,
                 fontWeight: 600,
                 cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
                 transition: 'all 150ms',
                 opacity: loadingEdit === inv.id ? 0.6 : 1,
-                boxShadow: '0 1px 3px rgba(59,42,31,0.04)',
+                minHeight: 36,
               }}
             >
-              {loadingEdit === inv.id ? '…' : 'Edit'}
+              <span>✏️</span>
+              <span>{loadingEdit === inv.id ? '…' : 'Edit'}</span>
             </button>
-          </div>
 
-          <CancelInvoiceButton invoiceId={inv.id} onCancelled={() => onCancelled(inv.id)} />
+            <CancelInvoiceButton invoiceId={inv.id} onCancelled={() => onCancelled(inv.id)} />
+          </div>
         </div>
       )}
 
@@ -781,6 +949,8 @@ export default function InvoicesPage() {
               onCancelled={handleCancelled}
               onMarkReceived={setMarkReceivedInv}
               loadingEdit={loadingEdit}
+              showStatusBadge={statusFilter === 'all'}
+              showPaymentBadge={paymentFilter === 'all'}
             />
           ))
         )}
