@@ -312,28 +312,29 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
             </div>
           </div>
 
-          {/* Amount and Date Fields (Responsive 1 or 2 Columns) */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 12 }}>
-            <div>
+          {/* ─── Amount and Date Fields (Proportional Hero + Compact Date) ─── */}
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 240px', minWidth: 'min(100%, 200px)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap', gap: 4 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text)' }}>
-                  Amount Received (₹) <span style={{ color: 'var(--color-error)' }}>*</span>
+                <label htmlFor="rpm-amount" style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text)' }}>
+                  Amount Received <span style={{ color: 'var(--color-error)' }}>*</span>
                 </label>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                   {hasCustomSelection && selectedBillsTotalDue > 0 && (
                     <button
                       type="button"
                       onClick={() => setAmount(String(selectedBillsTotalDue))}
                       style={{
-                        background: 'none',
-                        border: 'none',
+                        background: 'rgba(200, 169, 106, 0.18)',
+                        border: '1px solid rgba(200, 169, 106, 0.45)',
                         color: 'var(--color-primary)',
                         fontSize: 11,
                         fontWeight: 700,
                         cursor: 'pointer',
-                        textDecoration: 'underline',
-                        padding: 0,
+                        padding: '2px 8px',
+                        borderRadius: 6,
                       }}
+                      title="Fill selected bills total"
                     >
                       Selected (₹{fmt(selectedBillsTotalDue)})
                     </button>
@@ -343,50 +344,100 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
                       type="button"
                       onClick={() => setAmount(String(totalClientPending))}
                       style={{
-                        background: 'none',
-                        border: 'none',
+                        background: hasCustomSelection ? 'rgba(0, 0, 0, 0.04)' : 'rgba(200, 169, 106, 0.18)',
+                        border: hasCustomSelection ? '1px solid var(--color-border)' : '1px solid rgba(200, 169, 106, 0.45)',
                         color: hasCustomSelection ? 'var(--color-text-muted)' : 'var(--color-primary)',
                         fontSize: 11,
                         fontWeight: hasCustomSelection ? 500 : 700,
                         cursor: 'pointer',
-                        textDecoration: 'underline',
-                        padding: 0,
+                        padding: '2px 8px',
+                        borderRadius: 6,
                       }}
+                      title="Fill all outstanding dues"
                     >
                       All Dues (₹{fmt(totalClientPending)})
                     </button>
                   )}
                 </div>
               </div>
-              <input
-                type="number"
-                step="0.01"
-                min="0.01"
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                required
-                placeholder="e.g. 250000"
-                style={{
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  padding: '10px 12px',
-                  borderRadius: 10,
-                  border: isSelectionInsufficient ? '1.5px solid var(--color-warning, #A05C1A)' : '1.5px solid var(--color-border)',
-                  background: '#fff',
-                  fontSize: 16,
-                  fontWeight: 700,
-                  fontFamily: 'Work Sans, sans-serif',
-                  outline: 'none',
-                  color: 'var(--color-text)',
-                }}
-              />
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <span
+                  style={{
+                    position: 'absolute',
+                    left: 12,
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: 'var(--color-text-muted, #7A6A58)',
+                    pointerEvents: 'none',
+                    userSelect: 'none',
+                  }}
+                >
+                  ₹
+                </span>
+                <input
+                  id="rpm-amount"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={amount}
+                  onChange={e => setAmount(e.target.value)}
+                  required
+                  placeholder="e.g. 250000"
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    height: 42,
+                    padding: '8px 12px 8px 30px',
+                    borderRadius: 10,
+                    border: isSelectionInsufficient ? '1.5px solid var(--color-warning, #A05C1A)' : '1.5px solid var(--color-border)',
+                    background: '#fff',
+                    fontSize: 16,
+                    fontWeight: 700,
+                    fontFamily: 'Work Sans, sans-serif',
+                    fontVariantNumeric: 'tabular-nums',
+                    outline: 'none',
+                    color: 'var(--color-text)',
+                    transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+                  }}
+                  onFocus={e => {
+                    e.target.style.borderColor = 'var(--color-accent, #C8A96A)'
+                    e.target.style.boxShadow = '0 0 0 3px rgba(200, 169, 106, 0.2)'
+                  }}
+                  onBlur={e => {
+                    e.target.style.borderColor = isSelectionInsufficient ? 'var(--color-warning, #A05C1A)' : 'var(--color-border)'
+                    e.target.style.boxShadow = 'none'
+                  }}
+                />
+              </div>
             </div>
 
-            <div>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--color-text)', marginBottom: 6 }}>
-                Received Date <span style={{ color: 'var(--color-error)' }}>*</span>
-              </label>
+            <div style={{ flex: '0 0 165px', width: 165, minWidth: 150 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label htmlFor="rpm-date" style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text)' }}>
+                  Received Date <span style={{ color: 'var(--color-error)' }}>*</span>
+                </label>
+                {paymentDate !== today && (
+                  <button
+                    type="button"
+                    onClick={() => setPaymentDate(today)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--color-accent, #C8A96A)',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      padding: 0,
+                      textDecoration: 'underline',
+                    }}
+                    title="Set to today's date"
+                  >
+                    Today
+                  </button>
+                )}
+              </div>
               <input
+                id="rpm-date"
                 type="date"
                 value={paymentDate}
                 onChange={e => setPaymentDate(e.target.value)}
@@ -394,15 +445,26 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
                 style={{
                   width: '100%',
                   boxSizing: 'border-box',
-                  padding: '10px 12px',
+                  height: 42,
+                  padding: '8px 10px',
                   borderRadius: 10,
                   border: '1.5px solid var(--color-border)',
                   background: '#fff',
-                  fontSize: 14,
+                  fontSize: 13.5,
                   fontWeight: 600,
                   fontFamily: 'Work Sans, sans-serif',
+                  colorScheme: 'light',
                   outline: 'none',
                   color: 'var(--color-text)',
+                  transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+                }}
+                onFocus={e => {
+                  e.target.style.borderColor = 'var(--color-accent, #C8A96A)'
+                  e.target.style.boxShadow = '0 0 0 3px rgba(200, 169, 106, 0.2)'
+                }}
+                onBlur={e => {
+                  e.target.style.borderColor = 'var(--color-border)'
+                  e.target.style.boxShadow = 'none'
                 }}
               />
             </div>

@@ -4,4 +4,8 @@ GEMINI.md
 skills-lock.json
 .env
 
+# Local migration & admin tools
+migration-tools/
+tools/
+
 
