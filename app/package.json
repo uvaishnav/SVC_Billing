@@ -8,12 +8,14 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "type-check": "tsc -b"
+    "type-check": "tsc -b",
+    "test:invoice-pdf": "node tests/run-invoice-pdf.mjs"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.3.0",
     "@supabase/supabase-js": "^2.49.4",
     "lucide-react": "^0.511.0",
+    "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.0.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

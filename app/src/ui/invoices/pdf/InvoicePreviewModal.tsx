@@ -9,13 +9,12 @@
  *
  * If safariWindow is null (popup was blocked or desktop), falls back to:
  *   - Mobile: shows a tap-to-open button (one tap fallback)
- *   - Desktop: full-screen embedded PDFViewer (unchanged)
+ *   - Desktop: full-screen embedded PDF preview
  *
- * DESKTOP: unchanged — embedded PDFViewer in a full-screen modal overlay.
+ * DESKTOP: a full-screen iframe previews the same fitted blob used for download and upload.
  */
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { PDFViewer, PDFDownloadLink, pdf } from '@react-pdf/renderer';
-import { InvoicePdf } from './InvoicePdf';
+import { generateInvoicePdf } from './generateInvoicePdf';
 import { buildInvoicePayload } from './buildInvoicePayload';
 import { uploadInvoicePdf } from '../../../db/invoicePdfDb';
 import type { InvoicePdfProps } from './invoicePayloadTypes';
@@ -33,6 +32,7 @@ type MobileStage = 'generating' | 'done' | 'blocked' | 'error';
 export function InvoicePreviewModal({ invoiceId, invoiceNumber, safariWindow, onClose }: Props) {
   const [payload,    setPayload]   = useState<InvoicePdfProps | null>(null);
   const [pdfBlob,    setPdfBlob]   = useState<Blob | null>(null);
+  const [desktopPdfUrl, setDesktopPdfUrl] = useState<string | null>(null);
   const [errorMsg,   setErrorMsg]  = useState('');
   const [uploading,  setUploading] = useState(false);
   const [uploaded,   setUploaded]  = useState(false);
@@ -64,22 +64,26 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, safariWindow, on
 
   // ── Fetch invoice data ────────────────────────────────────────────────────
   useEffect(() => {
+    let cancelled = false;
     buildInvoicePayload(invoiceId)
-      .then(p => setPayload(p))
+      .then(p => { if (!cancelled) setPayload(p); })
       .catch(e => {
+        if (cancelled) return;
         if (safariWindow && !safariWindow.closed) safariWindow.close();
         setErrorMsg(e.message ?? 'Failed to load invoice data.');
         setMobileStage('error');
       });
+    return () => { cancelled = true; };
   }, [invoiceId, safariWindow]);
 
   // ── Generate blob once payload is ready ───────────────────────────────────
   useEffect(() => {
     if (!payload) return;
+    let cancelled = false;
 
-    pdf(<InvoicePdf {...payload} />)
-      .toBlob()
+    generateInvoicePdf(payload)
       .then(blob => {
+        if (cancelled) return;
         setPdfBlob(blob);
 
         if (isMobile) {
@@ -101,12 +105,22 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, safariWindow, on
         }
       })
       .catch(e => {
+        if (cancelled) return;
         console.warn('Blob generation failed:', e);
         if (safariWindow && !safariWindow.closed) safariWindow.close();
         setErrorMsg('Failed to generate PDF.');
         setMobileStage('error');
       });
+    return () => { cancelled = true; };
   }, [payload, safariWindow, onClose, isMobile]);
+
+  // Preview and download reuse exactly the same fitted bytes that are uploaded.
+  useEffect(() => {
+    if (!pdfBlob || isMobile) return;
+    const url = URL.createObjectURL(pdfBlob);
+    setDesktopPdfUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [pdfBlob, isMobile]);
 
   useEffect(() => {
     if (!pdfBlob || uploaded || uploading) return;
@@ -160,15 +174,15 @@ export function InvoicePreviewModal({ invoiceId, invoiceNumber, safariWindow, on
             <div style={{ color: 'var(--color-accent)', fontWeight: 700, fontSize: 15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{invoiceNumber}</div>
           </div>
           {uploading && <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11 }}>Saving…</span>}
-          {payload && (
-            <PDFDownloadLink document={<InvoicePdf {...payload} />} fileName={`${invoiceNumber.replace(/\//g, '_')}.pdf`} style={desktopBtnStyle}>
-              {({ loading }) => loading ? 'Preparing…' : '⬇ Download'}
-            </PDFDownloadLink>
+          {desktopPdfUrl && (
+            <a href={desktopPdfUrl} download={`${invoiceNumber.replace(/\//g, '_')}.pdf`} style={desktopBtnStyle}>
+              ⬇ Download
+            </a>
           )}
         </div>
-        {payload
-          ? <PDFViewer width="100%" height="100%" style={{ border: 'none', display: 'flex', flex: 1 }}><InvoicePdf {...payload} /></PDFViewer>
-          : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, color: 'rgba(255,255,255,0.6)', fontSize: 14 }}>⏳ Loading invoice data…</div>
+        {desktopPdfUrl
+          ? <iframe title={`Invoice ${invoiceNumber}`} src={desktopPdfUrl} width="100%" height="100%" style={{ border: 'none', display: 'flex', flex: 1 }} />
+          : <div role={errorMsg ? 'alert' : 'status'} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, color: 'rgba(255,255,255,0.6)', fontSize: 14 }}>{errorMsg || '⏳ Generating invoice PDF…'}</div>
         }
       </div>
     );

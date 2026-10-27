@@ -42,6 +42,7 @@ import {
   formatCurrency, formatDate,
 } from './pdfUtils';
 import type { InvoicePdfProps } from './invoicePayloadTypes';
+import { INVOICE_MARGIN, INVOICE_BOTTOM_MARGIN, INVOICE_PAGE_WIDTH } from './invoicePageGeometry';
 
 // ── Font registration ─────────────────────────────────────────────────────────
 Font.register({
@@ -63,7 +64,7 @@ Font.register({
 });
 
 // ── Page constants ────────────────────────────────────────────────────────────
-const PAGE_MARGIN = 32;
+const PAGE_MARGIN = INVOICE_MARGIN;
 const BODY_FONT = 'Inter';
 const HEAD_FONT = 'Lora';
 
@@ -88,7 +89,7 @@ const s = StyleSheet.create({
     color: BODY_TEXT,
     backgroundColor: WHITE,
     paddingTop: PAGE_MARGIN,
-    paddingBottom: PAGE_MARGIN + 12,
+    paddingBottom: INVOICE_BOTTOM_MARGIN,
     paddingHorizontal: PAGE_MARGIN,
     lineHeight: 1.4,
   },
@@ -1096,7 +1097,9 @@ function FooterSection({ props }: { props: InvoicePdfProps }) {
 
 // ── Main Document ─────────────────────────────────────────────────────────────
 
-export function InvoicePdf(props: InvoicePdfProps) {
+// naturalHeight is for generateInvoicePdf's measurement pass only. Final PDFs
+// must go through that generator so they always have an A4 media box.
+export function InvoicePdf(props: InvoicePdfProps & { naturalHeight?: boolean }) {
   const {
     billing_type, tax_mode, sac_code,
     line_items, rental_items, item_distribution,
@@ -1105,7 +1108,7 @@ export function InvoicePdf(props: InvoicePdfProps) {
 
   return (
     <Document>
-      <Page size="A4" style={s.page}>
+      <Page size={props.naturalHeight ? { width: INVOICE_PAGE_WIDTH } : 'A4'} wrap={!props.naturalHeight} style={s.page}>
         <HeaderBand supplier={props.supplier} />
         <GstinStrip gstin={props.supplier.gstin} />
         <TaxInvoiceStamp taxMode={tax_mode} />
