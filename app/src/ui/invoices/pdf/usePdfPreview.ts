@@ -5,7 +5,7 @@
  *   1. Fetches all DB data needed to render the PDF (settings, client GSTIN,
  *      bank account, SAC code, work-order reference)
  *   2. Maps InvoiceDraft → InvoicePdfProps
- *   3. Uses @react-pdf/renderer pdf() to produce a Blob URL
+ *   3. Uses the shared single-page generator to produce a Blob URL
  *   4. Exposes { open, close, pdfUrl, loading, error }
  *
  * Usage in Section4Review:
@@ -13,9 +13,7 @@
  */
 
 import { useState, useCallback } from 'react'
-import { pdf } from '@react-pdf/renderer'
-import React from 'react'
-import { InvoicePdf } from './InvoicePdf'
+import { generateInvoicePdf } from './generateInvoicePdf'
 import type {
   InvoicePdfProps,
   PdfSupplier,
@@ -200,7 +198,7 @@ export function usePdfPreview(draft: InvoiceDraft) {
       ])
 
       const props = buildProps(draft, settings, clientGstin, bank, sacCode, woRef)
-      const blob  = await pdf(React.createElement(InvoicePdf, props) as React.ReactElement<any>).toBlob()
+      const blob = await generateInvoicePdf(props)
       const url   = URL.createObjectURL(blob)
       setPdfUrl(url)
     } catch (e: any) {
