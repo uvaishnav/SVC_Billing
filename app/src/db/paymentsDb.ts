@@ -40,6 +40,8 @@ export async function getClientOutstandingBills(clientId: number) {
       net_receivable,
       status,
       bank_account_id,
+      project_id,
+      projects(name, site_location),
       work_orders(wo_reference),
       bank_accounts(id, account_name, account_number, ifsc, bank_name, branch, nickname)
     `)
@@ -49,30 +51,24 @@ export async function getClientOutstandingBills(clientId: number) {
     .order('invoice_number', { ascending: true })
 
   if (error) {
-    console.error('getClientOutstandingBills error:', error)
-    return []
+    throw error
   }
 
   const invoices = data ?? []
   if (invoices.length === 0) return []
 
-  // Fetch allocations safely
-  let allocsMap = new Map<number, number>()
-  try {
-    const invIds = invoices.map(i => i.id)
-    const { data: allocData } = await (supabase
-      .from('payment_allocations') as any)
-      .select('invoice_id, allocated_amount')
-      .in('invoice_id', invIds)
+  // Do not treat a failed allocation lookup as an unpaid balance.
+  const allocsMap = new Map<number, number>()
+  const invIds = invoices.map(i => i.id)
+  const { data: allocData, error: allocationError } = await (supabase
+    .from('payment_allocations') as any)
+    .select('invoice_id, allocated_amount')
+    .in('invoice_id', invIds)
 
-    if (allocData) {
-      for (const a of allocData) {
-        const prev = allocsMap.get(a.invoice_id) ?? 0
-        allocsMap.set(a.invoice_id, prev + (Number(a.allocated_amount) || 0))
-      }
-    }
-  } catch (err) {
-    console.warn('getClientOutstandingBills allocations notice:', err)
+  if (allocationError) throw allocationError
+  for (const a of allocData ?? []) {
+    const prev = allocsMap.get(a.invoice_id) ?? 0
+    allocsMap.set(a.invoice_id, prev + (Number(a.allocated_amount) || 0))
   }
 
   return invoices
@@ -85,6 +81,8 @@ export async function getClientOutstandingBills(clientId: number) {
 
       return {
         id: inv.id,
+        projectId: inv.project_id,
+        siteName: (inv.projects as any)?.site_location || (inv.projects as any)?.name || 'No site assigned',
         invoiceNumber: inv.invoice_number,
         invoiceDate: inv.invoice_date,
         billingPeriod: `${inv.billing_from} → ${inv.billing_to}`,
@@ -269,6 +267,7 @@ export interface RecordLumpSumPaymentParams {
   referenceNumber?: string | null
   notes?: string | null
   selectedInvoiceIds?: number[]
+  siteProjectId?: number | null
 }
 
 export async function recordLumpSumPayment(params: RecordLumpSumPaymentParams): Promise<{
@@ -287,6 +286,16 @@ export async function recordLumpSumPayment(params: RecordLumpSumPaymentParams): 
 
   // 1. Fetch outstanding bills
   const bills = await getClientOutstandingBills(clientId)
+  if (params.siteProjectId !== undefined) {
+    const selected = bills.filter(b => selectedInvoiceIds?.includes(b.id))
+    if (!selectedInvoiceIds?.length || selected.length !== selectedInvoiceIds.length ||
+        selected.some(b => b.projectId !== params.siteProjectId)) {
+      return { ok: false, error: 'Select outstanding bills belonging to the chosen site. Please refresh and try again.' }
+    }
+    if (!Number.isFinite(amount) || Math.round(amount * 100) > Math.round(selected.reduce((sum, b) => sum + b.balanceDue, 0) * 100)) {
+      return { ok: false, error: 'Payment exceeds the selected bills’ current balance. Please refresh and review the amount.' }
+    }
+  }
   const preview = calculateFifoAllocation(bills, amount, selectedInvoiceIds)
 
   // 2. Create payment record

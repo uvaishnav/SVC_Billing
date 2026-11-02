@@ -35,6 +35,8 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
 
   const [clients, setClients] = useState<Client[]>([])
   const [selectedClientId, setSelectedClientId] = useState<number | null>(initialClientId ?? null)
+  const [reloadBills, setReloadBills] = useState(0)
+  const [selectedSite, setSelectedSite] = useState('')
   const [amount, setAmount] = useState<string>('')
   const [paymentDate, setPaymentDate] = useState<string>(today)
   const [paymentMode, setPaymentMode] = useState<string>('')
@@ -42,7 +44,7 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
   const [notes, setNotes] = useState<string>('')
   const [acknowledged, setAcknowledged] = useState<boolean>(true)
 
-  const [bills, setBills] = useState<Awaited<ReturnType<typeof getClientOutstandingBills>>>([])
+  const [clientBills, setBills] = useState<Awaited<ReturnType<typeof getClientOutstandingBills>>>([])
   const [loadingBills, setLoadingBills] = useState<boolean>(false)
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<number[]>([])
   const [submitting, setSubmitting] = useState<boolean>(false)
@@ -59,25 +61,29 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
     })
   }, [])
 
-  // Load client's outstanding bills when client selection changes
+  // Ignore responses from a previous client selection.
   useEffect(() => {
+    let cancelled = false
     setSelectedInvoiceIds([])
-    if (!selectedClientId) {
-      setBills([])
-      return
-    }
-
+    setSelectedSite('')
+    setBills([])
+    setErrorMsg('')
+    if (!selectedClientId) { setLoadingBills(false); return }
     setLoadingBills(true)
     getClientOutstandingBills(selectedClientId)
-      .then(b => {
-        setBills(b)
-        setLoadingBills(false)
-      })
-      .catch(err => {
-        console.error('Error fetching bills:', err)
-        setLoadingBills(false)
-      })
-  }, [selectedClientId])
+      .then(b => { if (!cancelled) setBills(b) })
+      .catch(() => { if (!cancelled) setErrorMsg('Could not load bills. Please retry.') })
+      .finally(() => { if (!cancelled) setLoadingBills(false) })
+    return () => { cancelled = true }
+  }, [selectedClientId, reloadBills])
+
+  const sites = useMemo(() => Array.from(new Map(clientBills.map(b => [
+    String(b.projectId ?? 'unassigned'), b.siteName,
+  ])).entries()), [clientBills])
+  const bills = useMemo(() => clientBills.filter(b =>
+    selectedSite !== '' && String(b.projectId ?? 'unassigned') === selectedSite
+  ), [clientBills, selectedSite])
+  const siteName = sites.find(([id]) => id === selectedSite)?.[1]
 
   const totalClientPending = useMemo(() => {
     return bills.reduce((sum, b) => sum + b.balanceDue, 0)
@@ -88,7 +94,7 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
   const hasCustomSelection = selectedInvoiceIds.length > 0
 
   const selectedBills = useMemo(() => {
-    if (!hasCustomSelection) return bills
+    if (!hasCustomSelection) return []
     return bills.filter(b => selectedInvoiceIds.includes(b.id))
   }, [bills, hasCustomSelection, selectedInvoiceIds])
 
@@ -96,11 +102,11 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
     return selectedBills.reduce((sum, b) => sum + b.balanceDue, 0)
   }, [selectedBills])
 
-  const isSelectionInsufficient = hasCustomSelection && parsedAmount > 0 && selectedBillsTotalDue < parsedAmount - 0.01
+  const isSelectionInsufficient = hasCustomSelection && parsedAmount > 0 && Math.round(selectedBillsTotalDue * 100) < Math.round(parsedAmount * 100)
   const selectionShortfall = isSelectionInsufficient ? Math.max(0, Math.round((parsedAmount - selectedBillsTotalDue) * 100) / 100) : 0
 
   const preview: FifoAllocationPreview = useMemo(() => {
-    return calculateFifoAllocation(bills, parsedAmount, hasCustomSelection ? selectedInvoiceIds : undefined)
+    return calculateFifoAllocation(bills, hasCustomSelection ? parsedAmount : 0, selectedInvoiceIds)
   }, [bills, parsedAmount, hasCustomSelection, selectedInvoiceIds])
 
   const selectedClient = clients.find(c => c.id === selectedClientId)
@@ -129,7 +135,11 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
       setErrorMsg('Please select a client.')
       return
     }
-    if (parsedAmount <= 0) {
+    if (!selectedSite || !hasCustomSelection || loadingBills) {
+      setErrorMsg('Please select a site and the bills this payment covers.')
+      return
+    }
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
       setErrorMsg('Please enter a valid amount greater than 0.')
       return
     }
@@ -153,7 +163,8 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
         paymentMode: paymentMode || null,
         referenceNumber: referenceNumber.trim() || null,
         notes: notes.trim() || null,
-        selectedInvoiceIds: hasCustomSelection ? selectedInvoiceIds : undefined,
+        selectedInvoiceIds,
+        siteProjectId: selectedSite === 'unassigned' ? null : Number(selectedSite),
       })
 
       if (!res.ok) {
@@ -221,7 +232,7 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
               Client Payment Entry
             </div>
             <h2 style={{ margin: 0, fontSize: 17, fontFamily: 'Playfair Display, serif', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              Add Received Amount (Lump Sum / FIFO)
+              Add Site Payment
             </h2>
           </div>
           <button
@@ -266,7 +277,7 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
             </label>
             <select
               value={selectedClientId ?? ''}
-              onChange={e => setSelectedClientId(Number(e.target.value) || null)}
+              onChange={e => { setSelectedClientId(Number(e.target.value) || null); setSelectedSite(''); setBills([]); setSelectedInvoiceIds([]) }}
               required
               style={{
                 width: '100%',
@@ -289,6 +300,18 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
             </select>
           </div>
 
+          <div>
+            <label htmlFor="rpm-site" style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+              Site location *
+            </label>
+            <select id="rpm-site" required value={selectedSite} disabled={loadingBills || submitting}
+              onChange={e => { setSelectedSite(e.target.value); setSelectedInvoiceIds([]); setErrorMsg('') }}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--color-border)', background: '#fff', color: 'var(--color-text)', fontSize: 14 }}>
+              <option value="">{loadingBills ? 'Loading sites…' : 'Select a site location'}</option>
+              {sites.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            </select>
+          </div>
+
           {/* Client Outstanding Overview Banner */}
           <div
             style={{
@@ -302,7 +325,7 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
             }}
           >
             <div>
-              <div style={{ fontSize: 11, color: 'var(--color-text-faint)' }}>Total Pending Bills for {selectedClient?.name ?? 'Client'}</div>
+              <div style={{ fontSize: 11, color: 'var(--color-text-faint)' }}>Total Pending Bills for {siteName ?? 'selected site'}</div>
               <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-warning, #A05C1A)' }}>
                 ₹{fmt(totalClientPending)}
               </div>
@@ -353,9 +376,9 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
                         padding: '2px 8px',
                         borderRadius: 6,
                       }}
-                      title="Fill all outstanding dues"
+                      title="Fill this site’s outstanding dues"
                     >
-                      All Dues (₹{fmt(totalClientPending)})
+                      Site Dues (₹{fmt(totalClientPending)})
                     </button>
                   )}
                 </div>
@@ -582,7 +605,7 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
                       cursor: 'pointer',
                     }}
                   >
-                    clear selection to use default FIFO across all bills
+                    clear selection and choose bills again
                   </button>.
                 </div>
               </div>
@@ -605,31 +628,6 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
               <span style={{ fontSize: 16 }}>✓</span>
               <div style={{ fontSize: 12, color: 'var(--color-success, #5A7A2E)', fontWeight: 600 }}>
                 {selectedInvoiceIds.length} invoice{selectedInvoiceIds.length === 1 ? '' : 's'} selected (Total: ₹{fmt(selectedBillsTotalDue)}). Funds will be applied first to the earliest created bill among your selection.
-              </div>
-            </div>
-          )}
-
-          {/* Excess Advance Banner (Only in Auto FIFO mode when payment exceeds all bills) */}
-          {!hasCustomSelection && preview.unallocatedAdvance > 0.01 && (
-            <div
-              style={{
-                background: 'rgba(200, 169, 106, 0.16)',
-                border: '1px solid var(--color-accent, #C8A96A)',
-                borderRadius: 10,
-                padding: '10px 14px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-              }}
-            >
-              <span style={{ fontSize: 20 }}>💎</span>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary)' }}>
-                  All bills cleared! Remaining ₹{fmt(preview.unallocatedAdvance)} saved as Excess Advance
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-                  This amount will stay on {selectedClient?.name}'s account and can be applied to future bills anytime.
-                </div>
               </div>
             </div>
           )}
@@ -667,14 +665,14 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
                         border: '1px solid var(--color-border)',
                       }}
                     >
-                      ⚡ Auto FIFO (Oldest First)
+                      Oldest bills first
                     </span>
                   )}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--color-text-faint)', marginTop: 2 }}>
                   {hasCustomSelection
                     ? 'Targeting selected invoices (earliest date first). Click an invoice to toggle selection.'
-                    : 'Check any invoice to selectively allocate money, or leave unselected for auto FIFO.'}
+                    : 'Choose the bills this payment covers. Only selected bills receive payment, oldest first.'}
                 </div>
               </div>
 
@@ -760,14 +758,14 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
               </div>
             ) : preview.items.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '20px 12px', background: 'var(--color-surface-offset)', borderRadius: 10, color: 'var(--color-text-muted)', fontSize: 13 }}>
-                🎉 No pending bills found for {selectedClient?.name}. The entire payment will be saved as an Advance Balance.
+                {selectedSite ? 'No pending bills for this site.' : sites.length === 0 ? 'No pending bills found for this client.' : 'Select a site location to see its pending bills, oldest first.'}
               </div>
             ) : breakdownView === 'cards' ? (
               /* Mobile-optimized card list with checkboxes */
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 250, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
                 {preview.items.map(item => {
                   const isChecked = selectedInvoiceIds.includes(item.invoiceId)
-                  const isExcluded = hasCustomSelection && !isChecked
+                  const isExcluded = !isChecked
 
                   return (
                     <div
@@ -805,7 +803,9 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
                           <input
                             type="checkbox"
                             checked={isChecked}
-                            onChange={() => {}} // handled by parent onClick
+                            aria-label={`Select invoice ${item.invoiceNumber}`}
+                            onClick={e => e.stopPropagation()}
+                            onChange={() => toggleInvoiceSelection(item.invoiceId)}
                             style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--color-primary)' }}
                           />
                           <div style={{ fontWeight: 600, fontSize: 13, color: isExcluded ? 'var(--color-text-muted)' : 'var(--color-text)' }}>
@@ -896,7 +896,7 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
                   <tbody>
                     {preview.items.map(item => {
                       const isChecked = selectedInvoiceIds.includes(item.invoiceId)
-                      const isExcluded = hasCustomSelection && !isChecked
+                      const isExcluded = !isChecked
 
                       return (
                         <tr
@@ -984,13 +984,14 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
               I confirm receipt of <b>₹{fmt(parsedAmount)}</b> from <b>{selectedClient?.name ?? 'client'}</b> on <b>{paymentDate}</b>
               {hasCustomSelection
                 ? ` to clear ${selectedInvoiceIds.length} selected invoice${selectedInvoiceIds.length === 1 ? '' : 's'} (earliest date first).`
-                : ' to clear bills in ascending order (FIFO).'}
+                : ' for the bills selected above.'}
             </label>
           </div>
 
           {errorMsg && (
             <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--color-error-highlight)', border: '1px solid var(--color-error)', color: 'var(--color-error)', fontSize: 12 }}>
               {errorMsg}
+              {!loadingBills && clientBills.length === 0 && <button type="button" onClick={() => setReloadBills(n => n + 1)} style={{ marginLeft: 8 }}>Retry loading bills</button>}
             </div>
           )}
 
@@ -1017,7 +1018,7 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
             </button>
             <button
               type="submit"
-              disabled={submitting || parsedAmount <= 0 || !acknowledged || !selectedClientId || isSelectionInsufficient}
+              disabled={submitting || loadingBills || !selectedSite || !hasCustomSelection || parsedAmount <= 0 || !acknowledged || !selectedClientId || isSelectionInsufficient}
               style={{
                 flex: '2 1 200px',
                 minHeight: 46,
@@ -1028,8 +1029,8 @@ export default function RecordPaymentModal({ onClose, onSuccess, initialClientId
                 color: '#fff',
                 fontSize: 14,
                 fontWeight: 700,
-                cursor: submitting || parsedAmount <= 0 || !acknowledged || !selectedClientId || isSelectionInsufficient ? 'not-allowed' : 'pointer',
-                opacity: submitting || parsedAmount <= 0 || !acknowledged || !selectedClientId || isSelectionInsufficient ? 0.6 : 1,
+                cursor: submitting || loadingBills || !selectedSite || !hasCustomSelection || parsedAmount <= 0 || !acknowledged || !selectedClientId || isSelectionInsufficient ? 'not-allowed' : 'pointer',
+                opacity: submitting || loadingBills || !selectedSite || !hasCustomSelection || parsedAmount <= 0 || !acknowledged || !selectedClientId || isSelectionInsufficient ? 0.6 : 1,
                 boxShadow: '0 2px 8px rgba(59,42,31,0.25)',
               }}
             >
